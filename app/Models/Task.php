@@ -143,7 +143,11 @@ class Task extends Model
     // Scope methods to make queries cleaner
     public function scopeActive($query)
     {
-        return $query->where('status_id', '!=', Status::where('name', 'Closed')->first()->id);
+        static $closedStatusId = null;
+        if ($closedStatusId === null) {
+            $closedStatusId = Status::where('name', 'Closed')->first()->id;
+        }
+        return $query->where('status_id', '!=', $closedStatusId);
     }
 
     public function scopeOverdue($query)

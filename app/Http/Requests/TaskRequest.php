@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Models\Task;
 use Illuminate\Foundation\Http\FormRequest;
 
 class TaskRequest extends FormRequest
@@ -51,9 +52,8 @@ class TaskRequest extends FormRequest
     {
         $task = $this->route('task');
 
-        // Creation always authorized with current permissions
         if (!$task) {
-            return true;
+            return $this->user()->can('create', Task::class);
         }
 
         // For updates/deletes, use the TaskPolicy

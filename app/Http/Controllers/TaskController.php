@@ -106,13 +106,6 @@ class TaskController extends Controller
 
         $task->update($request->validated());
 
-        // Create history record
-        $task->history()->create([
-            'user_id' => auth()->id(),
-            'old_data' => $oldData,
-            'new_data' => $task->toArray(),
-        ]);
-
         return new TaskResource($task);
     }
 
@@ -134,14 +127,6 @@ class TaskController extends Controller
         $oldStatus = $task->status_id;
         $task->update(['status_id' => $request->status_id]);
 
-        // Log the status change in history
-        $task->history()->create([
-            'user_id' => auth()->id(),
-            'field_changed' => 'status_id',
-            'old_value' => $oldStatus,
-            'new_value' => $request->status_id,
-        ]);
-
         return new TaskResource($task);
     }
 
@@ -155,14 +140,6 @@ class TaskController extends Controller
 
         $oldResponsible = $task->responsible_id;
         $task->update(['responsible_id' => $request->responsible_id]);
-
-        // Log the assignment change in history
-        $task->history()->create([
-            'user_id' => auth()->id(),
-            'field_changed' => 'responsible_id',
-            'old_value' => $oldResponsible,
-            'new_value' => $request->responsible_id,
-        ]);
 
         return new TaskResource($task);
     }
