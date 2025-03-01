@@ -9,11 +9,13 @@ return new class extends Migration {
     {
         Schema::create('task_histories', function (Blueprint $table) {
             $table->id();
-            $table->string('old_value');
-            $table->string('new_value');
-            $table->foreignId('task_id')->constrained('tasks');
-            $table->foreignId('changed_by')->constrained('users');
-            $table->foreignId('change_type_id')->constrained('change_types');
+            $table->foreignId('task_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->string('field_changed')->nullable();
+            $table->text('old_value')->nullable();
+            $table->text('new_value')->nullable();
+            $table->json('old_data')->nullable();
+            $table->json('new_data')->nullable();
             $table->timestamps();
         });
     }

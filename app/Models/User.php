@@ -6,6 +6,7 @@ use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Passport\HasApiTokens;
@@ -65,7 +66,7 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->belongsToMany(Team::class, 'team_user','user_id','team_id');
     }
-    public function organisations() : BelongsTo
+    public function organisation() : BelongsTo
     {
         return $this->belongsTo(Organisation::class, 'organisation_id');
     }
@@ -73,5 +74,15 @@ class User extends Authenticatable implements MustVerifyEmail
     public function projects(): BelongsToMany
     {
         return $this->belongsToMany(Project::class, 'project_user','user_id','project_id');
+    }
+
+    public function tasksResponsibleFor(): HasMany
+    {
+        return $this->hasMany(Task::class, 'responsible_id');
+    }
+
+    public function tasksReported(): HasMany
+    {
+        return $this->hasMany(Task::class, 'reporter_id');
     }
 }

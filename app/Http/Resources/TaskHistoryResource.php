@@ -13,16 +13,13 @@ class TaskHistoryResource extends JsonResource
     {
         return [
             'id' => $this->id,
+            'task_id' => $this->task_id,
+            'user_id' => $this->user_id,
+            'field_changed' => $this->field_changed,
             'old_value' => $this->old_value,
             'new_value' => $this->new_value,
             'created_at' => $this->created_at,
-            'updated_at' => $this->updated_at,
-
-            'task_id' => $this->task_id,
-            'changed_by' => $this->changed_by,
-            'change_type_id' => $this->change_type_id,
-
-            'task' => new TaskResource($this->whenLoaded('task')),
+            'user' => new UserResource($this->whenLoaded('user')),
         ];
     }
 }

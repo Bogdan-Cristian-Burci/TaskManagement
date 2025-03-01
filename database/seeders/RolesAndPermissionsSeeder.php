@@ -71,6 +71,7 @@ class RolesAndPermissionsSeeder extends Seeder
             'create attachment',
             'update attachment',
             'delete attachment',
+            'force delete attachment',
 
             //Board Type permissions
             'manage board types',

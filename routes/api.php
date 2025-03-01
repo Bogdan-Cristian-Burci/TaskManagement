@@ -8,6 +8,7 @@ use App\Http\Controllers\ChangeTypeController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PriorityController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\TaskController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\APIAuthenticationController;
 use App\Http\Controllers\OAuthSocialController;
@@ -74,6 +75,17 @@ Route::middleware('auth:api')->group(function () {
 
     Route::apiResource('priorities', PriorityController::class);
     Route::post('priorities/reorder', [PriorityController::class, 'reorder']);
+
+    Route::apiResource('tasks', TaskController::class);
+
+    // Additional task endpoints
+    Route::patch('tasks/{task}/change-status', [TaskController::class, 'changeStatus']);
+    Route::patch('tasks/{task}/assign', [TaskController::class, 'assignTask']);
+
+    // Task filtering routes
+    Route::get('tasks/by-project/{project}', [TaskController::class, 'getTasksByProject']);
+    Route::get('tasks/by-user/{user}', [TaskController::class, 'getTasksByUser']);
+    Route::get('tasks/overdue', [TaskController::class, 'getOverdueTasks']);
 
     // Your other API endpoints go here...
 });

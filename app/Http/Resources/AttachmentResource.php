@@ -25,6 +25,20 @@ class AttachmentResource extends JsonResource
 
             'task' => new TaskResource($this->whenLoaded('task')),
             'user' => new UserResource($this->whenLoaded('user')),
+
+            // Add links for better HATEOAS support
+            'links' => [
+                'self' => route('attachments.show', ['attachment' => $this->id]),
+                'download' => $this->file_url,
+            ],
         ];
+    }
+
+    /**
+     * Customize the outgoing response for the resource.
+     */
+    public function withResponse($request, $response): void
+    {
+        $response->header('X-File-Size', $this->file_size);
     }
 }

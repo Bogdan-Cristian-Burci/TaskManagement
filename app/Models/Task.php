@@ -2,13 +2,50 @@
 
 namespace App\Models;
 
+use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property integer $id
+ * @property string $name
+ * @property string $description
+ * @property integer $project_id
+ * @property integer $board_id
+ * @property integer $board_column_id
+ * @property integer $status_id
+ * @property integer $priority_id
+ * @property integer $task_type_id
+ * @property integer $responsible_id
+ * @property integer $reporter_id
+ * @property integer $task_number
+ * @property integer $parent_task_id
+ * @property float $estimated_hours
+ * @property float $spent_hours
+ * @property Carbon $start_date
+ * @property Carbon $due_date
+ * @property integer $position
+ * @property Project $project
+ * @property Board $board
+ * @property BoardColumn $boardColumn
+ * @property Task[] $subtasks
+ * @property Task $parentTask
+ * @property Comment[] $comments
+ * @property Attachment[] $attachments
+ * @property TaskHistory[] $history
+ * @property Status $status
+ * @property Priority $priority
+ * @property TaskType $taskType
+ * @property User $responsible
+ * @property User $reporter
+ */
 class Task extends Model
 {
+    use HasFactory, SoftDeletes;
+
     protected $fillable = [
         'name',
         'description',
@@ -29,20 +66,42 @@ class Task extends Model
         'position'
     ];
 
+    protected $casts = [
+        'start_date' => 'datetime',
+        'due_date' => 'datetime',
+        'estimated_hours' => 'float',
+        'spent_hours' => 'float',
+        'position' => 'integer',
+    ];
+
     protected static function boot():void{
+
         parent::boot();
+
         static::creating(function($task){
             $maxTaskNumber = Task::where('project_id', $task->project_id)->max('task_number');
             $task->task_number = $maxTaskNumber + 1;
         });
+
+        static::created(function($task) {
+            event(new \App\Events\TaskCreated($task));
+        });
+
+        static::updated(function($task) {
+            event(new \App\Events\TaskUpdated($task));
+        });
+
+        static::deleting(function($task) {
+            event(new \App\Events\TaskDeleting($task));
+        });
     }
 
-    public function projects(): BelongsTo
+    public function project(): BelongsTo
     {
         return $this->belongsTo(Project::class,'project_id');
     }
 
-    public function boards(): BelongsTo
+    public function board(): BelongsTo
     {
         return $this->belongsTo(Board::class,'board_id');
     }
@@ -99,5 +158,31 @@ class Task extends Model
     public function reporter(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reporter_id');
+    }
+
+    // Scope methods to make queries cleaner
+    public function scopeActive($query)
+    {
+        return $query->where('status_id', '!=', Status::where('name', 'Closed')->first()->id);
+    }
+
+    public function scopeOverdue($query)
+    {
+        return $query->whereNotNull('due_date')
+            ->where('due_date', '<', now())
+            ->whereNotIn('status_id', [Status::where('name', 'Completed')->first()->id,
+                Status::where('name', 'Closed')->first()->id]);
+    }
+
+    public function scopeAssignedTo($query, $userId)
+    {
+        return $query->where('responsible_id', $userId);
+    }
+
+    public function isOverdue(): bool
+    {
+        return $this->due_date && $this->due_date < now() &&
+            !in_array($this->status_id, [Status::where('name', 'Completed')->first()->id,
+                Status::where('name', 'Closed')->first()->id]);
     }
 }

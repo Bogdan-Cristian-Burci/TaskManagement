@@ -11,6 +11,7 @@ use App\Models\Comment;
 use App\Models\Organisation;
 use App\Models\Priority;
 use App\Models\Project;
+use App\Models\Task;
 use App\Policies\AttachmentPolicy;
 use App\Policies\BoardColumnPolicy;
 use App\Policies\BoardPolicy;
@@ -20,6 +21,7 @@ use App\Policies\CommentPolicy;
 use App\Policies\OrganisationPolicy;
 use App\Policies\PriorityPolicy;
 use App\Policies\ProjectPolicy;
+use App\Policies\TaskPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider
@@ -40,6 +42,7 @@ class AuthServiceProvider extends ServiceProvider
         Organisation::class => OrganisationPolicy::class,
         Priority::class => PriorityPolicy::class,
         Project::class => ProjectPolicy::class,
+        Task::class => TaskPolicy::class,
     ];
 
     public function register(): void
