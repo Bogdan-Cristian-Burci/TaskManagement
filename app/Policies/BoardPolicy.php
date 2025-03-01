@@ -10,38 +10,64 @@ class BoardPolicy
 {
     use HandlesAuthorization;
 
+    /**
+     * Determine whether the user can view any boards.
+     */
     public function viewAny(User $user): bool
     {
-        return $user->can('view boards');
+        return true; // All authenticated users can see boards
     }
 
+    /**
+     * Determine whether the user can view the board.
+     */
     public function view(User $user, Board $board): bool
     {
-        return $user->can('view board');
+        // Users can view boards if they are part of the project
+        return $user->projects()->where('projects.id', $board->project_id)->exists();
     }
 
+    /**
+     * Determine whether the user can create boards.
+     */
     public function create(User $user): bool
     {
-        return $user->can('create board');
+        return $user->hasPermissionTo('create board');
     }
 
+    /**
+     * Determine whether the user can update the board.
+     */
     public function update(User $user, Board $board): bool
     {
-        return $user->can('update board');
+        return $user->hasRole('admin') ||
+            ($user->projects()->where('projects.id', $board->project_id)->exists() &&
+                $user->hasPermissionTo('update board'));
     }
 
+    /**
+     * Determine whether the user can delete the board.
+     */
     public function delete(User $user, Board $board): bool
     {
-        return $user->can('delete board');
+        return $user->hasRole('admin') ||
+            ($user->projects()->where('projects.id', $board->project_id)->exists() &&
+                $user->hasPermissionTo('delete board'));
     }
 
+    /**
+     * Determine whether the user can restore the board.
+     */
     public function restore(User $user, Board $board): bool
     {
-        return $user->can('delete board');
+        return $this->delete($user, $board);
     }
 
+    /**
+     * Determine whether the user can permanently delete the board.
+     */
     public function forceDelete(User $user, Board $board): bool
     {
-        return $user->can('delete board');
+        return $user->hasRole('admin');
     }
 }

@@ -20,7 +20,7 @@ class BoardColumnRequest extends FormRequest
             'name' => ['required', 'string', 'max:255'],
             'board_id' => ['required', 'exists:boards,id'],
             'position' => ['required', 'integer', 'min:0'],
-            'color' => ['sometimes', 'string', 'max:50'],
+            'color' => ['sometimes', 'string', 'max:50', 'regex:/^(#[0-9a-fA-F]{3,6}|[a-zA-Z]+)$/'],
             'wip_limit' => ['sometimes', 'integer', 'min:0'],
 
             // Sorting and pagination parameters
@@ -32,9 +32,9 @@ class BoardColumnRequest extends FormRequest
 
         if ($this->isMethod('PATCH') || $this->isMethod('PUT')) {
             // Make fields optional for updates
-            foreach ($rules as &$rule) {
-                $rule = array_filter($rule, fn($item) => $item !== 'required');
-            }
+            $rules['name'] = ['sometimes', 'string', 'max:255'];
+            $rules['board_id'] = ['sometimes', 'exists:boards,id'];
+            $rules['position'] = ['sometimes', 'integer', 'min:0'];
         }
 
         return $rules;

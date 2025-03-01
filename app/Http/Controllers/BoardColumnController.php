@@ -81,4 +81,20 @@ class BoardColumnController extends Controller
 
         return response()->noContent();
     }
+
+    /**
+     * Check if adding a task would exceed the column's WIP limit
+     */
+    public function checkWipLimit(Request $request, BoardColumn $boardColumn)
+    {
+        $this->authorize('view', $boardColumn);
+
+        $isAtLimit = $boardColumn->isAtWipLimit();
+
+        return response()->json([
+            'is_at_limit' => $isAtLimit,
+            'wip_limit' => $boardColumn->wip_limit,
+            'current_count' => $boardColumn->tasks()->count(),
+        ]);
+    }
 }

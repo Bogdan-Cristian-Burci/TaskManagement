@@ -9,6 +9,18 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property integer $id
+ * @property string $name
+ * @property string $description
+ * @property integer $project_id
+ * @property integer $board_type_id
+ * @property string $type
+ * @property Project $project
+ * @property BoardType $boardType
+ * @property BoardColumn[] $columns
+ * @property Task[] $tasks
+ */
 class Board extends Model
 {
     use HasFactory, SoftDeletes;
