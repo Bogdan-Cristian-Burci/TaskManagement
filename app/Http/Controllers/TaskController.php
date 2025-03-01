@@ -124,7 +124,6 @@ class TaskController extends Controller
             'status_id' => 'required|exists:statuses,id'
         ]);
 
-        $oldStatus = $task->status_id;
         $task->update(['status_id' => $request->status_id]);
 
         return new TaskResource($task);
@@ -138,7 +137,6 @@ class TaskController extends Controller
             'responsible_id' => 'required|exists:users,id'
         ]);
 
-        $oldResponsible = $task->responsible_id;
         $task->update(['responsible_id' => $request->responsible_id]);
 
         return new TaskResource($task);

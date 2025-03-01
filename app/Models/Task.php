@@ -140,7 +140,7 @@ class Task extends Model
         return $this->belongsTo(User::class, 'reporter_id');
     }
 
-    // Scope methods to make queries cleaner
+    /// Scope methods with cached status IDs
     public function scopeActive($query)
     {
         static $closedStatusId = null;
@@ -152,21 +152,37 @@ class Task extends Model
 
     public function scopeOverdue($query)
     {
+        static $completedStatusId = null;
+        static $closedStatusId = null;
+
+        if ($completedStatusId === null) {
+            $completedStatusId = Status::where('name', 'Completed')->first()->id;
+        }
+
+        if ($closedStatusId === null) {
+            $closedStatusId = Status::where('name', 'Closed')->first()->id;
+        }
+
         return $query->whereNotNull('due_date')
             ->where('due_date', '<', now())
-            ->whereNotIn('status_id', [Status::where('name', 'Completed')->first()->id,
-                Status::where('name', 'Closed')->first()->id]);
-    }
-
-    public function scopeAssignedTo($query, $userId)
-    {
-        return $query->where('responsible_id', $userId);
+            ->whereNotIn('status_id', [$completedStatusId, $closedStatusId]);
     }
 
     public function isOverdue(): bool
     {
+        static $completedStatusId = null;
+        static $closedStatusId = null;
+
+        if ($completedStatusId === null) {
+            $completedStatusId = Status::where('name', 'Completed')->first()->id;
+        }
+
+        if ($closedStatusId === null) {
+            $closedStatusId = Status::where('name', 'Closed')->first()->id;
+        }
+
         return $this->due_date && $this->due_date < now() &&
-            !in_array($this->status_id, [Status::where('name', 'Completed')->first()->id,
-                Status::where('name', 'Closed')->first()->id]);
+            !in_array($this->status_id, [$completedStatusId, $closedStatusId]);
     }
+
 }

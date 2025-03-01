@@ -37,7 +37,7 @@ class TaskResource extends JsonResource
 
             'project' => new ProjectResource($this->whenLoaded('project')),
             'board' => new BoardResource($this->whenLoaded('board')),
-            'board_column' => new BoardColumnResource($this->whenLoaded('board_column')),
+            'board_column' => new BoardColumnResource($this->whenLoaded('boardColumn')),
             'status' => new StatusResource($this->whenLoaded('status')),
             'priority' => new PriorityResource($this->whenLoaded('priority')),
             'task_type' => new TaskTypeResource($this->whenLoaded('taskType')),

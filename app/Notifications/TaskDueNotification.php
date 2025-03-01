@@ -59,7 +59,7 @@ class TaskDueNotification extends Notification implements ShouldQueue
             'task_number' => $this->task->task_number,
             'name' => $this->task->name,
             'project_id' => $this->task->project_id,
-            'project_name' => $this->task->project?->name,
+            'project_name' => $this->task->project?->name ?? 'Unknown Project',
             'due_date' => $this->task->due_date,
             'hours_remaining' => $this->task->due_date->diffInHours(now()),
             'type' => 'task_due'
