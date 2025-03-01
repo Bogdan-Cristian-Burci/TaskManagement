@@ -9,13 +9,16 @@ return new class extends Migration {
     {
         Schema::create('attachments', function (Blueprint $table) {
             $table->id();
-            $table->string('file_name')->nullable();
-            $table->string('file_url');
-            $table->string('file_size')->nullable();
-            $table->string('mime_type')->nullable();
-            $table->foreignId('task_id')->constrained('tasks');
-            $table->foreignId('user_id')->constrained('users');
+            $table->string('filename');
+            $table->string('original_filename');
+            $table->string('file_path');
+            $table->unsignedBigInteger('file_size');
+            $table->string('file_type');
+            $table->text('description')->nullable();
+            $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained('users')->nullOnDelete();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

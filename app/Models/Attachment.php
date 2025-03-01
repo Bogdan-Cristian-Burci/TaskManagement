@@ -7,17 +7,34 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
+/**
+ * @property integer $id
+ * @property integer $task_id
+ * @property integer $user_id
+ * @property string $filename
+ * @property string $original_filename
+ * @property string $file_path
+ * @property integer $file_size
+ * @property string $file_type
+ * @property string $description
+ * @property string $created_at
+ * @property string $updated_at
+ * @property Task $task
+ * @property User $user
+ */
 class Attachment extends Model
 {
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'file_name',
-        'file_url',
-        'file_size',
-        'mime_type',
         'task_id',
         'user_id',
+        'filename',
+        'original_filename',
+        'file_path',
+        'file_size',
+        'file_type',
+        'description',
     ];
 
     protected $casts = [
@@ -60,6 +77,6 @@ class Attachment extends Model
      */
     public function getIsImageAttribute(): bool
     {
-        return str_starts_with($this->mime_type, 'image/');
+        return str_starts_with($this->file_type, 'image/');
     }
 }

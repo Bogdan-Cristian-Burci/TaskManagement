@@ -87,5 +87,9 @@ Route::middleware('auth:api')->group(function () {
     Route::get('tasks/by-user/{user}', [TaskController::class, 'getTasksByUser']);
     Route::get('tasks/overdue', [TaskController::class, 'getOverdueTasks']);
 
+    // Attachment routes
+    Route::apiResource('attachments', AttachmentController::class)->except(['index']);
+    Route::get('attachments/by-task/{task}', [AttachmentController::class, 'getByTask']);
+    Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
     // Your other API endpoints go here...
 });

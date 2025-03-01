@@ -11,18 +11,10 @@ class AttachmentPolicy
 {
     use HandlesAuthorization;
 
+
     /**
-     * Perform pre-authorization checks.
+     * Determine whether the user can view any attachments.
      */
-    public function before(User $user, string $ability): ?bool
-    {
-        if ($user->can('manage all attachments')) {
-            return true;
-        }
-
-        return null; // fall through to specific permissions
-    }
-
     public function viewAny(User $user): bool
     {
         return $user->can('view attachments');
@@ -31,25 +23,15 @@ class AttachmentPolicy
     /**
      * Determine if the user can view the attachment.
      */
-    public function view(User $user, Attachment $attachment): Response
+    public function view(User $user, Attachment $attachment): bool
     {
-        if ($user->can('view attachment')) {
-            return Response::allow();
-        }
-
-        // Check if user owns the attachment
-        if ($user->id === $attachment->user_id) {
-            return Response::allow();
-        }
-
-        // Check if user is associated with the task
-        if ($attachment->task && $attachment->task->users()->where('users.id', $user->id)->exists()) {
-            return Response::allow();
-        }
-
-        return Response::deny('You do not have permission to view this attachment.');
+        // Users can view attachments if they can view the associated task
+        return $user->can('view', $attachment->task);
     }
 
+    /**
+     * Determine whether the user can create attachments.
+     */
     public function create(User $user): Response
     {
         if ($user->can('create attachment')) {
@@ -61,40 +43,27 @@ class AttachmentPolicy
     /**
      * Determine if the user can update the attachment.
      */
-    public function update(User $user, Attachment $attachment): Response
+    public function update(User $user, Attachment $attachment): bool
     {
-        if ($user->can('update attachment')) {
-            return Response::allow();
-        }
-
-        if ($user->id === $attachment->user_id) {
-            return Response::allow();
-        }
-
-        return Response::deny('You do not have permission to update this attachment.');
+        // Users can update attachments if they uploaded them or can update the associated task
+        return $user->id === $attachment->user_id || $user->can('update', $attachment->task);
     }
 
     /**
      * Determine if the user can delete the attachment.
      */
-    public function delete(User $user, Attachment $attachment): Response
+    public function delete(User $user, Attachment $attachment): bool
     {
-        if ($user->can('delete attachment')) {
-            return Response::allow();
-        }
-
-        if ($user->id === $attachment->user_id) {
-            return Response::allow();
-        }
-
-        return Response::deny('You do not have permission to delete this attachment.');
+        // Users can delete attachments if they uploaded them or can update the associated task
+        return $user->id === $attachment->user_id || $user->can('update', $attachment->task);
     }
 
     /**
      * Determine if the user can restore the attachment.
      */
-    public function restore(User $user, Attachment $attachment): Response
+    public function restore(User $user, Attachment $attachment): bool
     {
+        // Same rules as delete
         return $this->delete($user, $attachment);
     }
 

@@ -2,172 +2,118 @@
 
 namespace App\Http\Controllers;
 
-use App\Events\AttachmentCreatedEvent;
-use App\Events\AttachmentDeletedEvent;
 use App\Http\Requests\AttachmentRequest;
 use App\Http\Resources\AttachmentResource;
 use App\Models\Attachment;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
-use Illuminate\Http\Request;
-use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use App\Models\Task;
 use Illuminate\Http\Response;
-use Symfony\Component\HttpFoundation\Response as SymfonyResponse;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
+use Illuminate\Support\Facades\Gate;
+use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class AttachmentController extends Controller
 {
-    use AuthorizesRequests;
-
     /**
-     * Create a new controller instance.
+     * Get all attachments for a specific task.
      */
-    public function __construct()
+    public function getByTask(Task $task)
     {
-        $this->authorizeResource(Attachment::class, 'attachment');
-    }
+        Gate::authorize('view', $task);
 
-    /**
-     * Display a listing of attachments.
-     *
-     * @param Request $request
-     * @return AnonymousResourceCollection
-     */
-    public function index(Request $request): AnonymousResourceCollection
-    {
-        $query = Attachment::query()
-            ->with(['user', 'task']);
-
-        // Apply filters
-        $this->applyFilters($query, $request);
-
-        // Sort results
-        $sortField = $request->get('sort_by', 'created_at');
-        $sortDirection = $request->get('sort_direction', 'desc');
-        $query->orderBy($sortField, $sortDirection);
-
-        // Pagination
-        $perPage = min($request->get('per_page', 15), 100); // Prevent abuse with huge page sizes
-        $attachments = $query->paginate($perPage);
+        $attachments = $task->attachments()
+            ->with('user')
+            ->orderBy('created_at', 'desc')
+            ->get();
 
         return AttachmentResource::collection($attachments);
     }
 
     /**
-     * Store a newly created attachment.
-     *
-     * @param AttachmentRequest $request
-     * @return AttachmentResource
+     * Store a newly created attachment in storage.
      */
-    public function store(AttachmentRequest $request): AttachmentResource
+    public function store(AttachmentRequest $request)
     {
-        $attachment = Attachment::create($request->validated());
+        $validated = $request->validated();
+        $task = Task::findOrFail($validated['task_id']);
 
-        // Fire event for listeners (e.g., notifications, activity logging)
-        event(new AttachmentCreatedEvent($attachment, $request->user()));
+        // Authorization is handled in AttachmentRequest
 
-        return new AttachmentResource($attachment);
+        $file = $request->file('file');
+        $originalFilename = $file->getClientOriginalName();
+        $filename = Str::random(40) . '.' . $file->getClientOriginalExtension();
+        $filePath = $file->storeAs('attachments', $filename, 'public');
 
+        $attachment = new Attachment([
+            'task_id' => $validated['task_id'],
+            'user_id' => auth()->id(),
+            'filename' => $filename,
+            'original_filename' => $originalFilename,
+            'file_path' => $filePath,
+            'file_size' => $file->getSize(),
+            'file_type' => $file->getMimeType(),
+            'description' => $validated['description'] ?? null,
+        ]);
+
+        $attachment->save();
+
+        return (new AttachmentResource($attachment))
+            ->response()
+            ->setStatusCode(201);
     }
 
     /**
      * Display the specified attachment.
-     *
-     * @param Attachment $attachment
-     * @return AttachmentResource
      */
-    public function show(Attachment $attachment): AttachmentResource
+    public function show(Attachment $attachment)
     {
-        return new AttachmentResource($attachment->load(['user', 'task']));
+        Gate::authorize('view', $attachment);
+
+        return new AttachmentResource($attachment->load('user'));
     }
 
     /**
-     * Update the specified attachment.
-     *
-     * @param AttachmentRequest $request
-     * @param Attachment $attachment
-     * @return AttachmentResource
+     * Update the specified attachment in storage.
      */
-    public function update(AttachmentRequest $request, Attachment $attachment): AttachmentResource
+    public function update(AttachmentRequest $request, Attachment $attachment)
     {
-        $attachment->update($request->validated());
+        $validated = $request->validated();
 
-        return new AttachmentResource($attachment->fresh(['user', 'task']));
+        // Authorization is handled in AttachmentRequest
+
+        $attachment->update([
+            'description' => $validated['description'] ?? null,
+        ]);
+
+        return new AttachmentResource($attachment);
     }
 
     /**
-     * Remove the specified attachment.
-     *
-     * @param Attachment $attachment
-     * @return Response
+     * Remove the specified attachment from storage.
      */
-    public function destroy(Attachment $attachment): Response
+    public function destroy(Attachment $attachment)
     {
-        // Store attachment info before deletion for event
-        $deletedAttachment = clone $attachment;
+        Gate::authorize('delete', $attachment);
 
         $attachment->delete();
 
-        // Fire event for listeners
-        event(new AttachmentDeletedEvent($deletedAttachment, auth()->user()));
-
-        return response()->noContent(); // 204 No Content
+        return response()->noContent();
     }
 
     /**
-     * Apply filters to the attachment query.
-     *
-     * @param Builder $query
-     * @param Request $request
-     * @return void
+     * Download the attachment file.
      */
-    protected function applyFilters(Builder $query, Request $request): void
+    public function download(Attachment $attachment)
     {
-        // Filter by MIME type
-        if ($request->has('mime_type')) {
-            if (is_array($request->mime_type)) {
-                $query->whereIn('mime_type', $request->mime_type);
-            } else {
-                $query->where('mime_type', $request->mime_type);
-            }
+        Gate::authorize('view', $attachment);
+
+        if (!Storage::exists($attachment->file_path)) {
+            abort(404, 'File not found');
         }
 
-        // Filter by file type category (images, documents, etc.)
-        if ($request->has('file_type')) {
-            $fileTypePrefix = $request->file_type . '/';
-            $query->where('mime_type', 'like', $fileTypePrefix . '%');
-        }
-
-        // Filter by task
-        if ($request->has('task_id')) {
-            $query->where('task_id', $request->task_id);
-        }
-
-        // Filter by user
-        if ($request->has('user_id')) {
-            $query->where('user_id', $request->user_id);
-        }
-
-        // Filter by date range
-        if ($request->has('from_date')) {
-            $query->where('created_at', '>=', $request->from_date);
-        }
-
-        if ($request->has('to_date')) {
-            $query->where('created_at', '<=', $request->to_date);
-        }
-
-        // Filter by file size range
-        if ($request->has('min_size')) {
-            $query->where('file_size', '>=', $request->min_size);
-        }
-
-        if ($request->has('max_size')) {
-            $query->where('file_size', '<=', $request->max_size);
-        }
-
-        // Search by filename
-        if ($request->has('search')) {
-            $query->where('file_name', 'like', '%' . $request->search . '%');
-        }
+        return Storage::download(
+            $attachment->file_path,
+            $attachment->original_filename
+        );
     }
 }

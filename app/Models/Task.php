@@ -46,6 +46,7 @@ class Task extends Model
 {
     use HasFactory, SoftDeletes;
 
+
     protected $fillable = [
         'name',
         'description',
@@ -74,27 +75,6 @@ class Task extends Model
         'position' => 'integer',
     ];
 
-    protected static function boot():void{
-
-        parent::boot();
-
-        static::creating(function($task){
-            $maxTaskNumber = Task::where('project_id', $task->project_id)->max('task_number');
-            $task->task_number = $maxTaskNumber + 1;
-        });
-
-        static::created(function($task) {
-            event(new \App\Events\TaskCreated($task));
-        });
-
-        static::updated(function($task) {
-            event(new \App\Events\TaskUpdated($task));
-        });
-
-        static::deleting(function($task) {
-            event(new \App\Events\TaskDeleting($task));
-        });
-    }
 
     public function project(): BelongsTo
     {
