@@ -32,7 +32,9 @@ class BoardTypeController extends Controller
         $query->orderBy($sortField, $sortDirection);
 
         // With relationships
-        $query->with(['boards']);
+        if ($request->boolean('with_boards')) {
+            $query->with(['boards']);
+        }
 
         // Pagination
         $boardTypes = $query->paginate($request->get('per_page', 15));
@@ -45,8 +47,22 @@ class BoardTypeController extends Controller
         return new BoardTypeResource(BoardType::create($request->validated()));
     }
 
-    public function show(BoardType $boardType)
+    public function show(Request $request, BoardType $boardType)
     {
+        $with = [];
+
+        if ($request->boolean('with_boards')) {
+            $with[] = 'boards';
+        }
+
+        if ($request->boolean('with_history')) {
+            $with[] = 'history';
+        }
+
+        if (!empty($with)) {
+            $boardType->load($with);
+        }
+
         return new BoardTypeResource($boardType->load(['boards']));
     }
 
@@ -59,6 +75,13 @@ class BoardTypeController extends Controller
 
     public function destroy(BoardType $boardType)
     {
+        if ($boardType->boards()->count() > 0) {
+            return response()->json([
+                'message' => 'Cannot delete board type that has associated boards.',
+                'board_count' => $boardType->boards()->count()
+            ], 422);
+        }
+
         $boardType->delete();
 
         return response()->noContent();
