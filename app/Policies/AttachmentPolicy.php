@@ -32,13 +32,13 @@ class AttachmentPolicy
     /**
      * Determine whether the user can create attachments.
      */
-    public function create(User $user): Response
+    public function create(User $user): bool
     {
         if ($user->can('create attachment')) {
-            return Response::allow();
+            return true;
         }
 
-        return Response::deny('You do not have permission to create attachments.');
+        return false;
     }
     /**
      * Determine if the user can update the attachment.
@@ -70,12 +70,12 @@ class AttachmentPolicy
     /**
      * Determine if the user can permanently delete the attachment.
      */
-    public function forceDelete(User $user, Attachment $attachment): Response
+    public function forceDelete(User $user, Attachment $attachment): bool
     {
         if ($user->can('force delete attachment')) {
-            return Response::allow();
+            return true;
         }
 
-        return Response::deny('You do not have permission to permanently delete attachments.');
+        return false;
     }
 }

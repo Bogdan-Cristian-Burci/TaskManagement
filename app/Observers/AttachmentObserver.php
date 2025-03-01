@@ -72,12 +72,6 @@ class AttachmentObserver
             ],
         ]);
 
-        // If it's a force delete (not soft delete), remove the actual file
-        if (method_exists($attachment, 'isForceDeleting') && !$attachment->isForceDeleting()) {
-            return;
-        }
-
-        // Delete the physical file when the model is force deleted
         if ($attachment->file_path && Storage::exists($attachment->file_path)) {
             Storage::delete($attachment->file_path);
         }

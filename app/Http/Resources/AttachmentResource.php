@@ -13,10 +13,11 @@ class AttachmentResource extends JsonResource
     {
         return [
             'id' => $this->id,
-            'file_url' => $this->file_url,
+            'file_path' => $this->file_path,
             'file_size' => $this->file_size,
-            'file_name' => $this->file_name,
-            'mime_type' => $this->mime_type,
+            'filename' => $this->filename,
+            'original_filename'=> $this->original_filename,
+            'file_type' => $this->file_type,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
@@ -29,7 +30,7 @@ class AttachmentResource extends JsonResource
             // Add links for better HATEOAS support
             'links' => [
                 'self' => route('attachments.show', ['attachment' => $this->id]),
-                'download' => $this->file_url,
+                'download' => $this->file_path,
             ],
         ];
     }

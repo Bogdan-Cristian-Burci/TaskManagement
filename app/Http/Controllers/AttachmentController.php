@@ -35,7 +35,6 @@ class AttachmentController extends Controller
     public function store(AttachmentRequest $request)
     {
         $validated = $request->validated();
-        $task = Task::findOrFail($validated['task_id']);
 
         // Authorization is handled in AttachmentRequest
 

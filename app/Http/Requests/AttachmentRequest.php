@@ -8,10 +8,12 @@ use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 /**
- * @property string $file_name
- * @property string $file_url
+ * @property string $filename
+ * @property string $original_filename
+ * @property string $file_path
  * @property int $file_size
- * @property string $mime_type
+ * @property string $file_type
+ * @property string $description
  * @property int $task_id
  * @property int $user_id
  */
@@ -72,7 +74,11 @@ class AttachmentRequest extends FormRequest
                     'required',
                     'file',
                     'max:' . $maxFileSize,
-                    Rule::in(self::ALLOWED_MIME_TYPES),
+                    function ($attribute, $value, $fail) {
+                        if (!in_array($value->getMimeType(), self::ALLOWED_MIME_TYPES)) {
+                            $fail('The file must be of type: ' . implode(', ', $this->getAllowedExtensions()));
+                        }
+                    },
                 ],
                 'description' => ['nullable', 'string', 'max:255'],
             ];
@@ -95,7 +101,6 @@ class AttachmentRequest extends FormRequest
         return [
             'file.max' => 'The file size cannot exceed ' .
                 (config('attachments.max_file_size', 10240) / 1024) . 'MB.',
-            'file.mimes' => 'The file must be of type: ' . implode(', ', $this->getAllowedExtensions()),
             'task_id.exists' => 'The selected task does not exist.',
         ];
     }
