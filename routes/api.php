@@ -16,7 +16,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\APIAuthenticationController;
 use App\Http\Controllers\OAuthSocialController;
 use App\Http\Controllers\OrganisationController;
-use App\Http\Controllers\TeamsController;
+use App\Http\Controllers\TeamController;
 use App\Http\Controllers\ProjectController;
 
 // Public routes
@@ -62,18 +62,25 @@ Route::middleware('auth:api')->group(function () {
     Route::post('organisations/{organisation}/transfer-ownership', [OrganisationController::class, 'transferOwnership'])
         ->name('organisations.transfer-ownership');
 
-// Organisation related resources
+    // Organisation related resources
     Route::get('organisations/{organisation}/teams', [OrganisationController::class, 'teams'])
         ->name('organisations.teams.index');
     Route::get('organisations/{organisation}/projects', [OrganisationController::class, 'projects'])
         ->name('organisations.projects.index');
 
-    //Team resource
-    Route::apiResource('teams', TeamsController::class);
-    Route::post('teams/{team}', [TeamsController::class, 'update']);
-    Route::post('teams/{team}/attach-users', [TeamsController::class, 'attachUsers']);
-    Route::post('teams/{team}/detach-users', [TeamsController::class, 'detachUser']);
+    // Team routes
+    Route::apiResource('teams', TeamController::class);
+    Route::post('teams/{id}/restore', [TeamController::class, 'restore'])->name('teams.restore');
 
+    // Team members management
+    Route::get('teams/{team}/members', [TeamController::class, 'members'])->name('teams.members');
+    Route::post('teams/{team}/members', [TeamController::class, 'addMembers'])->name('teams.addMembers');
+    Route::delete('teams/{team}/members', [TeamController::class, 'removeMembers'])->name('teams.removeMembers');
+    Route::post('teams/{team}/change-lead', [TeamController::class, 'changeTeamLead'])->name('teams.changeTeamLead');
+
+    // Team related resources
+    Route::get('teams/{team}/projects', [TeamController::class, 'projects'])->name('teams.projects');
+    Route::get('teams/{team}/tasks', [TeamController::class, 'tasks'])->name('teams.tasks');
     //Project resource
     Route::apiResource('projects', ProjectController::class);
     Route::post('projects/{project}/attach-users', [ProjectController::class, 'attachUsers']);

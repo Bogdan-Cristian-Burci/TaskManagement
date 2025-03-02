@@ -14,6 +14,7 @@ use App\Models\Project;
 use App\Models\Status;
 use App\Models\Task;
 use App\Models\TaskType;
+use App\Models\Team;
 use App\Policies\AttachmentPolicy;
 use App\Policies\BoardColumnPolicy;
 use App\Policies\BoardPolicy;
@@ -26,6 +27,7 @@ use App\Policies\ProjectPolicy;
 use App\Policies\StatusPolicy;
 use App\Policies\TaskPolicy;
 use App\Policies\TaskTypePolicy;
+use App\Policies\TeamPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
 
 class AuthServiceProvider extends ServiceProvider
@@ -49,6 +51,7 @@ class AuthServiceProvider extends ServiceProvider
         Task::class => TaskPolicy::class,
         TaskType::class => TaskTypePolicy::class,
         Status::class => StatusPolicy::class,
+        Team::class => TeamPolicy::class,
     ];
 
     public function register(): void

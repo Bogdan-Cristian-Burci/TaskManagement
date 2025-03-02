@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->foreignId('team_lead_id')->constrained('users');
             $table->string('description')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
