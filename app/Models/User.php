@@ -49,6 +49,11 @@ class User extends Authenticatable implements MustVerifyEmail
         'remember_token',
     ];
 
+    public function organisations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organisation::class, 'organisation_user', 'user_id', 'organisation_id');
+    }
+
     /**
      * Get the attributes that should be cast.
      *

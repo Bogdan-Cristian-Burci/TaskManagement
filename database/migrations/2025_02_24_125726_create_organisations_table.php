@@ -10,13 +10,14 @@ return new class extends Migration {
         Schema::create('organisations', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('description');
+            $table->text('description');
             $table->string('logo')->nullable();
             $table->string('address')->nullable();
             $table->string('website')->nullable();
             $table->foreignId('owner_id')->constrained('users');
             $table->foreignId('created_by')->nullable()->constrained('users');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

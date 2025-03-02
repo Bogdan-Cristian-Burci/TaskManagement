@@ -8,7 +8,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
 
 
 /** @mixin Team */
-class TeamsResource extends JsonResource
+class TeamResource extends JsonResource
 {
     public function toArray(Request $request): array
     {

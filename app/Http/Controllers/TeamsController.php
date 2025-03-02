@@ -5,7 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\AssignUsersToTeamRequest;
 use App\Http\Requests\DetachUserFromTeamRequest;
 use App\Http\Requests\TeamsRequest;
-use App\Http\Resources\TeamsResource;
+use App\Http\Resources\TeamResource;
 use App\Models\Team;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
@@ -22,21 +22,21 @@ class TeamsController extends Controller
     public function index()
     {
         $user=auth()->user();
-        return TeamsResource::collection($user->teams);
+        return TeamResource::collection($user->teams);
     }
 
     /**
      * Add a new team
      *
      * @param TeamsRequest $request
-     * @return TeamsResource
+     * @return TeamResource
      */
     public function store(TeamsRequest $request)
     {
         $team = Team::create($request->validated());
         $user = auth()->user();
         $user->teams()->attach($team->id);
-        return new TeamsResource($team);
+        return new TeamResource($team);
     }
 
     public function show(Team $team)
@@ -45,7 +45,7 @@ class TeamsController extends Controller
         if (!$user->teams->contains($team)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
-        return new TeamsResource($team);
+        return new TeamResource($team);
     }
 
     public function update(TeamsRequest $request, Team $team)
@@ -58,7 +58,7 @@ class TeamsController extends Controller
 
         $team->update($request->validated());
 
-        return new TeamsResource($team);
+        return new TeamResource($team);
     }
 
     public function attachUsers(AssignUsersToTeamRequest $request, Team $team)

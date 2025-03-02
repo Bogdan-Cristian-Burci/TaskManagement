@@ -45,8 +45,28 @@ Route::middleware('auth:api')->group(function () {
     Route::post('logout', [APIAuthenticationController::class, 'logout']);
     Route::get('user', [APIAuthenticationController::class, 'user']);
 
-    //Organisation resource
+    // Organisation routes
     Route::apiResource('organisations', OrganisationController::class);
+    Route::post('organisations/{id}/restore', [OrganisationController::class, 'restore'])
+        ->name('organisations.restore');
+
+// Organisation members management
+    Route::get('organisations/{organisation}/users', [OrganisationController::class, 'users'])
+        ->name('organisations.users.index');
+    Route::post('organisations/{organisation}/users', [OrganisationController::class, 'addUser'])
+        ->name('organisations.users.add');
+    Route::put('organisations/{organisation}/users/{userId}', [OrganisationController::class, 'updateUserRole'])
+        ->name('organisations.users.update-role');
+    Route::delete('organisations/{organisation}/users/{userId}', [OrganisationController::class, 'removeUser'])
+        ->name('organisations.users.remove');
+    Route::post('organisations/{organisation}/transfer-ownership', [OrganisationController::class, 'transferOwnership'])
+        ->name('organisations.transfer-ownership');
+
+// Organisation related resources
+    Route::get('organisations/{organisation}/teams', [OrganisationController::class, 'teams'])
+        ->name('organisations.teams.index');
+    Route::get('organisations/{organisation}/projects', [OrganisationController::class, 'projects'])
+        ->name('organisations.projects.index');
 
     //Team resource
     Route::apiResource('teams', TeamsController::class);
