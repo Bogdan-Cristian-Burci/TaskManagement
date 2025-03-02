@@ -10,10 +10,12 @@ return new class extends Migration {
         Schema::create('priorities', function (Blueprint $table) {
             $table->id();
             $table->string('name');
-            $table->string('value');
+            $table->string('description')->nullable();
+            $table->string('icon',50)->nullable();
+            $table->integer('level')->nullable();
             $table->string('color',20)->nullable();
-            $table->integer('position')->nullable();
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 

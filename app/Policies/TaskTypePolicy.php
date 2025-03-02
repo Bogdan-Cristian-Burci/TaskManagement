@@ -2,39 +2,39 @@
 
 namespace App\Policies;
 
-use App\Models\ChangeType;
+use App\Models\TaskType;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
-class ChangeTypePolicy
+class TaskTypePolicy
 {
     use HandlesAuthorization;
 
     /**
-     * Determine whether the user can view any change types.
+     * Determine whether the user can view any task types.
      *
      * @param User $user
      * @return bool
      */
     public function viewAny(User $user): bool
     {
-        return true; // All authenticated users can view change types
+        return true; // All authenticated users can view task types
     }
 
     /**
-     * Determine whether the user can view the change type.
+     * Determine whether the user can view the task type.
      *
      * @param User $user
-     * @param ChangeType $changeType
+     * @param TaskType $taskType
      * @return bool
      */
-    public function view(User $user, ChangeType $changeType): bool
+    public function view(User $user, TaskType $taskType): bool
     {
-        return true; // All authenticated users can view change types
+        return true; // All authenticated users can view task types
     }
 
     /**
-     * Determine whether the user can create change types.
+     * Determine whether the user can create task types.
      *
      * @param User $user
      * @return bool
@@ -45,55 +45,55 @@ class ChangeTypePolicy
     }
 
     /**
-     * Determine whether the user can update the change type.
+     * Determine whether the user can update the task type.
      *
      * @param User $user
-     * @param ChangeType $changeType
+     * @param TaskType $taskType
      * @return bool
      */
-    public function update(User $user, ChangeType $changeType): bool
+    public function update(User $user, TaskType $taskType): bool
     {
         return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
     }
 
     /**
-     * Determine whether the user can delete the change type.
+     * Determine whether the user can delete the task type.
      *
      * @param User $user
-     * @param ChangeType $changeType
+     * @param TaskType $taskType
      * @return bool
      */
-    public function delete(User $user, ChangeType $changeType): bool
+    public function delete(User $user, TaskType $taskType): bool
     {
         return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
     }
 
     /**
-     * Determine whether the user can restore the change type.
+     * Determine whether the user can restore the task type.
      *
      * @param User $user
-     * @param ChangeType $changeType
+     * @param TaskType $taskType
      * @return bool
      */
-    public function restore(User $user, ChangeType $changeType): bool
+    public function restore(User $user, TaskType $taskType): bool
     {
         return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
     }
 
     /**
-     * Determine whether the user can permanently delete the change type.
+     * Determine whether the user can permanently delete the task type.
      *
      * @param User $user
-     * @param ChangeType $changeType
+     * @param TaskType $taskType
      * @return bool
      */
-    public function forceDelete(User $user, ChangeType $changeType): bool
+    public function forceDelete(User $user, TaskType $taskType): bool
     {
         return $user->hasRole('admin');
     }
 
     /**
-     * Determine whether the user can manage change types (for operations like clearing cache).
+     * Determine whether the user can manage task types (for operations like clearing cache).
      *
      * @param User $user
      * @return bool

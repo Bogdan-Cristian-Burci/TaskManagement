@@ -2,42 +2,80 @@
 
 namespace Database\Seeders;
 
-use Illuminate\Database\Seeder;
 use App\Models\Priority;
+use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Cache;
 
 class PrioritySeeder extends Seeder
 {
+    /**
+     * Run the database seeds.
+     *
+     * @return void
+     */
     public function run(): void
     {
-        $priorities=[
+        // Clear existing priorities
+        DB::statement('SET FOREIGN_KEY_CHECKS=0;');
+        Priority::truncate();
+        DB::statement('SET FOREIGN_KEY_CHECKS=1;');
+
+        // Clear any cached priorities
+        Cache::forget('priorities:all');
+
+        // Define priorities with proper attributes
+        $priorities = [
             [
-                'name' => 'Low',
-                'value' => '1',
-                'color' => '#28a745', // Green
-                'position' => 10
-            ],
-            [
-                'name' => 'Medium',
-                'value' => '2',
-                'color' => '#ffc107', // Yellow
-                'position' => 20
+                'name' => 'Critical',
+                'description' => 'Must be done immediately',
+                'color' => '#e74c3c', // Red
+                'icon' => 'exclamation-triangle',
+                'level' => 1,
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
                 'name' => 'High',
-                'value' => '3',
-                'color' => '#fd7e14', // Orange
-                'position' => 30
+                'description' => 'Important task that should be done soon',
+                'color' => '#f39c12', // Orange
+                'icon' => 'arrow-up',
+                'level' => 2,
+                'created_at' => now(),
+                'updated_at' => now(),
             ],
             [
-                'name' => 'Urgent',
-                'value' => '4',
-                'color' => '#dc3545', // Red
-                'position' => 40
-            ]
+                'name' => 'Medium',
+                'description' => 'Standard priority task',
+                'color' => '#3498db', // Blue
+                'icon' => 'minus',
+                'level' => 3,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'name' => 'Low',
+                'description' => 'Can be completed when time permits',
+                'color' => '#2ecc71', // Green
+                'icon' => 'arrow-down',
+                'level' => 4,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
+            [
+                'name' => 'No Priority',
+                'description' => 'Unclassified tasks without urgency',
+                'color' => '#95a5a6', // Gray
+                'icon' => 'ban',
+                'level' => 5,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ],
         ];
 
-        foreach($priorities as $priority){
-            Priority::create($priority);
-        }
+        // Insert all priorities
+        Priority::insert($priorities);
+
+        $this->command->info('Priority table seeded successfully!');
     }
 }

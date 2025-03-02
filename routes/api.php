@@ -8,7 +8,9 @@ use App\Http\Controllers\ChangeTypeController;
 use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PriorityController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\StatusController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\TaskTypeController;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\APIAuthenticationController;
 use App\Http\Controllers\OAuthSocialController;
@@ -91,5 +93,27 @@ Route::middleware('auth:api')->group(function () {
     Route::apiResource('attachments', AttachmentController::class)->except(['index']);
     Route::get('attachments/by-task/{task}', [AttachmentController::class, 'getByTask']);
     Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
+
+    Route::apiResource('task-types', TaskTypeController::class);
+    Route::post('task-types/find-by-name', [TaskTypeController::class, 'findByName']);
+    Route::post('task-types/clear-cache', [TaskTypeController::class, 'clearCache']);
+
+    // Status routes
+    Route::apiResource('statuses', StatusController::class);
+    Route::post('statuses/find-by-name', [StatusController::class, 'findByName']);
+    Route::get('statuses/default', [StatusController::class, 'getDefault']);
+    Route::post('statuses/reorder', [StatusController::class, 'reorder']);
+    Route::post('statuses/clear-cache', [StatusController::class, 'clearCache']);
+
+    // ChangeType routes
+    Route::apiResource('change-types', ChangeTypeController::class);
+    Route::post('change-types/find-by-name', [ChangeTypeController::class, 'findByName']);
+    Route::post('change-types/clear-cache', [ChangeTypeController::class, 'clearCache']);
+
+    // Priority routes
+    Route::apiResource('priorities', PriorityController::class);
+    Route::post('priorities/find-by-level', [PriorityController::class, 'findByLevel']);
+    Route::post('priorities/reorder', [PriorityController::class, 'reorder']);
+    Route::post('priorities/clear-cache', [PriorityController::class, 'clearCache']);
     // Your other API endpoints go here...
 });

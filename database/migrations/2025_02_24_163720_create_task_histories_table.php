@@ -11,6 +11,7 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('task_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
+            $table->foreign('change_type_id')->references('id')->on('change_types');
             $table->string('field_changed')->nullable();
             $table->text('old_value')->nullable();
             $table->text('new_value')->nullable();

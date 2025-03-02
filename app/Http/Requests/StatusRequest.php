@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Priority;
+use App\Models\Status;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class PriorityRequest extends FormRequest
+class StatusRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -17,18 +17,18 @@ class PriorityRequest extends FormRequest
     {
         // For store requests
         if ($this->isMethod('POST')) {
-            return $this->user()->can('create', Priority::class);
+            return $this->user()->can('create', Status::class);
         }
 
         // For update requests
-        $priority = $this->route('priority');
-        if ($priority && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
-            return $this->user()->can('update', $priority);
+        $status = $this->route('status');
+        if ($status && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
+            return $this->user()->can('update', $status);
         }
 
         // For delete requests
-        if ($priority && $this->isMethod('DELETE')) {
-            return $this->user()->can('delete', $priority);
+        if ($status && $this->isMethod('DELETE')) {
+            return $this->user()->can('delete', $status);
         }
 
         return false;
@@ -46,23 +46,17 @@ class PriorityRequest extends FormRequest
             'description' => ['nullable', 'string'],
             'color' => ['nullable', 'string', 'max:20'],
             'icon' => ['nullable', 'string', 'max:50'],
-            'level' => ['nullable', 'integer', 'min:1'],
+            'is_default' => ['boolean'],
+            'position' => ['integer', 'min:1'],
+            'category' => ['nullable', 'string', 'in:todo,in_progress,done,canceled'],
         ];
 
-        // Add unique rule for name, except for the current priority on updates
+        // Add unique rule for name, except for the current status on updates
         if ($this->isMethod('PUT') || $this->isMethod('PATCH')) {
-            $priority = $this->route('priority');
-            $rules['name'][] = Rule::unique('priorities')->ignore($priority);
-            // For level uniqueness check on update
-            if ($this->has('level')) {
-                $rules['level'][] = Rule::unique('priorities')->ignore($priority);
-            }
+            $status = $this->route('status');
+            $rules['name'][] = Rule::unique('statuses')->ignore($status);
         } else {
-            $rules['name'][] = 'unique:priorities';
-            // For level uniqueness check on creation
-            if ($this->has('level')) {
-                $rules['level'][] = 'unique:priorities';
-            }
+            $rules['name'][] = 'unique:statuses';
         }
 
         // Make fields optional for updates
@@ -85,10 +79,9 @@ class PriorityRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'The priority name is required.',
-            'name.unique' => 'This priority name is already in use.',
-            'level.unique' => 'This priority level is already in use.',
-            'level.min' => 'The priority level must be at least 1.',
+            'name.required' => 'The status name is required.',
+            'name.unique' => 'This status name is already in use.',
+            'category.in' => 'The category must be one of: todo, in_progress, done, or canceled.',
         ];
     }
 

@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
+ * @property int $id
  * @property string $name
  * @property string $value
  * @property string $color
@@ -19,14 +20,16 @@ class Priority extends Model
 
     protected $fillable = [
         'name',
-        'value',
+        'description',
         'color',
-        'position',
+        'icon',
+        'level',
     ];
 
 
     protected $casts = [
-        'position' => 'integer',
+        'level' => 'integer',
+        'deleted_at' => 'datetime',
     ];
 
     protected static function booted(): void

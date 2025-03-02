@@ -9,19 +9,32 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /** @mixin Priority */
 class PriorityResource extends JsonResource
 {
+    /**
+     * Transform the resource into an array.
+     *
+     * @param Request $request
+     * @return array
+     */
     public function toArray(Request $request): array
     {
         return [
             'id' => $this->id,
             'name' => $this->name,
-            'value' => $this->value,
+            'description' => $this->description,
             'color' => $this->color,
-            'position' => $this->position,
+            'icon' => $this->icon,
+            'level' => $this->level,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            'tasks_count' => $this->tasks_count,
+            'tasks_count' => $this->when(isset($this->tasks_count), $this->tasks_count),
 
+            // Add tasks relation when loaded
             'tasks' => TaskResource::collection($this->whenLoaded('tasks')),
+
+            // Links for better HATEOAS support
+            'links' => [
+                'self' => route('priorities.show', $this->id),
+            ],
         ];
     }
 }

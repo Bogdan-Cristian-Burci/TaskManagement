@@ -47,4 +47,9 @@ class TaskHistory extends Model
     {
         return $this->belongsTo(User::class);
     }
+
+    public function changeType(): BelongsTo
+    {
+        return $this->belongsTo(ChangeType::class, 'change_type_id');
+    }
 }

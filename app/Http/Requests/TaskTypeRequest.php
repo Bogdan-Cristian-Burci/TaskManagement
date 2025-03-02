@@ -2,11 +2,11 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Priority;
+use App\Models\TaskType;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
-class PriorityRequest extends FormRequest
+class TaskTypeRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -17,18 +17,18 @@ class PriorityRequest extends FormRequest
     {
         // For store requests
         if ($this->isMethod('POST')) {
-            return $this->user()->can('create', Priority::class);
+            return $this->user()->can('create', TaskType::class);
         }
 
         // For update requests
-        $priority = $this->route('priority');
-        if ($priority && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
-            return $this->user()->can('update', $priority);
+        $taskType = $this->route('taskType');
+        if ($taskType && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
+            return $this->user()->can('update', $taskType);
         }
 
         // For delete requests
-        if ($priority && $this->isMethod('DELETE')) {
-            return $this->user()->can('delete', $priority);
+        if ($taskType && $this->isMethod('DELETE')) {
+            return $this->user()->can('delete', $taskType);
         }
 
         return false;
@@ -43,26 +43,17 @@ class PriorityRequest extends FormRequest
     {
         $rules = [
             'name' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string'],
-            'color' => ['nullable', 'string', 'max:20'],
+            'description' => ['required', 'string'],
             'icon' => ['nullable', 'string', 'max:50'],
-            'level' => ['nullable', 'integer', 'min:1'],
+            'color' => ['nullable', 'string', 'max:20'],
         ];
 
-        // Add unique rule for name, except for the current priority on updates
+        // Add unique rule for name, except for the current task type on updates
         if ($this->isMethod('PUT') || $this->isMethod('PATCH')) {
-            $priority = $this->route('priority');
-            $rules['name'][] = Rule::unique('priorities')->ignore($priority);
-            // For level uniqueness check on update
-            if ($this->has('level')) {
-                $rules['level'][] = Rule::unique('priorities')->ignore($priority);
-            }
+            $taskType = $this->route('taskType');
+            $rules['name'][] = Rule::unique('task_types')->ignore($taskType);
         } else {
-            $rules['name'][] = 'unique:priorities';
-            // For level uniqueness check on creation
-            if ($this->has('level')) {
-                $rules['level'][] = 'unique:priorities';
-            }
+            $rules['name'][] = 'unique:task_types';
         }
 
         // Make fields optional for updates
@@ -85,10 +76,9 @@ class PriorityRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'The priority name is required.',
-            'name.unique' => 'This priority name is already in use.',
-            'level.unique' => 'This priority level is already in use.',
-            'level.min' => 'The priority level must be at least 1.',
+            'name.required' => 'The task type name is required.',
+            'name.unique' => 'This task type name is already in use.',
+            'description.required' => 'The task type description is required.',
         ];
     }
 
