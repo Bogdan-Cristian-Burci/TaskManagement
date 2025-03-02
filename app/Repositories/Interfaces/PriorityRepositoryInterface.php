@@ -16,6 +16,20 @@ interface PriorityRepositoryInterface extends RepositoryInterface
     public function findByLevel(int $level): ?Priority;
 
     /**
+     * Get the highest priority.
+     *
+     * @return Priority|null
+     */
+    public function getHighestPriority(): ?Priority;
+
+    /**
+     * Get the lowest priority.
+     *
+     * @return Priority|null
+     */
+    public function getLowestPriority(): ?Priority;
+
+    /**
      * Reorder priorities.
      *
      * @param array $priorityIds Array of priority IDs in the desired order

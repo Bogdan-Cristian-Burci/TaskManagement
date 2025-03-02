@@ -140,6 +140,26 @@ class PriorityRepository implements PriorityRepositoryInterface
     /**
      * {@inheritdoc}
      */
+    public function getHighestPriority(): ?Priority
+    {
+        return Cache::remember("priorities:highest", $this->cacheTime, function () {
+            return $this->model->orderBy('level')->first();
+        });
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getLowestPriority(): ?Priority
+    {
+        return Cache::remember("priorities:lowest", $this->cacheTime, function () {
+            return $this->model->orderBy('level', 'desc')->first();
+        });
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function reorder(array $priorityIds): bool
     {
         try {
@@ -164,7 +184,22 @@ class PriorityRepository implements PriorityRepositoryInterface
      */
     public function clearCache(): void
     {
+        // Clear collection caches
         Cache::forget('priorities:all');
+        Cache::forget('priorities:highest');
+        Cache::forget('priorities:lowest');
+
+        // Clear individual priority caches
+        $priorityIds = $this->model->pluck('id')->all();
+        foreach ($priorityIds as $id) {
+            Cache::forget("priorities:id:{$id}");
+        }
+
+        // Clear level caches
+        $levels = $this->model->pluck('level')->all();
+        foreach ($levels as $level) {
+            Cache::forget("priorities:level:{$level}");
+        }
 
         // Consider using cache tags if your cache driver supports them
         // Cache::tags(['priorities'])->flush();

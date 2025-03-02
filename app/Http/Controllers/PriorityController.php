@@ -38,7 +38,7 @@ class PriorityController extends Controller
      *
      * @return AnonymousResourceCollection
      */
-    public function index()
+    public function index() : AnonymousResourceCollection
     {
         $priorities = $this->priorityRepository->all();
 
@@ -66,7 +66,7 @@ class PriorityController extends Controller
      * @param Priority $priority
      * @return PriorityResource
      */
-    public function show(Priority $priority)
+    public function show(Priority $priority) : PriorityResource
     {
         if (request()->boolean('with_tasks_count')) {
             $priority->loadCount('tasks');
@@ -82,7 +82,7 @@ class PriorityController extends Controller
      * @param Priority $priority
      * @return PriorityResource
      */
-    public function update(PriorityRequest $request, Priority $priority)
+    public function update(PriorityRequest $request, Priority $priority) : PriorityResource
     {
         $this->priorityRepository->update($priority, $request->validated());
 
@@ -137,6 +137,47 @@ class PriorityController extends Controller
     }
 
     /**
+     * Get the highest priority.
+     *
+     * @return JsonResponse
+     */
+    public function getHighest(): JsonResponse
+    {
+        $priority = $this->priorityRepository->getHighestPriority();
+
+        if (!$priority) {
+            return response()->json([
+                'message' => 'No priorities found.'
+            ], ResponseAlias::HTTP_NOT_FOUND);
+        }
+
+        return (new PriorityResource($priority))->response();
+    }
+
+    /**
+     * Get the lowest priority.
+     *
+     * @return JsonResponse
+     */
+    /**
+     * Get the lowest priority.
+     *
+     * @return JsonResponse
+     */
+    public function getLowest(): JsonResponse
+    {
+        $priority = $this->priorityRepository->getLowestPriority();
+
+        if (!$priority) {
+            return response()->json([
+                'message' => 'No priorities found.'
+            ], ResponseAlias::HTTP_NOT_FOUND);
+        }
+
+        return (new PriorityResource($priority))->response();
+    }
+
+        /**
      * Reorder priorities.
      *
      * @param Request $request

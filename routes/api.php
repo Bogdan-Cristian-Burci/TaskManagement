@@ -113,9 +113,16 @@ Route::middleware('auth:api')->group(function () {
 
     // Priority routes
     Route::apiResource('priorities', PriorityController::class);
-    Route::post('priorities/find-by-level', [PriorityController::class, 'findByLevel']);
-    Route::post('priorities/reorder', [PriorityController::class, 'reorder']);
-    Route::post('priorities/clear-cache', [PriorityController::class, 'clearCache']);
+    Route::post('priorities/find-by-level', [PriorityController::class, 'findByLevel'])
+        ->name('priorities.find-by-level');
+    Route::get('priorities/highest', [PriorityController::class, 'getHighest'])
+        ->name('priorities.highest');
+    Route::get('priorities/lowest', [PriorityController::class, 'getLowest'])
+        ->name('priorities.lowest');
+    Route::post('priorities/reorder', [PriorityController::class, 'reorder'])
+        ->name('priorities.reorder');
+    Route::post('priorities/clear-cache', [PriorityController::class, 'clearCache'])
+        ->name('priorities.clear-cache');
 
     // Status Transition routes
     Route::apiResource('status-transitions', StatusTransitionController::class);
