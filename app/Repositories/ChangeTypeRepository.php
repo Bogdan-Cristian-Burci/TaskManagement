@@ -100,6 +100,9 @@ class ChangeTypeRepository implements ChangeTypeRepositoryInterface
         if ($updated) {
             $this->clearCache();
             Cache::forget("change_types:id:{$model->id}");
+
+            // Also clear cache for this change type's name
+            Cache::forget("change_types:name:{$model->name}");
         }
 
         return $updated;
@@ -142,9 +145,36 @@ class ChangeTypeRepository implements ChangeTypeRepositoryInterface
     /**
      * {@inheritdoc}
      */
+    public function findWithTaskHistoriesCount(): Collection
+    {
+        return Cache::remember("change_types:with_task_histories_count", $this->cacheTime, function () {
+            return $this->model->withCount(['taskHistories', 'taskHistoriesByName'])
+                ->get()
+                ->map(function ($changeType) {
+                    // Combine both relationship counts
+                    $changeType->task_histories_count =
+                        $changeType->task_histories_count + $changeType->task_histories_by_name_count;
+                    return $changeType;
+                });
+        });
+    }
+
+
+    /**
+     * {@inheritdoc}
+     */
     public function clearCache(): void
     {
+        // Clear collection caches
         Cache::forget('change_types:all');
+        Cache::forget('change_types:with_task_histories_count');
+
+        // Clear individual change type caches
+        $changeTypes = $this->model->all(['id', 'name']);
+        foreach ($changeTypes as $changeType) {
+            Cache::forget("change_types:id:{$changeType->id}");
+            Cache::forget("change_types:name:{$changeType->name}");
+        }
 
         // Consider using cache tags if your cache driver supports them
         // Cache::tags(['change_types'])->flush();

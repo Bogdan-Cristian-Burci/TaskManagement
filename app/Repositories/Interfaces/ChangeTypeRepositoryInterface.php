@@ -24,6 +24,13 @@ interface ChangeTypeRepositoryInterface extends RepositoryInterface
     public function findAllByPartialName(string $name): Collection;
 
     /**
+     * Find all change types with task histories count.
+     *
+     * @return Collection
+     */
+    public function findWithTaskHistoriesCount(): Collection;
+
+    /**
      * Clear cache for change types.
      *
      * @return void

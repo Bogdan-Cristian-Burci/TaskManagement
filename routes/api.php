@@ -108,8 +108,12 @@ Route::middleware('auth:api')->group(function () {
 
     // ChangeType routes
     Route::apiResource('change-types', ChangeTypeController::class);
-    Route::post('change-types/find-by-name', [ChangeTypeController::class, 'findByName']);
-    Route::post('change-types/clear-cache', [ChangeTypeController::class, 'clearCache']);
+    Route::post('change-types/find-by-name', [ChangeTypeController::class, 'findByName'])
+        ->name('change-types.find-by-name');
+    Route::post('change-types/sync-task-histories', [ChangeTypeController::class, 'syncTaskHistories'])
+        ->name('change-types.sync-task-histories');
+    Route::post('change-types/clear-cache', [ChangeTypeController::class, 'clearCache'])
+        ->name('change-types.clear-cache');
 
     // Priority routes
     Route::apiResource('priorities', PriorityController::class);

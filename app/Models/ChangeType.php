@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property Carbon|null $deleted_at
+ * @property-read TaskHistory[] $taskHistories
  */
 class ChangeType extends Model
 {
@@ -48,5 +49,27 @@ class ChangeType extends Model
     public function taskHistories(): HasMany
     {
         return $this->hasMany(TaskHistory::class, 'field_changed', 'name');
+    }
+
+    /**
+     * Get the task history entries with this change type name.
+     * This is for backward compatibility with existing data.
+     *
+     * @return HasMany
+     */
+    public function taskHistoriesByName(): HasMany
+    {
+        return $this->hasMany(TaskHistory::class, 'field_changed', 'name');
+    }
+
+    /**
+     * Get all task history entries related to this change type
+     * (either by ID or by name field)
+     *
+     * @return HasMany
+     */
+    public function allTaskHistories()
+    {
+        return $this->taskHistories()->orWhere('field_changed', $this->name);
     }
 }

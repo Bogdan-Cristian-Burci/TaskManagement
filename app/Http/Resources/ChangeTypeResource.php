@@ -15,6 +15,17 @@ class ChangeTypeResource extends JsonResource
             'description' => $this->description,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+
+            // Include related counts when loaded or requested
+            'task_histories_count' => $this->when(isset($this->task_histories_count), $this->task_histories_count),
+
+            // Add the task histories relation when loaded
+            'task_histories' => TaskHistoryResource::collection($this->whenLoaded('taskHistories')),
+
+            // Links for better HATEOAS support
+            'links' => [
+                'self' => route('change-types.show', $this->id),
+            ],
         ];
     }
 }

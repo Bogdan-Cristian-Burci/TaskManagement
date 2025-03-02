@@ -11,13 +11,14 @@ return new class extends Migration {
             $table->id();
             $table->foreignId('task_id')->constrained()->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained()->nullOnDelete();
-            $table->foreign('change_type_id')->references('id')->on('change_types');
             $table->string('field_changed')->nullable();
+            $table->foreignId('change_type_id')->nullable()->constrained('change_types')->nullOnDelete();
             $table->text('old_value')->nullable();
             $table->text('new_value')->nullable();
             $table->json('old_data')->nullable();
             $table->json('new_data')->nullable();
             $table->timestamps();
+            $table->index('field_changed');
         });
     }
 

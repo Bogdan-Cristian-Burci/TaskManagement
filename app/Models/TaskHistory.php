@@ -11,12 +11,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  * @property integer $task_id
  * @property integer $user_id
  * @property string $field_changed
+ * @property integer $change_type_id
  * @property string $old_value
  * @property string $new_value
  * @property array $old_data
  * @property array $new_data
  * @property Task $task
  * @property User $user
+ * @property ChangeType $changeType
  */
 class TaskHistory extends Model
 {
@@ -27,6 +29,7 @@ class TaskHistory extends Model
         'task_id',
         'user_id',
         'field_changed',
+        'change_type_id',
         'old_value',
         'new_value',
         'old_data',
@@ -34,6 +37,9 @@ class TaskHistory extends Model
     ];
 
     protected $casts = [
+        'task_id' => 'integer',
+        'user_id' => 'integer',
+        'change_type_id' => 'integer',
         'old_data' => 'array',
         'new_data' => 'array',
     ];

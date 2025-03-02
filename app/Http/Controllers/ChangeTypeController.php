@@ -40,8 +40,13 @@ class ChangeTypeController extends Controller
      * @param Request $request
      * @return AnonymousResourceCollection
      */
-    public function index(Request $request)
+    public function index(Request $request) : AnonymousResourceCollection
     {
+        if ($request->boolean('with_task_histories_count')) {
+            $changeTypes = $this->changeTypeRepository->findWithTaskHistoriesCount();
+            return ChangeTypeResource::collection($changeTypes);
+        }
+
         if ($request->has('name')) {
             $changeTypes = $this->changeTypeRepository->findAllByPartialName($request->name);
             return ChangeTypeResource::collection($changeTypes);
@@ -77,8 +82,15 @@ class ChangeTypeController extends Controller
      * @param ChangeType $changeType
      * @return ChangeTypeResource
      */
-    public function show(ChangeType $changeType)
+    public function show(ChangeType $changeType) : ChangeTypeResource
     {
+        if (request()->boolean('with_task_histories_count')) {
+            // Count both direct relationships and name-based relationships
+            $changeType->loadCount(['taskHistories', 'taskHistoriesByName']);
+            $changeType->task_histories_count =
+                $changeType->task_histories_count + $changeType->task_histories_by_name_count;
+        }
+
         return new ChangeTypeResource($changeType);
     }
 
@@ -91,7 +103,15 @@ class ChangeTypeController extends Controller
      */
     public function update(ChangeTypeRequest $request, ChangeType $changeType)
     {
+        $oldName = $changeType->name;
         $this->changeTypeRepository->update($changeType, $request->validated());
+
+        // If name changed, update task histories to use the new change type ID
+        if ($oldName !== $changeType->name && $request->has('name')) {
+            // Update the task histories that used the old name
+            TaskHistory::where('field_changed', $oldName)
+                ->update(['field_changed' => $changeType->name]);
+        }
 
         // Get a fresh instance with updated data
         $changeType = $this->changeTypeRepository->find($changeType->id);
@@ -108,7 +128,10 @@ class ChangeTypeController extends Controller
     public function destroy(ChangeType $changeType): JsonResponse
     {
         // Check if the change type is in use in task history
-        $taskHistoryCount = TaskHistory::where('field_changed', $changeType->name)->count();
+        $taskHistoryCount = TaskHistory::where('field_changed', $changeType->name)
+            ->orWhere('change_type_id', $changeType->id)
+            ->count();
+
         if ($taskHistoryCount > 0) {
             return response()->json([
                 'message' => 'Cannot delete change type that is in use.',
@@ -142,6 +165,33 @@ class ChangeTypeController extends Controller
         }
 
         return (new ChangeTypeResource($changeType))->response();
+    }
+
+    /**
+     * Sync task histories with change types based on field_changed values.
+     * This is a utility method to fix data inconsistencies after adding the change_type_id field.
+     *
+     * @return JsonResponse
+     */
+    public function syncTaskHistories(): JsonResponse
+    {
+        $this->authorize('manage', ChangeType::class);
+
+        $changeTypes = $this->changeTypeRepository->all(['id', 'name']);
+        $updated = 0;
+
+        foreach ($changeTypes as $changeType) {
+            $count = TaskHistory::where('field_changed', $changeType->name)
+                ->whereNull('change_type_id')
+                ->update(['change_type_id' => $changeType->id]);
+
+            $updated += $count;
+        }
+
+        return response()->json([
+            'message' => 'Task histories synced successfully.',
+            'updated_records' => $updated
+        ]);
     }
 
     /**
