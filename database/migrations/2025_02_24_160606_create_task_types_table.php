@@ -13,6 +13,7 @@ return new class extends Migration {
             $table->string('description');
             $table->string('icon')->nullable();
             $table->string('color',20)->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
     }

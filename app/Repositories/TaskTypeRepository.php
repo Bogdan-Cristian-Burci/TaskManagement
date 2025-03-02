@@ -148,8 +148,11 @@ class TaskTypeRepository implements TaskTypeRepositoryInterface
         Cache::forget('task_types:all');
         Cache::forget('task_types:with_tasks_count');
 
-        // Consider using cache tags if your cache driver supports them
-        // Cache::tags(['task_types'])->flush();
+        $taskTypes = $this->model->all('id', 'name');
+        foreach ($taskTypes as $taskType) {
+            Cache::forget("task_types:id:{$taskType->id}");
+            Cache::forget("task_types:name:{$taskType->name}");
+        }
     }
 
     /**

@@ -3,8 +3,10 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
  * @property integer $id
@@ -16,11 +18,22 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class TaskType extends Model
 {
+    use HasFactory, SoftDeletes;
+
     protected $fillable = [
         'name',
         'description',
         'icon',
         'color',
+    ];
+
+    /**
+     * The attributes that should be cast.
+     *
+     * @var array<string, string>
+     */
+    protected $casts = [
+        'deleted_at' => 'datetime',
     ];
 
     /**
@@ -35,6 +48,7 @@ class TaskType extends Model
 
     /**
      * Scope a query to only include active task types.
+     * Note: This is redundant with SoftDeletes trait, but kept for backward compatibility.
      *
      * @param Builder $query
      * @return Builder

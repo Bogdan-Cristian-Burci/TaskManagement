@@ -39,7 +39,7 @@ class TaskTypeController extends Controller
      * @param Request $request
      * @return AnonymousResourceCollection
      */
-    public function index(Request $request)
+    public function index(Request $request) : AnonymousResourceCollection
     {
         if ($request->boolean('with_tasks_count')) {
             $taskTypes = $this->taskTypeRepository->getWithTaskCount();
@@ -71,7 +71,7 @@ class TaskTypeController extends Controller
      * @param TaskType $taskType
      * @return TaskTypeResource
      */
-    public function show(TaskType $taskType)
+    public function show(TaskType $taskType) : TaskTypeResource
     {
         // We could use $this->taskTypeRepository->find($taskType->id) here,
         // but Laravel route model binding is more efficient in this case
@@ -90,7 +90,7 @@ class TaskTypeController extends Controller
      * @param TaskType $taskType
      * @return TaskTypeResource
      */
-    public function update(TaskTypeRequest $request, TaskType $taskType)
+    public function update(TaskTypeRequest $request, TaskType $taskType) : TaskTypeResource
     {
         $this->taskTypeRepository->update($taskType, $request->validated());
 
