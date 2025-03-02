@@ -21,4 +21,20 @@ interface StatusRepositoryInterface extends RepositoryInterface
      * @return Status|null
      */
     public function getDefault(): ?Status;
+
+    /**
+     * Get all statuses by category.
+     *
+     * @param string $category
+     * @return Collection
+     */
+    public function getByCategory(string $category): Collection;
+
+    /**
+     * Reorder status positions.
+     *
+     * @param array $ids Ordered array of status IDs
+     * @return bool
+     */
+    public function reorder(array $ids): bool;
 }

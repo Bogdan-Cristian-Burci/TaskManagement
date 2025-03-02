@@ -9,6 +9,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PriorityController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\StatusController;
+use App\Http\Controllers\StatusTransitionController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskTypeController;
 use Illuminate\Support\Facades\Route;
@@ -115,5 +116,14 @@ Route::middleware('auth:api')->group(function () {
     Route::post('priorities/find-by-level', [PriorityController::class, 'findByLevel']);
     Route::post('priorities/reorder', [PriorityController::class, 'reorder']);
     Route::post('priorities/clear-cache', [PriorityController::class, 'clearCache']);
+
+    // Status Transition routes
+    Route::apiResource('status-transitions', StatusTransitionController::class);
+    Route::get('status-transitions/from-status/{status}', [StatusTransitionController::class, 'getFromStatus'])
+        ->name('status-transitions.from-status');
+    Route::post('status-transitions/is-valid', [StatusTransitionController::class, 'isValidTransition'])
+        ->name('status-transitions.is-valid');
+    Route::post('status-transitions/clear-cache', [StatusTransitionController::class, 'clearCache'])
+        ->name('status-transitions.clear-cache');
     // Your other API endpoints go here...
 });

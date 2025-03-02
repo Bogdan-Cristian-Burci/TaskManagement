@@ -39,7 +39,7 @@ class StatusController extends Controller
      *
      * @return AnonymousResourceCollection
      */
-    public function index()
+    public function index() : AnonymousResourceCollection
     {
         $statuses = $this->statusRepository->all();
 
@@ -52,7 +52,7 @@ class StatusController extends Controller
      * @param StatusRequest $request
      * @return JsonResponse
      */
-    public function store(StatusRequest $request)
+    public function store(StatusRequest $request) : JsonResponse
     {
         $status = $this->statusRepository->create($request->validated());
 
@@ -67,7 +67,7 @@ class StatusController extends Controller
      * @param Status $status
      * @return StatusResource
      */
-    public function show(Status $status)
+    public function show(Status $status) : StatusResource
     {
         if (request()->boolean('with_tasks_count')) {
             $status->loadCount('tasks');
@@ -83,7 +83,7 @@ class StatusController extends Controller
      * @param Status $status
      * @return StatusResource
      */
-    public function update(StatusRequest $request, Status $status)
+    public function update(StatusRequest $request, Status $status) : StatusResource
     {
         // Check if another status is already default and we're setting this one to default
         if ($request->has('is_default') && $request->boolean('is_default') && !$status->is_default) {
@@ -213,5 +213,17 @@ class StatusController extends Controller
         return response()->json([
             'message' => 'Statuses reordered successfully.'
         ]);
+    }
+
+    /**
+     * Get statuses by category.
+     *
+     * @param string $category
+     * @return AnonymousResourceCollection
+     */
+    public function getByCategory(string $category): AnonymousResourceCollection
+    {
+        $statuses = $this->statusRepository->findAllBy('category', $category);
+        return StatusResource::collection($statuses);
     }
 }

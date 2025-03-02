@@ -13,6 +13,7 @@ return new class extends Migration {
             $table->foreignId('from_status_id')->constrained('statuses');
             $table->foreignId('to_status_id')->constrained('statuses');
             $table->foreignId('board_id')->constrained('boards');
+            $table->softDeletes();
             $table->timestamps();
 
             // Each transition from one status to another should be unique per board

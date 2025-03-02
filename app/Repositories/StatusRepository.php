@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\DB;
 
 class StatusRepository implements StatusRepositoryInterface
 {
@@ -154,8 +155,18 @@ class StatusRepository implements StatusRepositoryInterface
         Cache::forget('statuses:all');
         Cache::forget('statuses:default');
 
-        // Consider using cache tags if your cache driver supports them
-        // Cache::tags(['statuses'])->flush();
+        // Clear category caches
+        $categories = ['todo', 'in_progress', 'done', 'canceled'];
+        foreach ($categories as $category) {
+            Cache::forget("statuses:all:category:{$category}");
+        }
+
+        // Clear individual status caches
+        $statusIds = $this->model->pluck('id')->all();
+        foreach ($statusIds as $id) {
+            Cache::forget("statuses:id:{$id}");
+        }
+
     }
 
     /**
@@ -164,5 +175,39 @@ class StatusRepository implements StatusRepositoryInterface
     public function getModel(): Model
     {
         return $this->model;
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function getByCategory(string $category): Collection
+    {
+        return Cache::remember("statuses:category:{$category}", $this->cacheTime, function () use ($category) {
+            return $this->model->where('category', $category)->orderBy('position')->get();
+        });
+    }
+
+    /**
+     * {@inheritdoc}
+     */
+    public function reorder(array $ids): bool
+    {
+        try {
+            DB::beginTransaction();
+
+            foreach ($ids as $index => $id) {
+                $status = $this->find($id);
+                if ($status) {
+                    $status->update(['position' => $index + 1]);
+                }
+            }
+
+            DB::commit();
+            $this->clearCache();
+            return true;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return false;
+        }
     }
 }
