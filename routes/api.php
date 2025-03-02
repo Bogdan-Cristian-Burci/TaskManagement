@@ -136,5 +136,11 @@ Route::middleware('auth:api')->group(function () {
         ->name('status-transitions.is-valid');
     Route::post('status-transitions/clear-cache', [StatusTransitionController::class, 'clearCache'])
         ->name('status-transitions.clear-cache');
+
+    // Comments routes
+    Route::apiResource('tasks.comments', CommentController::class);
+    Route::get('comments/{comment}', [CommentController::class, 'show'])->name('comments.show');
+    Route::post('comments/{id}/restore', [CommentController::class, 'restore'])->name('comments.restore');
+    Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
     // Your other API endpoints go here...
 });

@@ -11,32 +11,68 @@ class CommentPolicy
 {
     use HandlesAuthorization;
 
-    public function viewAny(User $user,Task $task): bool
+    /**
+     * Determine whether the user can view any comments.
+     *
+     * @param User $user
+     * @param Task $task
+     * @return bool
+     */
+    public function viewAny(User $user, Task $task): bool
     {
         return $user->can('view', $task);
     }
 
+    /**
+     * Determine whether the user can view the comment.
+     *
+     * @param User $user
+     * @param Comment $comment
+     * @return bool
+     */
     public function view(User $user, Comment $comment): bool
     {
         return $user->can('view', $comment->task);
     }
 
+    /**
+     * Determine whether the user can create comments.
+     *
+     * @param User $user
+     * @param Task $task
+     * @return bool
+     */
     public function create(User $user, Task $task): bool
     {
         return $user->can('view', $task);
     }
 
+    /**
+     * Determine whether the user can update the comment.
+     *
+     * @param User $user
+     * @param Comment $comment
+     * @return bool
+     */
     public function update(User $user, Comment $comment): bool
     {
-        // Users can edit their own comments
-        if ($comment->user_id === $user->id) {
+        // Users can edit their own comments within a time window (e.g., 30 minutes)
+        if ($comment->user_id === $user->id &&
+            $comment->created_at->diffInMinutes(now()) <= 30) {
             return true;
         }
 
         // Admins and project managers can edit any comment
-        return $user->hasRole(['admin', 'project-manager']);
+        return $user->hasRole(['admin', 'project_manager']);
     }
 
+    /**
+     * Determine whether the user can delete the comment.
+     *
+     * @param User $user
+     * @param Comment $comment
+     * @return bool
+     */
     public function delete(User $user, Comment $comment): bool
     {
         // Users can delete their own comments
@@ -44,15 +80,35 @@ class CommentPolicy
             return true;
         }
 
+        // Task owners can delete comments on their tasks
+        $task = $comment->task;
+        if ($task && $task->responsible_id === $user->id) {
+            return true;
+        }
+
         // Admins and project managers can delete any comment
-        return $user->hasRole(['admin', 'project-manager']);
+        return $user->hasRole(['admin', 'project_manager']);
     }
 
+    /**
+     * Determine whether the user can restore the comment.
+     *
+     * @param User $user
+     * @param Comment $comment
+     * @return bool
+     */
     public function restore(User $user, Comment $comment): bool
     {
-        return $user->hasRole('admin');
+        return $user->hasRole(['admin', 'project_manager']);
     }
 
+    /**
+     * Determine whether the user can permanently delete the comment.
+     *
+     * @param User $user
+     * @param Comment $comment
+     * @return bool
+     */
     public function forceDelete(User $user, Comment $comment): bool
     {
         return $user->hasRole('admin');

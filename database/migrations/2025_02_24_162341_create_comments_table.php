@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->foreignId('user_id')->constrained('users');
             $table->foreignId('parent_id')->nullable()->constrained('comments');
             $table->timestamps();
+            $table->softDeletes();
         });
     }
 
