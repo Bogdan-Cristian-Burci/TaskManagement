@@ -198,12 +198,17 @@ class Project extends Model
      */
     public function getProgressAttribute(): float
     {
+        static $completedStatusId = null;
+        if ($completedStatusId === null) {
+            $completedStatusId = Status::where('name', 'Completed')->first()->id ?? 0;
+        }
+
         $totalTasks = $this->tasks()->count();
         if ($totalTasks === 0) {
             return 0;
         }
 
-        $completedTasks = $this->tasks()->where('status', 'completed')->count();
+        $completedTasks = $this->tasks()->where('status_id', $completedStatusId)->count();
         return round(($completedTasks / $totalTasks) * 100, 2);
     }
 

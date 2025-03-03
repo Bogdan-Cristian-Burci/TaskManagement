@@ -137,7 +137,11 @@ class Sprint extends Model
      */
     public function completedTasks(): BelongsToMany
     {
-        return $this->tasks()->where('status', 'completed');
+        static $completedStatusId = null;
+        if ($completedStatusId === null) {
+            $completedStatusId = Status::where('name', 'Completed')->first()->id ?? 0;
+        }
+        return $this->tasks()->where('status_id', $completedStatusId);
     }
 
     /**
@@ -147,7 +151,11 @@ class Sprint extends Model
      */
     public function tasksInProgress(): BelongsToMany
     {
-        return $this->tasks()->where('status', 'in_progress');
+        static $inProgressStatusId = null;
+        if ($inProgressStatusId === null) {
+            $inProgressStatusId = Status::where('name', 'Completed')->first()->id ?? 0;
+        }
+        return $this->tasks()->where('status_id', $inProgressStatusId);
     }
 
     /**
