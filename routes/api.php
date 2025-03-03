@@ -12,6 +12,7 @@ use App\Http\Controllers\PriorityController;
 use App\Http\Controllers\RolePermissionController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\StatusTransitionController;
+use App\Http\Controllers\TagController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TaskTypeController;
 use App\Http\Controllers\TwoFactorAuthController;
@@ -150,6 +151,8 @@ Route::middleware('auth:api')->group(function () {
 
         // Project statistics
         Route::get('/{project}/statistics', [ProjectController::class, 'statistics'])->name('projects.statistics');
+        Route::get('/{project}/tags', [TagController::class, 'forProject'])->name('projects.tags.index');
+        Route::post('/{project}/tags/batch', [TagController::class, 'batchCreate'])->name('projects.tags.batch');
     });
 
     Route::apiResource('boards', BoardController::class)->except('update');
@@ -235,5 +238,13 @@ Route::middleware('auth:api')->group(function () {
     Route::get('comments/{comment}', [CommentController::class, 'show'])->name('comments.show');
     Route::post('comments/{id}/restore', [CommentController::class, 'restore'])->name('comments.restore');
     Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
+
+    // Tag routes
+    Route::get('/', [TagController::class, 'index'])->name('tags.index');
+    Route::post('/', [TagController::class, 'store'])->name('tags.store');
+    Route::get('/{tag}', [TagController::class, 'show'])->name('tags.show');
+    Route::put('/{tag}', [TagController::class, 'update'])->name('tags.update');
+    Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
+    Route::post('/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
     // Your other API endpoints go here...
 });

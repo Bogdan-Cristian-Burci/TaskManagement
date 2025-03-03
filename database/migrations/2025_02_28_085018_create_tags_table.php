@@ -11,7 +11,8 @@ return new class extends Migration {
             $table->id();
             $table->string('name');
             $table->string('color');
-            $table->foreignId('projects_id')->constrained('projects');
+            $table->foreignId('project_id')->constrained('projects');
+            $table->softDeletes();
             $table->timestamps();
         });
     }

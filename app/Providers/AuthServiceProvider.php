@@ -12,6 +12,7 @@ use App\Models\Organisation;
 use App\Models\Priority;
 use App\Models\Project;
 use App\Models\Status;
+use App\Models\Tag;
 use App\Models\Task;
 use App\Models\TaskType;
 use App\Models\Team;
@@ -26,6 +27,7 @@ use App\Policies\OrganisationPolicy;
 use App\Policies\PriorityPolicy;
 use App\Policies\ProjectPolicy;
 use App\Policies\StatusPolicy;
+use App\Policies\TagPolicy;
 use App\Policies\TaskPolicy;
 use App\Policies\TaskTypePolicy;
 use App\Policies\TeamPolicy;
@@ -55,6 +57,7 @@ class AuthServiceProvider extends ServiceProvider
         Status::class => StatusPolicy::class,
         Team::class => TeamPolicy::class,
         User::class => UserPolicy::class,
+        Tag::class => TagPolicy::class,
     ];
 
     public function register(): void
