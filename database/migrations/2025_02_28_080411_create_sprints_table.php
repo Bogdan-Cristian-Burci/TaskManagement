@@ -15,6 +15,7 @@ return new class extends Migration {
             $table->foreignId('board_id')->constrained('boards')->onDelete('cascade');
             $table->string('goal')->nullable();
             $table->enum('status', ['planning', 'active', 'completed'])->default('planning');
+            $table->softDeletes();
             $table->timestamps();
         });
     }

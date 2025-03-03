@@ -10,6 +10,7 @@ use App\Http\Controllers\CommentController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PriorityController;
 use App\Http\Controllers\RolePermissionController;
+use App\Http\Controllers\SprintController;
 use App\Http\Controllers\StatusController;
 use App\Http\Controllers\StatusTransitionController;
 use App\Http\Controllers\TagController;
@@ -165,6 +166,8 @@ Route::middleware('auth:api')->group(function () {
 
     Route::apiResource('board-types', BoardTypeController::class);
     Route::apiResource('change-types', ChangeTypeController::class);
+    // Board sprints
+    Route::get('boards/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
 
     Route::get('tasks/{task}/comments', [CommentController::class, 'index']);
     Route::post('tasks/{task}/comments', [CommentController::class, 'store']);
@@ -246,5 +249,27 @@ Route::middleware('auth:api')->group(function () {
     Route::put('/{tag}', [TagController::class, 'update'])->name('tags.update');
     Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
     Route::post('/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
+
+    // Sprint routes
+    Route::prefix('sprints')->group(function () {
+        Route::get('/', [SprintController::class, 'index'])->name('sprints.index');
+        Route::post('/', [SprintController::class, 'store'])->name('sprints.store');
+        Route::get('/{sprint}', [SprintController::class, 'show'])->name('sprints.show');
+        Route::put('/{sprint}', [SprintController::class, 'update'])->name('sprints.update');
+        Route::delete('/{sprint}', [SprintController::class, 'destroy'])->name('sprints.destroy');
+        Route::post('/{id}/restore', [SprintController::class, 'restore'])->name('sprints.restore');
+
+        // Sprint actions
+        Route::post('/{sprint}/start', [SprintController::class, 'start'])->name('sprints.start');
+        Route::post('/{sprint}/complete', [SprintController::class, 'complete'])->name('sprints.complete');
+
+        // Sprint tasks
+        Route::get('/{sprint}/tasks', [SprintController::class, 'tasks'])->name('sprints.tasks.index');
+        Route::post('/{sprint}/tasks', [SprintController::class, 'addTasks'])->name('sprints.tasks.add');
+        Route::delete('/{sprint}/tasks', [SprintController::class, 'removeTasks'])->name('sprints.tasks.remove');
+
+        // Sprint statistics
+        Route::get('/{sprint}/statistics', [SprintController::class, 'statistics'])->name('sprints.statistics');
+    });
     // Your other API endpoints go here...
 });

@@ -6,6 +6,7 @@ use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -183,6 +184,11 @@ class Task extends Model
 
         return $this->due_date && $this->due_date < now() &&
             !in_array($this->status_id, [$completedStatusId, $closedStatusId]);
+    }
+
+    public function sprints(): BelongsToMany
+    {
+        return $this->belongsToMany(Sprint::class, 'sprint_task', 'task_id', 'sprint_id');
     }
 
 }

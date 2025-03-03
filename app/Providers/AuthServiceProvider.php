@@ -11,6 +11,7 @@ use App\Models\Comment;
 use App\Models\Organisation;
 use App\Models\Priority;
 use App\Models\Project;
+use App\Models\Sprint;
 use App\Models\Status;
 use App\Models\Tag;
 use App\Models\Task;
@@ -26,6 +27,7 @@ use App\Policies\CommentPolicy;
 use App\Policies\OrganisationPolicy;
 use App\Policies\PriorityPolicy;
 use App\Policies\ProjectPolicy;
+use App\Policies\SprintPolicy;
 use App\Policies\StatusPolicy;
 use App\Policies\TagPolicy;
 use App\Policies\TaskPolicy;
@@ -58,6 +60,7 @@ class AuthServiceProvider extends ServiceProvider
         Team::class => TeamPolicy::class,
         User::class => UserPolicy::class,
         Tag::class => TagPolicy::class,
+        Sprint::class => SprintPolicy::class,
     ];
 
     public function register(): void
