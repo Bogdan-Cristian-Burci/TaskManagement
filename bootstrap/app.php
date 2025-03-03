@@ -15,6 +15,8 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware) {
         $middleware->alias([
             'api.auth' => \App\Http\Middleware\ApiAuthenticationMiddleware::class,
+            'two-factor', \App\Http\Middleware\EnsureTwoFactorAuthenticatedMiddleware::class,
+            'throttle-login', \App\Http\Middleware\ThrottleLoginAttemptsMiddleware::class
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

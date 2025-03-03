@@ -19,6 +19,12 @@ return new class extends Migration
             $table->string('password');
             $table->unsignedBigInteger('organisation_id')->nullable();
             $table->rememberToken();
+            $table->text('two_factor_secret')->nullable();
+            $table->text('two_factor_temp_secret')->nullable();
+            $table->text('two_factor_recovery_codes')->nullable();
+            $table->timestamp('two_factor_confirmed_at')->nullable();
+            $table->timestamp('last_login_at')->nullable();
+            $table->string('last_login_ip')->nullable();
             $table->timestamps();
         });
 
