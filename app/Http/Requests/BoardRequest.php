@@ -2,31 +2,55 @@
 
 namespace App\Http\Requests;
 
+use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Validation\Rule;
 
 class BoardRequest extends FormRequest
 {
-    public function rules(): array
-    {
-        return [
-            'name' => ['required','string', 'max:255'],
-            'description' => ['required','string','max:255'],
-            'type' => ['sometimes','string','max:255'],
-            'project_id' => ['required', 'exists:projects,id'],
-            'board_type_id' => ['sometimes','nullable','exists:board_types,id'],
-        ];
-    }
-
+    /**
+     * Determine if the user is authorized to make this request.
+     */
     public function authorize(): bool
     {
-        if ($this->isMethod('POST') && !$this->route('board')) {
-            return $this->user()->can('create board');
+        if ($this->route('board')) {
+            return $this->user()->can('update', $this->route('board'));
         }
 
-        if ($this->isMethod('POST') && $this->route('board')) {
-            return $this->user()->can('update board');
-        }
+        return $this->user()->can('create', 'App\Models\Board');
+    }
 
-        return false;
+    /**
+     * Get the validation rules that apply to the request.
+     *
+     * @return array<string, ValidationRule|array|string>
+     */
+    public function rules(): array
+    {
+        $boardId = $this->route('board') ? $this->route('board')->id : null;
+
+        return [
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('boards')
+                    ->where('project_id', $this->input('project_id'))
+                    ->ignore($boardId)
+            ],
+            'description' => ['nullable', 'string'],
+            'type' => ['nullable', 'string', 'max:50'],
+            'project_id' => [
+                'required',
+                'exists:projects,id',
+                function ($attribute, $value, $fail) {
+                    if (!$this->user()->projects()->where('projects.id', $value)->exists()) {
+                        $fail('You do not have access to this project.');
+                    }
+                }
+            ],
+            'board_type_id' => ['required', 'exists:board_types,id'],
+            'is_archived' => ['sometimes', 'boolean'],
+        ];
     }
 }

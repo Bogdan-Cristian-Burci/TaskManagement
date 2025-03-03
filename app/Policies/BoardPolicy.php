@@ -70,4 +70,30 @@ class BoardPolicy
     {
         return $user->hasRole('admin');
     }
+
+    /**
+     * Determine whether the user can archive the board.
+     */
+    public function archive(User $user, Board $board): bool
+    {
+        return $this->update($user, $board);
+    }
+
+    /**
+     * Determine whether the user can unarchive the board.
+     */
+    public function unarchive(User $user, Board $board): bool
+    {
+        return $this->update($user, $board);
+    }
+
+    /**
+     * Determine whether the user can duplicate the board.
+     */
+    public function duplicate(User $user, Board $board): bool
+    {
+        return $user->hasRole('admin') ||
+            ($user->projects()->where('projects.id', $board->project_id)->exists() &&
+                $user->hasPermissionTo('create board'));
+    }
 }

@@ -154,10 +154,29 @@ Route::middleware('auth:api')->group(function () {
         Route::get('/{project}/statistics', [ProjectController::class, 'statistics'])->name('projects.statistics');
         Route::get('/{project}/tags', [TagController::class, 'forProject'])->name('projects.tags.index');
         Route::post('/{project}/tags/batch', [TagController::class, 'batchCreate'])->name('projects.tags.batch');
+        // Project boards
+        Route::get('/{project}/boards', [BoardController::class, 'projectBoards'])->name('projects.boards.index');
     });
 
-    Route::apiResource('boards', BoardController::class)->except('update');
-    Route::post('boards/{board}', [BoardController::class, 'update']);
+    // Board routes
+    Route::prefix('boards')->group(function () {
+        Route::get('/', [BoardController::class, 'index'])->name('boards.index');
+        Route::post('/', [BoardController::class, 'store'])->name('boards.store');
+        Route::get('/{board}', [BoardController::class, 'show'])->name('boards.show');
+        Route::put('/{board}', [BoardController::class, 'update'])->name('boards.update');
+        Route::delete('/{board}', [BoardController::class, 'destroy'])->name('boards.destroy');
+
+        // Board actions
+        Route::post('/{board}/archive', [BoardController::class, 'archive'])->name('boards.archive');
+        Route::post('/{board}/unarchive', [BoardController::class, 'unarchive'])->name('boards.unarchive');
+        Route::post('/{board}/duplicate', [BoardController::class, 'duplicate'])->name('boards.duplicate');
+        Route::post('/{id}/restore', [BoardController::class, 'restore'])->name('boards.restore');
+
+        // Board relationships
+        Route::get('/{board}/columns', [BoardController::class, 'columns'])->name('boards.columns.index');
+        Route::get('/{board}/tasks', [BoardController::class, 'tasks'])->name('boards.tasks.index');
+        Route::get('/{board}/statistics', [BoardController::class, 'statistics'])->name('boards.statistics');
+    });
 
     Route::apiResource('attachments', AttachmentController::class);
 

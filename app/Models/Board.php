@@ -7,6 +7,8 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 /**
@@ -35,7 +37,8 @@ class Board extends Model
         'description',
         'type',
         'project_id',
-        'board_type_id'
+        'board_type_id',
+        'is_archived'
     ];
 
     /**
@@ -48,6 +51,7 @@ class Board extends Model
         'project_id' => 'integer',
         'board_type_id' => 'integer',
         'deleted_at' => 'datetime',
+        'is_archived' => 'boolean'
     ];
 
     /**
@@ -91,6 +95,121 @@ class Board extends Model
     }
 
     /**
+     * Get the sprints for the board.
+     *
+     * @return HasMany
+     */
+    public function sprints(): HasMany
+    {
+        return $this->hasMany(Sprint::class);
+    }
+
+    /**
+     * Get the team associated with the board through the project.
+     *
+     * @return HasOneThrough
+     */
+    public function team(): HasOneThrough
+    {
+        return $this->hasOneThrough(
+            Team::class,
+            Project::class,
+            'id', // Foreign key on projects table
+            'id', // Foreign key on teams table
+            'project_id', // Local key on boards table
+            'team_id' // Local key on projects table
+        );
+    }
+    /**
+     * Get the active sprint for the board.
+     *
+     * @return HasOne
+     */
+    public function activeSprint()
+    {
+        return $this->hasOne(Sprint::class)->where('status', 'active');
+    }
+
+    /**
+     * Archive the board.
+     *
+     * @return bool
+     */
+    public function archive(): bool
+    {
+        // Save the current state
+        $this->is_archived = true;
+        return $this->save();
+    }
+
+    /**
+     * Unarchive the board.
+     *
+     * @return bool
+     */
+    public function unarchive(): bool
+    {
+        $this->is_archived = false;
+        return $this->save();
+    }
+
+    /**
+     * Duplicate this board with its columns.
+     *
+     * @param string|null $newName
+     * @return Board
+     */
+    public function duplicate(?string $newName = null): Board
+    {
+        $newBoard = $this->replicate(['id']);
+        $newBoard->name = $newName ?? $this->name . ' (Copy)';
+        $newBoard->save();
+
+        // Clone columns
+        foreach ($this->columns as $column) {
+            $newColumn = $column->replicate(['id', 'board_id']);
+            $newColumn->board_id = $newBoard->id;
+            $newColumn->save();
+        }
+
+        return $newBoard;
+    }
+
+    /**
+     * Get the count of tasks on this board.
+     *
+     * @return int
+     */
+    public function getTasksCountAttribute(): int
+    {
+        return $this->tasks()->count();
+    }
+
+    /**
+     * Get the count of completed tasks on this board.
+     *
+     * @return int
+     */
+    public function getCompletedTasksCountAttribute(): int
+    {
+        return $this->tasks()->where('status', 'completed')->count();
+    }
+
+    /**
+     * Get the completion percentage of tasks on this board.
+     *
+     * @return float
+     */
+    public function getCompletionPercentageAttribute(): float
+    {
+        $totalTasks = $this->tasks_count;
+        if ($totalTasks === 0) {
+            return 0;
+        }
+
+        return round(($this->completed_tasks_count / $totalTasks) * 100, 2);
+    }
+    /**
      * Scope a query to only include boards of a given project.
      *
      * @param Builder $query
@@ -100,5 +219,45 @@ class Board extends Model
     public function scopeByProject(Builder $query, int $projectId): Builder
     {
         return $query->where('project_id', $projectId);
+    }
+    /**
+     * Scope a query to only include boards of a given type.
+     *
+     * @param Builder $query
+     * @param int $boardTypeId
+     * @return Builder
+     */
+    public function scopeByType(Builder $query, int $boardTypeId): Builder
+    {
+        return $query->where('board_type_id', $boardTypeId);
+    }
+
+    /**
+     * Scope a query to include boards with activity in the last X days.
+     *
+     * @param Builder $query
+     * @param int $days
+     * @return Builder
+     */
+    public function scopeWithRecentActivity(Builder $query, int $days = 7): Builder
+    {
+        $date = now()->subDays($days);
+
+        return $query->whereHas('tasks', function ($query) use ($date) {
+            $query->where('updated_at', '>=', $date);
+        });
+    }
+
+    /**
+     * Scope a query to include boards that have active sprints.
+     *
+     * @param Builder $query
+     * @return Builder
+     */
+    public function scopeWithActiveSprints(Builder $query): Builder
+    {
+        return $query->whereHas('sprints', function ($query) {
+            $query->where('status', 'active');
+        });
     }
 }
