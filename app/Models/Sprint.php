@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Carbon\Carbon;
 
@@ -104,14 +105,21 @@ class Sprint extends Model
     /**
      * Get the project through the board relationship.
      *
-     * @return BelongsTo
+     * @return HasOneThrough
      */
-    public function project()
+    public function project(): HasOneThrough
     {
-        return $this->board->project();
+        return $this->hasOneThrough(
+            Project::class,
+            Board::class,
+            'id',      // Foreign key on boards table
+            'id',      // Foreign key on projects table
+            'board_id', // Local key on sprints table
+            'project_id' // Local key on boards table
+        );
     }
 
-    /**
+        /**
      * Get the tasks for the sprint.
      *
      * @return BelongsToMany
@@ -312,10 +320,5 @@ class Sprint extends Model
 
         $this->status = 'completed';
         return $this->save();
-    }
-
-    public function tasks2(): BelongsToMany
-    {
-        return $this->belongsToMany(Task::class, 'sprint_task', 'sprint_id', 'task_id');
     }
 }

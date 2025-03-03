@@ -125,7 +125,7 @@ class Board extends Model
      *
      * @return HasOne
      */
-    public function activeSprint()
+    public function activeSprint() : HasOne
     {
         return $this->hasOne(Sprint::class)->where('status', 'active');
     }
@@ -192,7 +192,8 @@ class Board extends Model
      */
     public function getCompletedTasksCountAttribute(): int
     {
-        return $this->tasks()->where('status', 'completed')->count();
+        $completedStatusId = Status::where('name', 'Completed')->first()->id ?? null;
+        return $completedStatusId ? $this->tasks()->where('status_id', $completedStatusId)->count() : 0;
     }
 
     /**
