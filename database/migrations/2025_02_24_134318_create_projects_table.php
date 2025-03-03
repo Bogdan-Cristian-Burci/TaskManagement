@@ -14,6 +14,10 @@ return new class extends Migration {
             $table->string('key')->nullable()->unique();
             $table->foreignId('organisation_id')->constrained('organisations');
             $table->foreignId('team_id')->constrained('teams');
+            $table->string('status')->default('planning');
+            $table->date('start_date')->nullable();
+            $table->date('end_date')->nullable();
+            $table->softDeletes();
             $table->timestamps();
         });
     }

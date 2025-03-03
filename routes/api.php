@@ -126,10 +126,31 @@ Route::middleware('auth:api')->group(function () {
     // Team related resources
     Route::get('teams/{team}/projects', [TeamController::class, 'projects'])->name('teams.projects');
     Route::get('teams/{team}/tasks', [TeamController::class, 'tasks'])->name('teams.tasks');
-    //Project resource
-    Route::apiResource('projects', ProjectController::class);
-    Route::post('projects/{project}/attach-users', [ProjectController::class, 'attachUsers']);
-    Route::post('projects/{project}/detach-users', [ProjectController::class, 'detachUser']);
+
+    // Project routes
+    Route::prefix('projects')->group(function () {
+        Route::get('/', [ProjectController::class, 'index'])->name('projects.index');
+        Route::post('/', [ProjectController::class, 'store'])->name('projects.store');
+        Route::get('/{project}', [ProjectController::class, 'show'])->name('projects.show');
+        Route::put('/{project}', [ProjectController::class, 'update'])->name('projects.update');
+        Route::delete('/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
+        Route::post('/{project}/restore', [ProjectController::class, 'restore'])->name('projects.restore');
+
+        // Project user management
+        Route::post('/{project}/users', [ProjectController::class, 'attachUsers'])->name('projects.users.attach');
+        Route::delete('/{project}/users/{user}', [ProjectController::class, 'detachUser'])->name('projects.users.detach');
+        Route::put('/{project}/users/{user}/role', [ProjectController::class, 'updateUserRole'])->name('projects.users.updateRole');
+        Route::get('/{project}/users', [ProjectController::class, 'users'])->name('projects.users.index');
+
+        // Project boards
+        Route::get('/{project}/boards', [ProjectController::class, 'boards'])->name('projects.boards.index');
+
+        // Project tasks
+        Route::get('/{project}/tasks', [ProjectController::class, 'tasks'])->name('projects.tasks.index');
+
+        // Project statistics
+        Route::get('/{project}/statistics', [ProjectController::class, 'statistics'])->name('projects.statistics');
+    });
 
     Route::apiResource('boards', BoardController::class)->except('update');
     Route::post('boards/{board}', [BoardController::class, 'update']);
