@@ -16,13 +16,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class APIAuthenticationController extends Controller
 {
-    /**
-     * Create a new controller instance.
-     */
-    public function __construct()
-    {
-        $this->middleware('auth:api')->only(['logout', 'user']);
-    }
 
     /**
      * Register a new user.
@@ -44,7 +37,7 @@ class APIAuthenticationController extends Controller
         ]);
 
         // Assign default role
-        $user->assignRole('user');
+        $user->assignRole('viewer');
 
         // Create token with appropriate scopes
         $token = $user->createToken('Registration Token', ['read-user'])->accessToken;

@@ -1,11 +1,10 @@
 <?php
 
-namespace App\Http\Controllers\Auth;
+namespace App\Http\Controllers;
 
-use App\Http\Controllers\Controller;
+
 use App\Models\User;
 use Illuminate\Auth\Events\Verified;
-use Illuminate\Foundation\Auth\EmailVerificationRequest;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
@@ -15,12 +14,11 @@ class EmailVerificationController extends Controller
     /**
      * Create a new controller instance.
      */
-    public function __construct()
-    {
-        $this->middleware('auth:api')->except('verify');
-        $this->middleware('signed')->only('verify');
-        $this->middleware('throttle:6,1')->only('verify', 'resendVerificationEmail');
-    }
+//    public function __construct()
+//    {
+//        $this->middleware('signed')->only('verify');
+//        $this->middleware('throttle:6,1')->only('verify', 'resendVerificationEmail');
+//    }
 
     /**
      * Verify the user's email address.

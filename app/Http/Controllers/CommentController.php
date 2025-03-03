@@ -18,13 +18,6 @@ class CommentController extends Controller
     use AuthorizesRequests;
 
     /**
-     * Create a new controller instance.
-     */
-    public function __construct()
-    {
-        $this->middleware('auth:api');
-    }
-    /**
      * Display a listing of the comments for a task.
      *
      * @param Request $request

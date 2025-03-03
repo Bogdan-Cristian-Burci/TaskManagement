@@ -1,12 +1,12 @@
 <?php
 
 use App\Http\Controllers\AttachmentController;
-use App\Http\Controllers\Auth\EmailVerificationController;
 use App\Http\Controllers\BoardColumnController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\BoardTypeController;
 use App\Http\Controllers\ChangeTypeController;
 use App\Http\Controllers\CommentController;
+use App\Http\Controllers\EmailVerificationController;
 use App\Http\Controllers\PasswordResetController;
 use App\Http\Controllers\PriorityController;
 use App\Http\Controllers\RolePermissionController;
@@ -42,7 +42,7 @@ Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']
 
 // Email verification routes
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
-    ->name('verification.verify');
+    ->name('verification.verify')->middleware('signed');
 Route::post('/email/verification-notification', [EmailVerificationController::class, 'resendVerificationEmail'])
     ->middleware(['auth:api', 'throttle:6,1'])
     ->name('verification.send');

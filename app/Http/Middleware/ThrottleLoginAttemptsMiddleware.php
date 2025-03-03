@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Cache\RateLimiter;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Lang;
 use Symfony\Component\HttpFoundation\Response;
@@ -79,7 +80,7 @@ class ThrottleLoginAttemptsMiddleware
      * @param int $maxAttempts
      * @return JsonResponse
      */
-    protected function buildResponse(string $key, int $maxAttempts)
+    protected function buildResponse(string $key, int $maxAttempts) : JsonResponse
     {
         $retryAfter = $this->limiter->availableIn($key);
 

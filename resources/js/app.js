@@ -8,7 +8,7 @@ import {ScrollToPlugin} from "gsap/ScrollToPlugin";
 import {Observer} from "gsap/Observer";
 
 
-
+window.gsap=gsap;
 gsap.registerPlugin(ScrollTrigger,TextPlugin, ScrollToPlugin, Observer);
 
 const lenis = new Lenis()

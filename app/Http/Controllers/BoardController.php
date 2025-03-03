@@ -26,7 +26,6 @@ class BoardController extends Controller
      */
     public function __construct()
     {
-        $this->middleware('auth:api');
         $this->authorizeResource(Board::class, 'board', [
             'except' => ['index', 'projectBoards', 'store']
         ]);

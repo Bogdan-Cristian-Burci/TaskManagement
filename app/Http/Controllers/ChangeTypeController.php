@@ -87,8 +87,8 @@ class ChangeTypeController extends Controller
         if (request()->boolean('with_task_histories_count')) {
             // Count both direct relationships and name-based relationships
             $changeType->loadCount(['taskHistories', 'taskHistoriesByName']);
-            $changeType->task_histories_count =
-                $changeType->task_histories_count + $changeType->task_histories_by_name_count;
+            $changeType->task_histories_count = $changeType->task_histories_count ?? 0;
+            $changeType->task_histories_count += $changeType->task_histories_by_name_count;
         }
 
         return new ChangeTypeResource($changeType);
