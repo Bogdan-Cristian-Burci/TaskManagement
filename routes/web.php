@@ -20,8 +20,3 @@ Route::get('/reset-password', function (Request $request) {
     ]);
 })->name('password.reset');
 
-// Handle the password reset form submission
-Route::post('/reset-password', function (Request $request) {
-    // This route will be handled by your API, not needed here
-    return redirect('/')->with('success', 'Password has been reset successfully');
-})->name('password.update');

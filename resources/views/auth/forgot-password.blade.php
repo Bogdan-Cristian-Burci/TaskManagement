@@ -1,6 +1,6 @@
 @extends('layouts.auth')
 
-@section('title', 'Reset Password')
+@section('title', 'Forgot Password')
 
 @section('styles')
     <style>
@@ -27,8 +27,8 @@
 
 @section('content')
     <div class="text-center mb-6 opacity-0" id="pageTitle">
-        <h2 class="text-2xl font-bold text-gray-800">Reset Your Password</h2>
-        <p class="mt-2 text-sm text-gray-600">Please enter your new password below</p>
+        <h2 class="text-2xl font-bold text-gray-800">Forgot Password</h2>
+        <p class="mt-2 text-sm text-gray-600">Enter your email to receive a password reset link</p>
     </div>
 
     @if (session('status'))
@@ -46,56 +46,86 @@
         </div>
     @endif
 
-    <form method="POST" action="{{ route('password.update') }}" class="opacity-0" id="resetForm">
+    <form method="POST" action="{{ route('password.email') }}" class="opacity-0" id="forgotForm">
         @csrf
 
-        <input type="hidden" name="token" value="{{ $token ?? '' }}">
-
-        <div class="mb-4">
+        <div class="mb-6">
             <label for="email" class="form-label">Email Address</label>
             <input id="email" name="email" type="email" class="form-input"
-                   value="{{ $email ?? old('email') }}" required autocomplete="email" autofocus readonly>
+                   value="{{ old('email') }}" required autocomplete="email" autofocus>
             @error('email')
             <p class="error-text">{{ $message }}</p>
             @enderror
         </div>
 
-        <div class="mb-4">
-            <label for="password" class="form-label">Password</label>
-            <input id="password" name="password" type="password" class="form-input"
-                   required autocomplete="new-password">
-            @error('password')
-            <p class="error-text">{{ $message }}</p>
-            @enderror
-        </div>
-
-        <div class="mb-6">
-            <label for="password-confirm" class="form-label">Confirm Password</label>
-            <input id="password-confirm" name="password_confirmation" type="password"
-                   class="form-input" required autocomplete="new-password">
-        </div>
-
         <div>
             <button type="submit" class="btn-primary" id="submitButton">
-                Reset Password
+                Send Reset Link
             </button>
         </div>
     </form>
 
     <div class="mt-6 text-center opacity-0" id="loginLink">
-        <a href="#" class="text-sm text-primary-600 hover:text-primary-500 transition duration-150">
+        <a href="{{ route('login') }}" class="text-sm text-primary-600 hover:text-primary-500 transition duration-150">
             Return to login
         </a>
     </div>
 @endsection
 
 @section('scripts')
+    // Page animation timeline
+    const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
 
-        document.addEventListener('DOMContentLoaded', () => {
+    tl.to("#pageTitle", { opacity: 1, y: -10, duration: 0.6, delay: 0.2 })
+    .to("#forgotForm", { opacity: 1, y: -10, duration: 0.6 }, "-=0.3")
+    .to("#loginLink", { opacity: 1, y: -10, duration: 0.6 }, "-=0.3");
 
-            @if(session('status'))
-            gsap.to("#statusAlert", { opacity: 1, y: -10, duration: 0.6 }, "-=0.4");
-            @endif
-        });
+    @if(session('status'))
+        tl.to("#statusAlert", { opacity: 1, y: -10, duration: 0.6 }, "-=0.4");
+    @endif
 
+    // Button animation
+    const button = document.getElementById("submitButton");
+    button.addEventListener("mouseenter", () => {
+    gsap.to(button, { scale: 1.03, duration: 0.3 });
+    });
+
+    button.addEventListener("mouseleave", () => {
+    gsap.to(button, { scale: 1, duration: 0.3 });
+    });
+
+    // Email input animation
+    const emailInput = document.getElementById("email");
+    emailInput.addEventListener("focus", () => {
+    gsap.to(emailInput, {
+    borderColor: '#4f46e5',
+    boxShadow: '0 0 0 3px rgba(99, 102, 241, 0.2)',
+    duration: 0.3
+    });
+    });
+
+    emailInput.addEventListener("blur", () => {
+    if (!emailInput.value) {
+    gsap.to(emailInput, {
+    borderColor: '#d1d5db',
+    boxShadow: 'none',
+    duration: 0.3
+    });
+    }
+    });
+
+    // Form submission animation
+    document.querySelector("form").addEventListener("submit", function(e) {
+    const form = this;
+    e.preventDefault();
+
+    gsap.to("#forgotForm", {
+    y: -10,
+    opacity: 0.7,
+    duration: 0.3,
+    onComplete: () => {
+    form.submit();
+    }
+    });
+    });
 @endsection

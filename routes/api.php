@@ -38,7 +38,7 @@ Route::post('/refresh-token', [APIAuthenticationController::class, 'refreshToken
 
 // Password reset routes
 Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink']);
-Route::post('/reset-password', [PasswordResetController::class, 'resetPassword']);
+Route::post('/reset-password', [PasswordResetController::class, 'resetPassword'])->name('password.update');
 
 // Email verification routes
 Route::get('/email/verify/{id}/{hash}', [EmailVerificationController::class, 'verify'])
