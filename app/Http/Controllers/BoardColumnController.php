@@ -11,7 +11,6 @@ use Illuminate\Http\Request;
 class BoardColumnController extends Controller
 {
 
-    use AuthorizesRequests;
     public function __construct()
     {
         $this->authorizeResource(BoardColumn::class, 'boardColumn');

@@ -11,7 +11,6 @@ use App\Models\Sprint;
 use App\Models\Task;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -22,7 +21,6 @@ use Throwable;
 
 class SprintController extends Controller
 {
-    use AuthorizesRequests;
 
     /**
      * Create a new controller instance.

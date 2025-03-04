@@ -6,7 +6,6 @@ use App\Http\Requests\PriorityRequest;
 use App\Http\Resources\PriorityResource;
 use App\Models\Priority;
 use App\Repositories\Interfaces\PriorityRepositoryInterface;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -14,7 +13,6 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class PriorityController extends Controller
 {
-    use AuthorizesRequests;
     /**
      * The priority repository instance.
      *

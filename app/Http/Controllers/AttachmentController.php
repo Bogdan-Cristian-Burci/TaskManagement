@@ -6,11 +6,9 @@ use App\Http\Requests\AttachmentRequest;
 use App\Http\Resources\AttachmentResource;
 use App\Models\Attachment;
 use App\Models\Task;
-use Illuminate\Http\Response;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Gate;
-use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class AttachmentController extends Controller
 {

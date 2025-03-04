@@ -11,7 +11,6 @@ use App\Http\Resources\UserResource;
 use App\Models\Team;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -19,7 +18,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TeamController extends Controller
 {
-    use AuthorizesRequests;
 
     /**
      * Create a new controller instance.

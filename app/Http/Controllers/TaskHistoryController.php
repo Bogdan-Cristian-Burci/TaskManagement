@@ -5,11 +5,10 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TaskHistoryRequest;
 use App\Http\Resources\TaskHistoryResource;
 use App\Models\TaskHistory;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 
 class TaskHistoryController extends Controller
 {
-    use AuthorizesRequests;
+
 
     public function index()
     {

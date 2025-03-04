@@ -5,13 +5,11 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TaskRequest;
 use App\Http\Resources\TaskResource;
 use App\Models\Task;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Symfony\Component\HttpFoundation\Response;
 
 class TaskController extends Controller
 {
-    use AuthorizesRequests;
 
     public function __construct()
     {

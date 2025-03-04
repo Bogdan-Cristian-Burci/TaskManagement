@@ -7,7 +7,6 @@ use App\Http\Resources\StatusTransitionResource;
 use App\Models\Status;
 use App\Models\StatusTransition;
 use App\Repositories\Interfaces\StatusTransitionRepositoryInterface;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -16,7 +15,6 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class StatusTransitionController extends Controller
 {
-    use AuthorizesRequests;
 
     /**
      * The status transition repository instance.

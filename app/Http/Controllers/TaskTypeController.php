@@ -6,7 +6,6 @@ use App\Http\Requests\TaskTypeRequest;
 use App\Http\Resources\TaskTypeResource;
 use App\Models\TaskType;
 use App\Repositories\Interfaces\TaskTypeRepositoryInterface;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -14,7 +13,6 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class TaskTypeController extends Controller
 {
-    use AuthorizesRequests;
     /**
      * The task type repository instance.
      *

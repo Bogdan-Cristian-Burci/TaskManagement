@@ -19,7 +19,6 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class BoardController extends Controller
 {
-    use AuthorizesRequests;
 
     /**
      * Create a new controller instance.

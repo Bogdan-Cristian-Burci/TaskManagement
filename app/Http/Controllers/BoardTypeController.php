@@ -10,7 +10,6 @@ use Illuminate\Http\Request;
 
 class BoardTypeController extends Controller
 {
-    use AuthorizesRequests;
 
     public function __construct()
     {

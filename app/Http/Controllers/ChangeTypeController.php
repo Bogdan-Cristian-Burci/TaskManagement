@@ -7,7 +7,6 @@ use App\Http\Resources\ChangeTypeResource;
 use App\Models\ChangeType;
 use App\Models\TaskHistory;
 use App\Repositories\Interfaces\ChangeTypeRepositoryInterface;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -15,7 +14,6 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class ChangeTypeController extends Controller
 {
-    use AuthorizesRequests;
     /**
      * The change type repository instance.
      *

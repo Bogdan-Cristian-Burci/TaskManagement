@@ -6,7 +6,6 @@ use App\Http\Requests\StatusRequest;
 use App\Http\Resources\StatusResource;
 use App\Models\Status;
 use App\Repositories\Interfaces\StatusRepositoryInterface;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -14,8 +13,6 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class StatusController extends Controller
 {
-
-    use AuthorizesRequests;
     /**
      * The status repository instance.
      *

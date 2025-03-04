@@ -3,14 +3,12 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 
 class RolePermissionController extends Controller
 {
-    use AuthorizesRequests;
     public function __construct()
     {
         $this->middleware(['permission:manage roles']);

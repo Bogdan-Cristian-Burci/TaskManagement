@@ -7,8 +7,6 @@ use App\Http\Resources\TagResource;
 use App\Models\Project;
 use App\Models\Tag;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -16,7 +14,6 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class TagController extends Controller
 {
-    use AuthorizesRequests;
 
     /**
      * Create a new controller instance.

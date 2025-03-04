@@ -13,7 +13,6 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -23,7 +22,6 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class ProjectController extends Controller
 {
-    use AuthorizesRequests;
 
     /**
      * Create a new controller instance.

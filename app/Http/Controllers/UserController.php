@@ -20,8 +20,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends Controller
 {
-    use AuthorizesRequests;
-
     /**
      * Create a new controller instance.
      */

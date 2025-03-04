@@ -10,13 +10,6 @@ use Symfony\Component\HttpFoundation\Response;
 
 class TwoFactorAuthController extends Controller
 {
-    /**
-     * Create a new controller instance.
-     */
-    public function __construct()
-    {
-        $this->middleware('auth:api');
-    }
 
     /**
      * Generate 2FA secret and QR code.
@@ -26,35 +19,46 @@ class TwoFactorAuthController extends Controller
      */
     public function enable(Request $request): JsonResponse
     {
-        $user = $request->user();
+        try {
 
-        // Check if 2FA is already enabled
-        if ($user->two_factor_secret) {
+
+            $user = $request->user();
+
+            // Check if 2FA is already enabled
+            if ($user->two_factor_secret) {
+                return response()->json([
+                    'message' => 'Two-factor authentication is already enabled'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Generate a new secret
+            $google2fa = new Google2FA();
+            $secret = $google2fa->generateSecretKey();
+
+            // Store the secret temporarily
+            $user->two_factor_temp_secret = $secret;
+            $user->save();
+
+            // Generate the QR code URL
+            $qrCodeUrl = $google2fa->getQRCodeUrl(
+                config('app.name'),
+                $user->email,
+                $secret
+            );
+
             return response()->json([
-                'message' => 'Two-factor authentication is already enabled'
-            ], Response::HTTP_BAD_REQUEST);
+                'message' => 'Two-factor authentication secret generated',
+                'secret' => $secret,
+                'qr_code_url' => $qrCodeUrl
+            ], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            // Log the exception for debugging
+            \Log::error('TwoFactorAuth enable failed: ' . $e->getMessage());
+            return response()->json([
+                'message' => 'An error occurred while enabling two-factor authentication',
+                'error' => $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
-
-        // Generate a new secret
-        $google2fa = new Google2FA();
-        $secret = $google2fa->generateSecretKey();
-
-        // Store the secret temporarily
-        $user->two_factor_temp_secret = $secret;
-        $user->save();
-
-        // Generate the QR code URL
-        $qrCodeUrl = $google2fa->getQRCodeUrl(
-            config('app.name'),
-            $user->email,
-            $secret
-        );
-
-        return response()->json([
-            'message' => 'Two-factor authentication secret generated',
-            'secret' => $secret,
-            'qr_code_url' => $qrCodeUrl
-        ], Response::HTTP_OK);
     }
 
     /**
