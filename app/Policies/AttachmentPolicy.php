@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Attachment;
 use App\Models\User;
+use App\Services\AuthorizationService;
 use Illuminate\Auth\Access\HandlesAuthorization;
 use Illuminate\Auth\Access\Response;
 
@@ -11,7 +12,11 @@ class AttachmentPolicy
 {
     use HandlesAuthorization;
 
+    protected AuthorizationService $authService;
 
+    public function __construct(AuthorizationService $authService){
+        $this->authService = $authService;
+    }
     /**
      * Determine whether the user can view any attachments.
      */

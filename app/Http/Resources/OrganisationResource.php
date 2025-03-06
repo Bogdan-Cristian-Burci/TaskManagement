@@ -20,6 +20,8 @@ class OrganisationResource extends JsonResource
         return [
             'id' => $this->id,
             'name' => $this->name,
+            'slug' => $this->slug,
+            'unique_id' => $this->unique_id,
             'description' => $this->description,
             'logo' => $this->logo,
             'address' => $this->address,

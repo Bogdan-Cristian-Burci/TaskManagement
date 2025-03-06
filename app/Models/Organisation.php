@@ -10,10 +10,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Str;
 
 /**
  * @property int $id
  * @property string $name
+ * @property string $unique_id
+ * @property string $slug
  * @property string $description
  * @property int $created_by
  * @property string|null $logo
@@ -40,6 +43,8 @@ class Organisation extends Model
      */
     protected $fillable = [
         'name',
+        'unique_id',
+        'slug',
         'description',
         'created_by',
         'logo',
@@ -60,6 +65,21 @@ class Organisation extends Model
         'deleted_at' => 'datetime',
     ];
 
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($organisation) {
+            $organisation->slug = $organisation->slug ?? Str::slug($organisation->name);
+        });
+
+        static::updating(function ($organisation) {
+            // Only regenerate slug if name changed and slug not explicitly set
+            if ($organisation->isDirty('name') && !$organisation->isDirty('slug')) {
+                $organisation->slug = Str::slug($organisation->name);
+            }
+        });
+    }
     /**
      * Get the users associated with the organisation.
      *

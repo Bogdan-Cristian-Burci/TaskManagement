@@ -5,134 +5,167 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
-    public function run(): void
+    /**
+     * Run the database seeds.
+     *
+     * @return void
+     */
+    public function run()
     {
-        // Reset cached roles and permissions
-        app()[PermissionRegistrar::class]->forgetCachedPermissions();
+        // Clear cache before running seeds
+        app()[\Spatie\Permission\PermissionRegistrar::class]->forgetCachedPermissions();
 
-        // Create permissions
-        $permissions =[
-            //Board
-            'view boards',
-            'view board',
-            'create board',
-            'update board',
-            'delete board',
-
-            //Roles and Permissions
-            'manage roles',
-            'manage permissions',
-
-            //Project
-            'view projects',
-            'view project',
-            'create project',
-            'update project',
-            'delete project',
-
-            // Team permissions
-            'view teams',
-            'view team',
-            'create team',
-            'update team',
-            'delete team',
-            'manage team members',
-
-            // Organisation permissions
-            'view-organisations',
-            'create-organisation',
-            'update-organisation',
-            'delete-organisation',
-            'restore-organisation',
-            'manage-organisation-members',
-
-            // Tag permissions
-            'view tags',
-            'view tag',
-            'create tag',
-            'update tag',
-            'delete tag',
-
-            // Task permissions
-            'view tasks',
-            'view task',
-            'create task',
-            'update task',
-            'delete task',
-            'assign task',
-
-            // Attachment permissions
-            'view attachments',
-            'view attachment',
-            'create attachment',
-            'update attachment',
-            'delete attachment',
-            'force delete attachment',
-
-            //Board Type permissions
-            'manage board types',
-
-            //Change Type permissions
-
-            'manage task settings',
-
-            //Priority permissions
-            'view priorities',
-            'create priorities',
-            'update priorities',
-            'delete priorities',
-
+        // Define models that need permissions
+        $models = [
+            'project',
+            'task',
+            'user',
+            'organisation',
+            'board',
+            'status',
+            'priority',
+            'taskType',
+            'comment',
+            'attachment',
+            'notification',
         ];
 
-        foreach ($permissions as $permission) {
-            Permission::create(['name' => $permission, 'guard_name' => 'web']);
+        // Define standard actions for each model
+        $standardActions = [
+            'viewAny',   // index method
+            'view',      // show method
+            'create',    // create/store methods
+            'update',    // edit/update methods
+            'delete',    // destroy method
+            'forceDelete', // forceDelete method
+            'restore',   // restore method
+        ];
+
+        // Extended actions for specific models
+        $extendedActions = [
+            'project' => [
+                'addMember',
+                'removeMember',
+                'changeOwner',
+            ],
+            'task' => [
+                'assign',
+                'changeStatus',
+                'changePriority',
+                'addLabel',
+                'removeLabel',
+                'moveTask',
+                'attachFile',
+                'detachFile',
+            ],
+            'organisation' => [
+                'inviteUser',
+                'removeUser',
+                'assignRole',
+                'viewMetrics',
+                'manageSettings',
+                'exportData',
+            ],
+            'board' => [
+                'reorderColumns',
+                'addColumn',
+                'removeColumn',
+                'changeColumnSettings',
+            ],
+        ];
+
+        $permissionsByRole = [
+            'super-admin' => [], // Will get all permissions
+            'admin' => [],       // Organization admin
+            'manager' => [],     // Project manager
+            'member' => [],      // Regular team member
+            'guest' => [],       // Limited view-only access
+        ];
+
+        // Create standard permissions for all models
+        foreach ($models as $model) {
+            foreach ($standardActions as $action) {
+                $permissionName = "{$model}.{$action}";
+                $permission = Permission::findOrCreate($permissionName);
+
+                // Add to admin permissions
+                $permissionsByRole['admin'][] = $permissionName;
+
+                // Add view/viewAny permissions to member role
+                if (in_array($action, ['view', 'viewAny'])) {
+                    $permissionsByRole['member'][] = $permissionName;
+                    $permissionsByRole['guest'][] = $permissionName;
+                }
+
+                // Add create/update permissions to member role
+                if (in_array($action, ['create', 'update'])) {
+                    $permissionsByRole['member'][] = $permissionName;
+                }
+
+                // Add all standard permissions to manager
+                $permissionsByRole['manager'][] = $permissionName;
+            }
+
+            // Add model-specific extended actions
+            if (isset($extendedActions[$model])) {
+                foreach ($extendedActions[$model] as $extendedAction) {
+                    $permissionName = "{$model}.{$extendedAction}";
+                    $permission = Permission::findOrCreate($permissionName);
+
+                    // Add to admin permissions
+                    $permissionsByRole['admin'][] = $permissionName;
+
+                    // Add to manager permissions
+                    $permissionsByRole['manager'][] = $permissionName;
+
+                    // Add specific permissions to member role
+                    if (in_array($extendedAction, [
+                        'assign', 'changeStatus', 'changePriority',
+                        'attachFile', 'detachFile', 'addLabel', 'removeLabel'
+                    ])) {
+                        $permissionsByRole['member'][] = $permissionName;
+                    }
+                }
+            }
         }
 
-        // Create roles and assign permissions
-        $admin = Role::create(['name' => 'admin', 'guard_name' => 'web']);
-        $admin->givePermissionTo(Permission::all());
+        // Create roles if they don't exist
+        $roles = [
+            'super-admin' => 'Super Administrator with access to everything',
+            'admin' => 'Organization Administrator',
+            'manager' => 'Project Manager',
+            'member' => 'Team Member',
+            'guest' => 'Guest User with limited access',
+        ];
 
-        $projectManager = Role::create(['name' => 'project-manager', 'guard_name' => 'web']);
-        $projectManager->givePermissionTo([
-            // Project permissions
-            'view projects', 'view project', 'create project', 'update project',
+        // Role levels (higher number = higher privilege)
+        $roleLevels = [
+            'super-admin' => 100,
+            'admin' => 80,
+            'manager' => 60,
+            'member' => 40,
+            'guest' => 20,
+        ];
 
-            // Board permissions
-            'view boards', 'view board', 'create board', 'update board', 'delete board',
+        foreach ($roles as $roleName => $roleDescription) {
+            $role = Role::firstOrCreate(['name' => $roleName], [
+                'name' => $roleName,
+                'guard_name' => 'web',
+                'level' => $roleLevels[$roleName] ?? 0
+            ]);
 
-            // Team permissions
-            'view teams', 'view team', 'manage team members',
+            // For super-admin, we don't assign specific permissions as they get all permissions via Gate::before
+            if ($roleName !== 'super-admin') {
+                // Sync permissions to the role
+                $role->syncPermissions($permissionsByRole[$roleName]);
+            }
 
-            // Tag permissions
-            'view tags', 'view tag', 'create tag', 'update tag', 'delete tag',
+            $this->command->info("Created role {$roleName} with " . count($permissionsByRole[$roleName]) . " permissions");
+        }
 
-            // Task permissions
-            'view tasks', 'view task', 'create task', 'update task', 'delete task', 'assign task',
-
-            //Priority permissions
-            'view priorities',
-        ]);
-
-        $developer = Role::create(['name' => 'developer', 'guard_name' => 'web']);
-        $developer->givePermissionTo([
-            'view projects', 'view project',
-            'view boards', 'view board',
-            'view teams', 'view team',
-            'view tags', 'view tag',
-            'view tasks', 'view task', 'update task',
-        ]);
-
-        $viewer = Role::create(['name' => 'viewer', 'guard_name' => 'web']);
-        $viewer->givePermissionTo([
-            'view projects', 'view project',
-            'view boards', 'view board',
-            'view teams', 'view team',
-            'view tags', 'view tag',
-            'view tasks', 'view task',
-        ]);
+        $this->command->info('Permissions seeded successfully!');
     }
 }

@@ -5,12 +5,15 @@ namespace App\Http\Controllers;
 use App\Http\Requests\CreateUserRequest;
 use App\Http\Requests\LoginUserRequest;
 use App\Http\Resources\UserResource;
+use App\Models\Organisation;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 
@@ -36,9 +39,28 @@ class APIAuthenticationController extends Controller
             // Add any other required fields that might be in your validation
         ]);
 
-        // Assign default role
-        $user->assignRole('viewer');
+        // Create a unique organization name
+        $baseName = $user->name . "'s Workspace";
+        $organisationName = $this->generateUniqueOrganizationName($baseName);
 
+        // Create personal organization for the user
+        $organisation = Organisation::create([
+            'name' => $organisationName,
+            'description' => 'Personal workspace created during registration',
+            'unique_id' => Str::slug($organisationName) . '-' . Str::random(6), // Add a unique identifier
+            'owner_id'=> $user->id
+        ]);
+        // Associate user with organization
+        $user->organisations()->attach($organisation->id);
+        // Assign default role
+       // $user->assignRole('admin', $organisation->id); - not working with team_id
+
+        DB::table('model_has_roles')->insert([
+            'role_id' => 2, // Role ID for 'member'
+            'model_id' => $user->id,
+            'model_type' => get_class($user),
+            'organisation_id' => $organisation->id,
+        ]);
         // Create token with appropriate scopes
         $token = $user->createToken('Registration Token', ['read-user'])->accessToken;
 
@@ -210,5 +232,25 @@ class APIAuthenticationController extends Controller
             'message' => 'Token refreshed successfully',
             'token' => $token
         ], Response::HTTP_OK);
+    }
+
+    /**
+     * Generate a unique organization name
+     *
+     * @param string $baseName
+     * @return string
+     */
+    private function generateUniqueOrganizationName(string $baseName): string
+    {
+        $name = $baseName;
+        $counter = 1;
+
+        // Check if the organization name already exists
+        while (Organisation::where('name', $name)->exists()) {
+            $name = $baseName . ' ' . $counter;
+            $counter++;
+        }
+
+        return $name;
     }
 }

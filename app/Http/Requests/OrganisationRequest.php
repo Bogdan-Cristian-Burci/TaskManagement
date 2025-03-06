@@ -15,8 +15,23 @@ class OrganisationRequest extends FormRequest
      */
     public function rules(): array
     {
+        $organisationId = $this->route('organisation') ? $this->route('organisation')->id : null;
+
         $rules = [
             'name' => ['required', 'string', 'max:255'],
+            'slug' => [
+                'sometimes',
+                'string',
+                'max:255',
+                'alpha_dash', // Only allow alphanumeric chars, dashes and underscores
+                Rule::unique('organisations', 'slug')->ignore($organisationId),
+            ],
+            'unique_id' => [
+                'sometimes',
+                'string',
+                'max:255',
+                Rule::unique('organisations', 'unique_id')->ignore($organisationId),
+            ],
             'description' => ['nullable', 'string'],
             'logo' => ['nullable', 'string', 'max:1024'], // Limit URL length
             'address' => ['nullable', 'string', 'max:255'],

@@ -10,6 +10,8 @@ return new class extends Migration {
         Schema::create('organisations', function (Blueprint $table) {
             $table->id();
             $table->string('name');
+            $table->string('unique_id')->unique();
+            $table->string('slug')->unique();
             $table->text('description');
             $table->string('logo')->nullable();
             $table->string('address')->nullable();
