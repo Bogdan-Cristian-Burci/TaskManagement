@@ -19,12 +19,12 @@ class StoreUserRequest extends FormRequest
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
+            'organisation_id' => 'required|integer|exists:organisations,id',
             'avatar' => 'nullable|string|max:1024',
             'phone' => 'nullable|string|max:20',
             'bio' => 'nullable|string|max:1000',
             'job_title' => 'nullable|string|max:100',
             'role' => 'nullable|string|exists:roles,name',
-            'organisation_id' => 'nullable|exists:organisations,id',
             'organisation_role' => 'nullable|string|in:owner,admin,member',
         ];
     }

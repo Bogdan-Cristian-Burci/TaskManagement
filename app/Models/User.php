@@ -3,6 +3,8 @@
 namespace App\Models;
 
 use App\Notifications\PasswordResetNotification;
+use App\Services\AuthorizationService;
+use App\Traits\HasOrganizationPermissions;
 use Carbon\Carbon;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Collection;
@@ -15,6 +17,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\DatabaseNotificationCollection;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\App;
 use Laravel\Passport\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -49,6 +52,7 @@ class User extends Authenticatable implements MustVerifyEmail
         Notifiable,
         HasApiTokens,
         HasRoles,
+        HasOrganizationPermissions,
         SoftDeletes;
 
     /**
@@ -364,5 +368,26 @@ class User extends Authenticatable implements MustVerifyEmail
     public function sendPasswordResetNotification($token): void
     {
         $this->notify(new PasswordResetNotification($token));
+    }
+
+    /**
+     * Check if user has permission in organization context
+     */
+    public function hasOrganisationPermission(string $permission, Organisation $organisation): bool
+    {
+        return App::make(AuthorizationService::class)
+            ->hasOrganisationPermission($this, $permission, $organisation);
+    }
+
+
+    /**
+     * Get user's role in specific organization
+     */
+    public function organisationRole(Organisation $organisation)
+    {
+        return $this->roles()
+            ->where('organisation_id', $organisation->id)
+            ->orderByDesc('level')
+            ->first();
     }
 }
