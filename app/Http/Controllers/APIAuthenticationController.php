@@ -32,72 +32,151 @@ class APIAuthenticationController extends Controller
         // Validate request (already handled by CreateUserRequest)
         $validated = $request->validated();
 
-        // Create new user
-        $user = User::create([
-            'name' => $validated['name'],
-            'email' => $validated['email'],
-            'password' => Hash::make($validated['password']),
-            // Add any other required fields that might be in your validation
-        ]);
+        DB::beginTransaction(); // Add a transaction to ensure consistency
 
-        // Create a unique organization name
-        $baseName = $user->name . "'s Workspace";
-        $organisationName = $this->generateUniqueOrganizationName($baseName);
+        try{
 
-        // Create personal organization for the user
-        $organisation = Organisation::create([
-            'name' => $organisationName,
-            'description' => 'Personal workspace created during registration',
-            'unique_id' => Str::slug($organisationName) . '-' . Str::random(6), // Add a unique identifier
-            'owner_id'=> $user->id
-        ]);
+            // Create new user
+            $user = User::create([
+                'name' => $validated['name'],
+                'email' => $validated['email'],
+                'password' => Hash::make($validated['password']),
+                // Add any other required fields that might be in your validation
+            ]);
 
-        // Set default organisation id
-        $user->organisation_id = $organisation->id;
-        $user->save();
+            // Create a unique organization name
+            $baseName = $user->name . "'s Workspace";
+            $organisationName = $this->generateUniqueOrganizationName($baseName);
 
-        // Associate user with organization
-        $user->organisations()->attach($organisation->id);
+            // Create personal organization for the user
+            $organisation = Organisation::create([
+                'name' => $organisationName,
+                'description' => 'Personal workspace created during registration',
+                'unique_id' => Str::slug($organisationName) . '-' . Str::random(6), // Add a unique identifier
+                'owner_id'=> $user->id
+            ]);
 
-        $adminRole = Role::firstOrCreate(
-            [
-                'name' => 'admin',
-                'guard_name' => 'api',
+            // Set default organisation id
+            $user->organisation_id = $organisation->id;
+            $user->save();
+
+            // Associate user with organization
+            $user->organisations()->attach($organisation->id);
+
+            $adminRole = Role::firstOrCreate(
+                [
+                    'name' => 'admin',
+                    'guard_name' => 'api',
+                    'organisation_id' => $organisation->id,
+                ],
+                [
+                    'level' => 80,
+                    'created_at' => now(),
+                    'updated_at' => now(),
+                ]
+            );
+
+            // Assign admin permissions to the role
+            $this->assignPermissionsToRole($adminRole);
+
+            //$user->assignOrganisationRole($adminRole, $organisation);
+
+            DB::table('model_has_roles')->insert([
+                'role_id' => $adminRole->id, // Role ID for 'member'
+                'model_id' => $user->id,
+                'model_type' => get_class($user),
                 'organisation_id' => $organisation->id,
-            ],
-            [
-                'level' => 80,
-                'created_at' => now(),
-                'updated_at' => now(),
-            ]
-        );
+            ]);
 
-        // Assign admin permissions to the role
-        $this->assignPermissionsToRole($adminRole);
+            // Clear permission cache
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
-        //$user->assignOrganisationRole($adminRole, $organisation);
+            // CRITICAL: Refresh user from database to get the newly assigned role
+            $user = User::with(['roles', 'permissions', 'organisation'])->find($user->id);
 
-        DB::table('model_has_roles')->insert([
-            'role_id' => $adminRole->id, // Role ID for 'member'
-            'model_id' => $user->id,
-            'model_type' => get_class($user),
-            'organisation_id' => $organisation->id,
-        ]);
-        // Create token with appropriate scopes
-        $token = $user->createToken('Registration Token', ['read-user'])->accessToken;
+            // Force reload of roles and permissions
+            $roleNames = DB::table('roles')
+                ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+                ->where('model_has_roles.model_id', $user->id)
+                ->where('model_has_roles.model_type', get_class($user))
+                ->pluck('roles.name')
+                ->toArray();
 
-        // Log the registration (optional but helpful for security audits)
-        Log::info('User registered', [
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'ip' => request()->ip()
-        ]);
+            // Create token with appropriate scopes
+            $token = $user->createToken('Registration Token', ['read-user'])->accessToken;
 
-        return response()->json([
-            'message' => 'Registration successful',
-            'token' => $token,
-            'user' => new UserResource($user),
-        ], Response::HTTP_CREATED);
+            // Commit the transaction
+            DB::commit();
+
+            // Log the registration (optional but helpful for security audits)
+            Log::info('User registered', [
+                'user_id' => $user->id,
+                'email' => $user->email,
+                'ip' => request()->ip()
+            ]);
+
+            return response()->json([
+                'message' => 'Registration successful',
+                'token' => $token,
+                'user' => [
+                    'id' => $user->id,
+                    'name' => $user->name,
+                    'email' => $user->email,
+                    'initials' => $user->initials,
+                    'created_at' => $user->created_at,
+                    'updated_at' => $user->updated_at,
+                    'organisation_id' => $user->organisation_id,
+
+                    // Explicitly include roles from our direct query
+                    'roles' => $roleNames,
+
+                    // Include permissions if available
+                    'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
+
+                    // Include organisation data
+                    'organisation' => [
+                        'id' => $organisation->id,
+                        'name' => $organisation->name,
+                        'slug' => $organisation->slug ?? Str::slug($organisation->name),
+                        'unique_id' => $organisation->unique_id,
+                        'description' => $organisation->description,
+                        'logo' => $organisation->logo,
+                        'owner_id' => $organisation->owner_id,
+                        'created_at' => $organisation->created_at,
+                        'updated_at' => $organisation->updated_at,
+                    ],
+
+                    // Explicitly set permissions for admin
+                    'can' => [
+                        'update' => true,
+                        'delete' => true,
+                        'manage_roles' => true,
+                    ],
+
+                    // Include links
+                    'links' => [
+                        'self' => route('users.show', $user->id),
+                        'teams' => route('users.teams', $user->id),
+                        'tasks' => route('users.tasks', $user->id),
+                        'projects' => route('users.projects', $user->id),
+                    ],
+                ],
+            ], Response::HTTP_CREATED);
+        }catch (\Exception $e){
+            // Roll back the transaction if something fails
+            DB::rollBack();
+
+            Log::error('Registration failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+
+            return response()->json([
+                'message' => 'Registration failed',
+                'error' => $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
     }
 
     /**
