@@ -89,7 +89,10 @@ class RolesAndPermissionsSeeder extends Seeder
         foreach ($models as $model) {
             foreach ($standardActions as $action) {
                 $permissionName = "{$model}.{$action}";
-                $permission = Permission::findOrCreate($permissionName);
+                $permission = Permission::firstOrCreate([
+                    'name' => $permissionName,
+                    'guard_name' => 'api'
+                ]);
 
                 // Add to admin permissions
                 $permissionsByRole['admin'][] = $permissionName;
@@ -113,7 +116,10 @@ class RolesAndPermissionsSeeder extends Seeder
             if (isset($extendedActions[$model])) {
                 foreach ($extendedActions[$model] as $extendedAction) {
                     $permissionName = "{$model}.{$extendedAction}";
-                    $permission = Permission::findOrCreate($permissionName);
+                    $permission = Permission::firstOrCreate([
+                        'name' => $permissionName,
+                        'guard_name' => 'api'
+                    ]);
 
                     // Add to admin permissions
                     $permissionsByRole['admin'][] = $permissionName;
@@ -153,7 +159,7 @@ class RolesAndPermissionsSeeder extends Seeder
         foreach ($roles as $roleName => $roleDescription) {
             $role = Role::firstOrCreate(['name' => $roleName], [
                 'name' => $roleName,
-                'guard_name' => 'web',
+                'guard_name' => 'api',
                 'level' => $roleLevels[$roleName] ?? 0
             ]);
 
