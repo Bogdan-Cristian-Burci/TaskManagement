@@ -414,7 +414,7 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return $this->roles()
             ->where('organisation_id', $organisationId)
-            ->whereIn('name', $roles)
+            ->whereIn('name', is_array($roles) ? $roles : [$roles])
             ->exists();
     }
 
@@ -435,7 +435,25 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return $this->roles()
-            ->where('organisation_id', $organisationId)
+            ->where('model_has_roles.organisation_id', $organisationId)
             ->get();
+    }
+
+    /**
+     * Override the morphToMany relationship for roles to include organization_id
+     */
+    public function roles(): BelongsToMany
+    {
+        return $this->morphToMany(
+            config('permission.models.role'),
+            'model',
+            config('permission.table_names.model_has_roles'),
+            config('permission.column_names.model_morph_key'),
+            'role_id'
+        )->where(function ($query) {
+            // Match roles for this user's organization or global roles (no organization)
+            $query->where('model_has_roles.organisation_id', $this->organisation_id)
+                ->orWhereNull('model_has_roles.organisation_id');
+        });
     }
 }

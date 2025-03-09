@@ -65,25 +65,7 @@ class UserPolicy
      */
     public function update(User $user, User $model): bool
     {
-        // Users can update their own profile
-        if ($user->id === $model->id) {
-            return true;
-        }
-
-        // Admins can update any user
-        if ($user->hasRole(['admin', 'super-admin'])) {
-            return true;
-        }
-
-        // Organization admins can update users in their organization
-        if ($model->organisation_id) {
-            return $user->organisations()
-                ->where('organisations.id', $model->organisation_id)
-                ->wherePivot('role', 'admin')
-                ->exists();
-        }
-
-        return false;
+        return $user->hasRole('admin') || $user->id === $model->id;
     }
 
     /**
@@ -95,25 +77,7 @@ class UserPolicy
      */
     public function delete(User $user, User $model): bool
     {
-        // Users cannot delete themselves
-        if ($user->id === $model->id) {
-            return false;
-        }
-
-        // Only admins can delete users
-        if ($user->hasRole(['admin', 'super-admin'])) {
-            return true;
-        }
-
-        // Organization admins can delete users in their organization
-        if ($model->organisation_id) {
-            return $user->organisations()
-                ->where('organisations.id', $model->organisation_id)
-                ->wherePivot('role', 'admin')
-                ->exists();
-        }
-
-        return false;
+        return $user->hasRole('admin');
     }
 
     /**
@@ -126,7 +90,7 @@ class UserPolicy
     public function restore(User $user, User $model): bool
     {
         // Only admins can restore users
-        return $user->hasRole(['admin', 'super-admin']);
+        return $user->hasRole('admin');
     }
 
     /**
@@ -151,12 +115,6 @@ class UserPolicy
      */
     public function manageRoles(User $user, User $model): bool
     {
-        // Users cannot manage their own roles
-        if ($user->id === $model->id) {
-            return false;
-        }
-
-        // Only admins can manage roles
-        return $user->hasRole(['admin', 'super-admin']);
+        return $user->hasRole('admin');
     }
 }

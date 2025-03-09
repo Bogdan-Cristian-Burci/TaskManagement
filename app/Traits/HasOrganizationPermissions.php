@@ -18,6 +18,11 @@ trait HasOrganizationPermissions
     {
         $orgId = $organisation instanceof Organisation ? $organisation->id : $organisation;
 
+        // If the role is a Role object, extract its name and explicitly specify the guard_name
+        if ($role instanceof \Spatie\Permission\Models\Role) {
+            return $this->assignRole([$role->name, $role->guard_name, $orgId]);
+        }
+
         return $this->assignRole([$role, $orgId]);
     }
 

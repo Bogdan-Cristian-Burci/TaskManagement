@@ -70,9 +70,15 @@ class UserResource extends JsonResource
 
             // Add permission flags for the currently authenticated user
             'can' => [
-                'update' => $request->user() ? $request->user()->can('update', $this->resource) : false,
-                'delete' => $request->user() ? $request->user()->can('delete', $this->resource) : false,
-                'manage_roles' => $request->user() ? $request->user()->can('manageRoles', $this->resource) : false,
+                'update' => $this->when($request->user(), function() use ($request) {
+                    return $this->resource->hasRole('admin') || $request->user()->id === $this->id;
+                }, false),
+                'delete' => $this->when($request->user(), function() {
+                    return $this->resource->hasRole('admin');
+                }, false),
+                'manage_roles' => $this->when($request->user(), function() {
+                    return $this->resource->hasRole('admin');
+                }, false),
             ],
 
             // HATEOAS links

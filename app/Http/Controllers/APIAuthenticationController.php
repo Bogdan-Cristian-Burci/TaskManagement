@@ -15,6 +15,7 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
+use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\Response;
 
 class APIAuthenticationController extends Controller
@@ -50,13 +51,34 @@ class APIAuthenticationController extends Controller
             'unique_id' => Str::slug($organisationName) . '-' . Str::random(6), // Add a unique identifier
             'owner_id'=> $user->id
         ]);
+
+        // Set default organisation id
+        $user->organisation_id = $organisation->id;
+        $user->save();
+
         // Associate user with organization
         $user->organisations()->attach($organisation->id);
-        // Assign default role
-       // $user->assignRole('admin', $organisation->id); - not working with team_id
+
+        $adminRole = Role::firstOrCreate(
+            [
+                'name' => 'admin',
+                'guard_name' => 'api',
+                'organisation_id' => $organisation->id,
+            ],
+            [
+                'level' => 80,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]
+        );
+
+        // Assign admin permissions to the role
+        $this->assignPermissionsToRole($adminRole);
+
+        //$user->assignOrganisationRole($adminRole, $organisation);
 
         DB::table('model_has_roles')->insert([
-            'role_id' => 2, // Role ID for 'member'
+            'role_id' => $adminRole->id, // Role ID for 'member'
             'model_id' => $user->id,
             'model_type' => get_class($user),
             'organisation_id' => $organisation->id,
@@ -148,6 +170,9 @@ class APIAuthenticationController extends Controller
                 'temp_token' => $temporaryToken
             ], Response::HTTP_OK);
         }
+
+        // Clear permission cache
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
         // Create new token with appropriate scopes
         $token = $user->createToken('Login Token', ['read-user'])->accessToken;
@@ -252,5 +277,29 @@ class APIAuthenticationController extends Controller
         }
 
         return $name;
+    }
+
+    /**
+     * Assign permissions to the admin role
+     */
+    private function assignPermissionsToRole(Role $role)
+    {
+        // Get all permissions from the database
+        $allPermissions = \Spatie\Permission\Models\Permission::where('guard_name', 'api')->get();
+
+        // Log what we're doing
+        \Log::info('Assigning permissions to admin role', [
+            'role_id' => $role->id,
+            'role_name' => $role->name,
+            'organisation_id' => $role->organisation_id,
+            'permission_count' => $allPermissions->count()
+        ]);
+
+        // Assign all permissions to the role
+        foreach ($allPermissions as $permission) {
+            if (!$role->hasPermissionTo($permission)) {
+                $role->givePermissionTo($permission);
+            }
+        }
     }
 }
