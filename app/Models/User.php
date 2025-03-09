@@ -390,4 +390,52 @@ class User extends Authenticatable implements MustVerifyEmail
             ->orderByDesc('level')
             ->first();
     }
+
+    /**
+     * Check if user has a role within a specific organization
+     *
+     * @param string|array $roles
+     * @param int|null $organisationId
+     * @return bool
+     */
+    public function hasRoleInOrganisation($roles, ?int $organisationId = null): bool
+    {
+        if (is_null($organisationId)) {
+            $organisationId = $this->organisation_id;
+        }
+
+        if (!$organisationId) {
+            return false;
+        }
+
+        if (!is_array($roles)) {
+            $roles = [$roles];
+        }
+
+        return $this->roles()
+            ->where('organisation_id', $organisationId)
+            ->whereIn('name', $roles)
+            ->exists();
+    }
+
+    /**
+     * Get all roles for a specific organization
+     *
+     * @param int|null $organisationId
+     * @return Collection
+     */
+    public function getOrganisationRoles(?int $organisationId = null): Collection
+    {
+        if (is_null($organisationId)) {
+            $organisationId = $this->organisation_id;
+        }
+
+        if (!$organisationId) {
+            return collect();
+        }
+
+        return $this->roles()
+            ->where('organisation_id', $organisationId)
+            ->get();
+    }
 }

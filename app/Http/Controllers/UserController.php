@@ -129,14 +129,27 @@ class UserController extends Controller
         $data = $request->validated();
         $data['password'] = Hash::make($data['password']);
 
+        // If organisation_id is not provided but user has only one organisation,
+        // use that organisation's ID (this should be already handled by the request,
+        // but we're adding an extra safeguard here)
+        if (empty($data['organisation_id']) && $request->user()->organisations()->count() === 1) {
+            $organisation = $request->user()->organisations()->first();
+            $data['organisation_id'] = $organisation->id;
+        }
+
         $user = User::create($data);
 
         // Assign role if specified
         if ($request->has('role')) {
-            $user->assignRole($request->role);
+            $organisationId = $request->organisation_id ?? null;
+            $user->assignRole([$request->role, ['organisation_id' => $organisationId]]);
         } else {
             // Assign default role
-            $user->assignRole('guest');
+            if ($request->has('organisation_id')) {
+                $user->assignRole(['guest', ['organisation_id' => $request->organisation_id]]);
+            } else {
+                $user->assignRole('guest');
+            }
         }
 
         // Assign organization if specified

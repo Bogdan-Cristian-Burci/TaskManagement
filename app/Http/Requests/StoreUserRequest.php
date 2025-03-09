@@ -5,6 +5,7 @@ namespace App\Http\Requests;
 use App\Models\User;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rules\Password;
+use Illuminate\Validation\Validator;
 
 class StoreUserRequest extends FormRequest
 {
@@ -19,7 +20,7 @@ class StoreUserRequest extends FormRequest
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users',
             'password' => ['required', 'string', 'confirmed', Password::defaults()],
-            'organisation_id' => 'required|integer|exists:organisations,id',
+            'organisation_id' => 'nullable|integer|exists:organisations,id',
             'avatar' => 'nullable|string|max:1024',
             'phone' => 'nullable|string|max:20',
             'bio' => 'nullable|string|max:1000',
@@ -87,5 +88,31 @@ class StoreUserRequest extends FormRequest
                 'email' => strtolower(trim($this->email))
             ]);
         }
+
+        // Auto-fill organisation_id if not provided and user belongs to only one organisation
+        if (!$this->filled('organisation_id') && $this->user()) {
+            $userOrganisationsCount = $this->user()->organisations()->count();
+            if ($userOrganisationsCount === 1) {
+                $organisation = $this->user()->organisations()->first();
+                $this->merge([
+                    'organisation_id' => $organisation->id
+                ]);
+            }
+        }
+    }
+
+    /**
+     * Configure the validator instance.
+     *
+     * @param Validator $validator
+     * @return void
+     */
+    public function withValidator(Validator $validator): void
+    {
+        $validator->after(function ($validator) {
+            if (!$this->filled('organisation_id') && $this->user()->organisations()->count() > 1) {
+                $validator->errors()->add('organisation_id', 'Please select an organization for the new user.');
+            }
+        });
     }
 }

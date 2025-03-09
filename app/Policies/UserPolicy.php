@@ -53,7 +53,7 @@ class UserPolicy
     {
         // Only admins and users with specific permissions can create new users
         return $user->hasRole(['admin', 'super-admin']) ||
-            $user->hasPermissionTo('create-users');
+            $user->hasPermissionTo('user.create');
     }
 
     /**

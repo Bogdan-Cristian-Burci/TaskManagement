@@ -57,7 +57,9 @@ class UserFactory extends Factory
     {
         return $this->afterCreating(function (User $user) {
             // Assign the default role if none assigned yet
-            if ($user->roles()->count() === 0) {
+            if ($user->roles()->count() === 0 && $user->organisation_id) {
+                $user->assignRole(['user', ['organisation_id' => $user->organisation_id]]);
+            } elseif ($user->roles()->count() === 0) {
                 $user->assignRole('user');
             }
         });
@@ -73,7 +75,11 @@ class UserFactory extends Factory
         return $this->state(function (array $attributes) {
             return [];
         })->afterCreating(function (User $user) {
-            $user->assignRole('admin');
+            if ($user->organisation_id) {
+                $user->assignRole(['admin', ['organisation_id' => $user->organisation_id]]);
+            } else {
+                $user->assignRole('admin');
+            }
         });
     }
 
