@@ -19,6 +19,7 @@ use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\DatabaseNotificationCollection;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\DB;
 use Laravel\Passport\HasApiTokens;
 use Spatie\Permission\Traits\HasRoles;
 
@@ -282,6 +283,24 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return strtoupper(substr($this->name, 0, 2));
+    }
+
+    /**
+     * Get roles directly from database
+     */
+    public function getDirectRolesAttribute()
+    {
+        if (!$this->organisation_id) {
+            return [];
+        }
+
+        return \DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('model_has_roles.model_type', get_class($this))
+            ->where('model_has_roles.organisation_id', $this->organisation_id)
+            ->pluck('roles.name')
+            ->toArray();
     }
 
     /**

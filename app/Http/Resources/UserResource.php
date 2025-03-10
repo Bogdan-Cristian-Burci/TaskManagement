@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
 
 /** @mixin User */
 class UserResource extends JsonResource
@@ -17,13 +18,10 @@ class UserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // Get roles directly if the relationship doesn't work
+        // Get roles directly from the database to avoid issues
         $roleNames = [];
 
-        if ($this->relationLoaded('roles') && $this->roles->isNotEmpty()) {
-            $roleNames = $this->roles->pluck('name')->toArray();
-        } else if ($this->organisation_id) {
-            // Fallback to direct DB query
+        if ($this->organisation_id) {
             $roleNames = \DB::table('roles')
                 ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
                 ->where('model_has_roles.model_id', $this->id)
@@ -32,6 +30,12 @@ class UserResource extends JsonResource
                 ->pluck('roles.name')
                 ->toArray();
         }
+
+        // Check if user has admin role
+        $isAdmin = in_array('admin', $roleNames);
+
+        // Get authenticated user ID
+        $authUserId = $request->user() ? $request->user()->id : null;
 
         return [
             'id' => $this->id,
@@ -45,19 +49,18 @@ class UserResource extends JsonResource
             'initials' => $this->initials,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            // Include role information - USING DIRECT ARRAY, NOT whenLoaded
+
+            // Always include roles
             'roles' => $roleNames,
 
             // Include permissions information
-            'permissions' => $this->whenLoaded('permissions', function() {
-                return $this->getAllPermissions()->pluck('name');
-            }),
+            'permissions' => $this->getAllPermissions()->pluck('name')->toArray(),
 
             // Include organisation information
             'organisation_id' => $this->when($this->organisation_id, $this->organisation_id),
             'organisation' => new OrganisationResource($this->whenLoaded('organisation')),
 
-            // Check if the user is authenticated via social login
+            // Social auth info - if applicable
             'social_auth' => $this->when($this->provider, function() {
                 return [
                     'provider' => $this->provider,
@@ -81,11 +84,11 @@ class UserResource extends JsonResource
             'tasks' => TaskResource::collection($this->whenLoaded('tasksResponsibleFor')),
             'organisations' => OrganisationResource::collection($this->whenLoaded('organisations')),
 
-            // Explicit can permissions for newly created user
+            // Use direct role check for permissions based on role names
             'can' => [
-                'update' => $this->id === $request->user()?->id || $this->hasRole('admin'),
-                'delete' => $this->hasRole('admin'),
-                'manage_roles' => $this->hasRole('admin'),
+                'update' => $isAdmin || ($authUserId && $authUserId === $this->id),
+                'delete' => $isAdmin,
+                'manage_roles' => $isAdmin,
             ],
 
             // HATEOAS links

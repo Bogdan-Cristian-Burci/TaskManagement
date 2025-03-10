@@ -2,98 +2,140 @@
 
 namespace App\Traits;
 
-use Illuminate\Support\Collection;
-use Spatie\Permission\Traits\HasRoles;
 use Illuminate\Database\Eloquent\Relations\MorphToMany;
-use Spatie\Permission\Models\Role;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Spatie\Permission\Traits\HasRoles;
+use Spatie\Permission\Models\Role;
 
 trait HasOrganizationRoles
 {
     use HasRoles {
-        roles as traitRoles;
-        hasRole as traitHasRole;
-        assignRole as traitAssignRole;
+        assignRole as spatieAssignRole;
+        hasRole as spatieHasRole;
+        roles as spatieRoles;
+        getPermissionsViaRoles as spatieGetPermissionsViaRoles;
     }
 
     /**
-     * Override the roles relationship to include organization_id
+     * Override the roles relationship to include organization context
      */
     public function roles(): MorphToMany
     {
-        $relation = $this->traitRoles();
+        $relationship = $this->spatieRoles();
 
-        // If the model has an organization_id, filter by it
-        if ($this->organisation_id) {
-            $relation->where('model_has_roles.organisation_id', $this->organisation_id);
+        if ($this->organisation_id && config('permission.teams', false)) {
+            $relationship->where('model_has_roles.organisation_id', $this->organisation_id);
         }
 
-        return $relation;
+        return $relationship;
     }
 
     /**
-     * Override hasRole to check in the correct organization context
+     * Override hasRole to handle organization context
      */
     public function hasRole($roles, $guard = null): bool
     {
-        // If we have an organisation_id and teams is enabled in config
-        if ($this->organisation_id && config('permission.teams', false)) {
-            // Check with direct query to include organization context
-            $roleCount = DB::table('roles')
-                ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-                ->where('model_has_roles.model_id', $this->id)
-                ->where('model_has_roles.model_type', get_class($this))
-                ->where('model_has_roles.organisation_id', $this->organisation_id)
-                ->when(is_string($roles), function ($query) use ($roles) {
-                    return $query->where('roles.name', $roles);
-                })
-                ->when(is_array($roles), function ($query) use ($roles) {
-                    return $query->whereIn('roles.name', $roles);
-                })
-                ->count();
-
-            return $roleCount > 0;
+        // If no organization context needed, use original method
+        if (!$this->organisation_id || !config('permission.teams', false)) {
+            return $this->spatieHasRole($roles, $guard);
         }
 
-        // Otherwise use the trait method
-        return $this->traitHasRole($roles, $guard);
+        // Use direct DB query with organization context
+        return $this->hasRoleWithOrganization($roles, $this->organisation_id, $guard);
     }
 
     /**
-     * Override assignRole to include organization_id
+     * Helper method to check roles in a specific organization
+     */
+    protected function hasRoleWithOrganization($roles, $organizationId, $guard = null)
+    {
+        // Normalize input
+        if ($roles instanceof Collection) {
+            $roles = $roles->all();
+        }
+
+        $roles = is_array($roles) ? $roles : [$roles];
+
+        // Direct DB query that includes organization_id
+        $count = DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('model_has_roles.model_type', get_class($this))
+            ->where('model_has_roles.organisation_id', $organizationId)
+            ->whereIn('roles.name', $roles)
+            ->count();
+
+        return $count > 0;
+    }
+
+    /**
+     * Assign the given role to the model in the current organization
      */
     public function assignRole(...$roles)
     {
-        // Get organisation_id from the model
-        $organisationId = $this->organisation_id;
-
-        if (!$organisationId) {
-            return $this->traitAssignRole(...$roles);
+        if (!$this->organisation_id || !config('permission.teams', false)) {
+            return $this->spatieAssignRole(...$roles);
         }
 
-        $roles = collect($roles)
-            ->flatten()
-            ->map(function ($role) {
-                return $this->getStoredRole($role);
-            })
-            ->each(function ($role) use ($organisationId) {
-                $this->ensureModelHasRole($role, $organisationId);
-            });
+        $roleModels = [];
+
+        // Flatten array
+        $roles = collect($roles)->flatten()->toArray();
+
+        // Convert all role inputs to role models
+        foreach ($roles as $role) {
+            if (is_string($role)) {
+                $roleModel = $this->getRoleByName($role);
+                if ($roleModel) {
+                    $roleModels[] = $roleModel;
+                }
+            } else {
+                $roleModels[] = $role;
+            }
+        }
+
+        // Assign each role with organization context
+        foreach ($roleModels as $role) {
+            $this->assignRoleToOrganization($role, $this->organisation_id);
+        }
+
+        // Clear the permissions cache
+        $this->forgetCachedPermissions();
 
         return $this;
     }
 
     /**
-     * Custom method to assign role with explicit organization
+     * Get role models by name
      */
-    public function ensureModelHasRole($role, $organisationId): void
+    protected function getRoleByName($roleName)
     {
-        // Check if role is already assigned in this organization
+        $guard = $this->getDefaultGuardName();
+        return Role::where('name', $roleName)->where('guard_name', $guard)->first();
+    }
+
+    /**
+     * Assign a role to the user in a specific organization
+     * FIX: Ensure the role parameter is an object with ID, not an array
+     */
+    protected function assignRoleToOrganization($role, $organizationId)
+    {
+        // Make sure role is an object with ID property
+        if (!is_object($role) || !isset($role->id)) {
+            \Log::error('Invalid role object', [
+                'role' => $role,
+                'type' => gettype($role)
+            ]);
+            return;
+        }
+
+        // Check if already assigned
         $exists = DB::table('model_has_roles')
             ->where('role_id', $role->id)
             ->where('model_id', $this->id)
             ->where('model_type', get_class($this))
-            ->where('organisation_id', $organisationId)
+            ->where('organisation_id', $organizationId)
             ->exists();
 
         if (!$exists) {
@@ -101,21 +143,58 @@ trait HasOrganizationRoles
                 'role_id' => $role->id,
                 'model_id' => $this->id,
                 'model_type' => get_class($this),
-                'organisation_id' => $organisationId,
+                'organisation_id' => $organizationId,
+                'created_at' => now(),
+                'updated_at' => now(),
             ]);
         }
     }
 
     /**
-     * A helpful method to know what roles the user has in a specific organization
+     * Override getPermissionsViaRoles to include organization context
      */
-    public function getRolesInOrganization($organisationId): Collection
+    public function getPermissionsViaRoles(): Collection
+    {
+        if (!$this->organisation_id || !config('permission.teams', false)) {
+            return $this->spatieGetPermissionsViaRoles();
+        }
+
+        // Get role IDs for this user in this organization
+        $roleIds = DB::table('model_has_roles')
+            ->where('model_id', $this->id)
+            ->where('model_type', get_class($this))
+            ->where('organisation_id', $this->organisation_id)
+            ->pluck('role_id');
+
+        if ($roleIds->isEmpty()) {
+            return collect();
+        }
+
+        // Get permissions for these roles
+        return DB::table('permissions')
+            ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+            ->whereIn('role_has_permissions.role_id', $roleIds)
+            ->get(['permissions.id', 'permissions.name', 'permissions.guard_name'])
+            ->map(function($permission) {
+                return app(\Spatie\Permission\Models\Permission::class)->findById(
+                    $permission->id, $permission->guard_name
+                );
+            });
+    }
+
+    /**
+     * Get roles for a specific organization
+     */
+    public function getRolesForOrganization($organizationId): Collection
     {
         return DB::table('roles')
             ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
             ->where('model_has_roles.model_id', $this->id)
             ->where('model_has_roles.model_type', get_class($this))
-            ->where('model_has_roles.organisation_id', $organisationId)
-            ->get(['roles.id', 'roles.name', 'roles.guard_name']);
+            ->where('model_has_roles.organisation_id', $organizationId)
+            ->get(['roles.id', 'roles.name', 'roles.guard_name'])
+            ->map(function($role) {
+                return app(Role::class)->findById($role->id, $role->guard_name);
+            });
     }
 }

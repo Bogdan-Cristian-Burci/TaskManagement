@@ -292,3 +292,52 @@ Route::middleware('auth:api')->group(function () {
     });
     // Your other API endpoints go here...
 });
+
+// Add this route to your api.php file
+Route::middleware('auth:api')->get('/debug/roles', function (Request $request) {
+    $user = $request->user();
+
+    // Check roles through multiple methods
+    $relationRoles = $user->roles->pluck('name')->toArray();
+
+    $directDbRoles = DB::table('roles')
+        ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+        ->where('model_has_roles.model_id', $user->id)
+        ->where('model_has_roles.model_type', get_class($user))
+        ->when($user->organisation_id, function($q) use ($user) {
+            return $q->where('model_has_roles.organisation_id', $user->organisation_id);
+        })
+        ->pluck('roles.name')
+        ->toArray();
+
+    // Check user permissions through multiple methods
+    $directPermissions = $user->permissions->pluck('name')->toArray();
+    $permissionsViaRoles = $user->getPermissionsViaRoles()->pluck('name')->toArray();
+    $allPermissions = $user->getAllPermissions()->pluck('name')->toArray();
+
+    return [
+        'user_id' => $user->id,
+        'organisation_id' => $user->organisation_id,
+        'relation_roles' => $relationRoles,
+        'direct_db_roles' => $directDbRoles,
+        'has_admin_role' => $user->hasRole('admin'),
+        'direct_permissions' => $directPermissions,
+        'permissions_via_roles' => $permissionsViaRoles,
+        'all_permissions' => $allPermissions,
+        'can_tests' => [
+            'update_self' => $user->can('update', $user),
+            'auth_user_same' => $request->user()->id === $user->id,
+        ],
+        'model_has_roles_records' => DB::table('model_has_roles')
+            ->where('model_id', $user->id)
+            ->where('model_type', get_class($user))
+            ->get()
+            ->toArray(),
+        'role_defs' => DB::table('roles')
+            ->when($user->organisation_id, function($q) use ($user) {
+                return $q->where('organisation_id', $user->organisation_id);
+            })
+            ->get()
+            ->toArray()
+    ];
+});
