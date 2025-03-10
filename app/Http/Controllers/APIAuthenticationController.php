@@ -7,6 +7,7 @@ use App\Http\Requests\LoginUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\Organisation;
 use App\Models\User;
+use App\Policies\UserPolicy;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -76,31 +77,22 @@ class APIAuthenticationController extends Controller
                 ]
             );
 
-            // Assign admin permissions to the role
-            $this->assignPermissionsToRole($adminRole);
-
-            //$user->assignOrganisationRole($adminRole, $organisation);
-
-            DB::table('model_has_roles')->insert([
-                'role_id' => $adminRole->id, // Role ID for 'member'
-                'model_id' => $user->id,
-                'model_type' => get_class($user),
-                'organisation_id' => $organisation->id,
-            ]);
+            // Use our custom trait method to assign the role
+            $user->assignRole($adminRole);
 
             // Clear permission cache
             app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
-            // CRITICAL: Refresh user from database to get the newly assigned role
-            $user = User::with(['roles', 'permissions', 'organisation'])->find($user->id);
+            // For registration response, use this trick to simulate a logged-in user
+            $request->setUserResolver(function() use ($user) {
+                return $user;
+            });
 
-            // Force reload of roles and permissions
-            $roleNames = DB::table('roles')
-                ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-                ->where('model_has_roles.model_id', $user->id)
-                ->where('model_has_roles.model_type', get_class($user))
-                ->pluck('roles.name')
-                ->toArray();
+            // Get a fresh instance of the user with all relationships
+            $freshUser = User::with(['roles', 'permissions', 'organisation'])->find($user->id);
+
+            // Force reload the roles relation
+            $freshUser->load('roles');
 
             // Create token with appropriate scopes
             $token = $user->createToken('Registration Token', ['read-user'])->accessToken;
@@ -115,52 +107,13 @@ class APIAuthenticationController extends Controller
                 'ip' => request()->ip()
             ]);
 
+            $user->sendEmailVerificationNotification();
+
+            // Use UserResource which now properly checks roles
             return response()->json([
                 'message' => 'Registration successful',
                 'token' => $token,
-                'user' => [
-                    'id' => $user->id,
-                    'name' => $user->name,
-                    'email' => $user->email,
-                    'initials' => $user->initials,
-                    'created_at' => $user->created_at,
-                    'updated_at' => $user->updated_at,
-                    'organisation_id' => $user->organisation_id,
-
-                    // Explicitly include roles from our direct query
-                    'roles' => $roleNames,
-
-                    // Include permissions if available
-                    'permissions' => $user->getAllPermissions()->pluck('name')->toArray(),
-
-                    // Include organisation data
-                    'organisation' => [
-                        'id' => $organisation->id,
-                        'name' => $organisation->name,
-                        'slug' => $organisation->slug ?? Str::slug($organisation->name),
-                        'unique_id' => $organisation->unique_id,
-                        'description' => $organisation->description,
-                        'logo' => $organisation->logo,
-                        'owner_id' => $organisation->owner_id,
-                        'created_at' => $organisation->created_at,
-                        'updated_at' => $organisation->updated_at,
-                    ],
-
-                    // Explicitly set permissions for admin
-                    'can' => [
-                        'update' => true,
-                        'delete' => true,
-                        'manage_roles' => true,
-                    ],
-
-                    // Include links
-                    'links' => [
-                        'self' => route('users.show', $user->id),
-                        'teams' => route('users.teams', $user->id),
-                        'tasks' => route('users.tasks', $user->id),
-                        'projects' => route('users.projects', $user->id),
-                    ],
-                ],
+                'user' => new UserResource($user),
             ], Response::HTTP_CREATED);
         }catch (\Exception $e){
             // Roll back the transaction if something fails
@@ -360,8 +313,11 @@ class APIAuthenticationController extends Controller
 
     /**
      * Assign permissions to the admin role
+     *
+     * @param Role $role The role to assign permissions to
+     * @return void
      */
-    private function assignPermissionsToRole(Role $role)
+    private function assignPermissionsToRole(Role $role): void
     {
         // Get all permissions from the database
         $allPermissions = \Spatie\Permission\Models\Permission::where('guard_name', 'api')->get();
@@ -374,11 +330,43 @@ class APIAuthenticationController extends Controller
             'permission_count' => $allPermissions->count()
         ]);
 
-        // Assign all permissions to the role
-        foreach ($allPermissions as $permission) {
-            if (!$role->hasPermissionTo($permission)) {
-                $role->givePermissionTo($permission);
-            }
+        // More efficient way to assign permissions
+        $role->syncPermissions($allPermissions);
+    }
+
+    /**
+     * Custom method to ensure proper role assignment with organization context
+     */
+    private function assignRoleToUser(User $user, Role $role, int $organisationId): void
+    {
+        // First try with the Spatie method
+        try {
+            $user->assignRole($role);
+        } catch (\Exception $e) {
+            \Log::warning('Error assigning role via Spatie method: ' . $e->getMessage());
+
+            // Direct DB insert as fallback
+            \DB::table('model_has_roles')->insert([
+                'role_id' => $role->id,
+                'model_id' => $user->id,
+                'model_type' => get_class($user),
+                'organisation_id' => $organisationId,
+            ]);
         }
+
+        // Verify the assignment worked
+        $assigned = \DB::table('model_has_roles')
+            ->where('role_id', $role->id)
+            ->where('model_id', $user->id)
+            ->where('model_type', get_class($user))
+            ->where('organisation_id', $organisationId)
+            ->exists();
+
+        \Log::info('Role assignment check', [
+            'user_id' => $user->id,
+            'role_id' => $role->id,
+            'organisation_id' => $organisationId,
+            'assigned' => $assigned
+        ]);
     }
 }

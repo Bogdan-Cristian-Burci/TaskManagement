@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Notifications\PasswordResetNotification;
 use App\Services\AuthorizationService;
 use App\Traits\HasOrganizationPermissions;
+use App\Traits\HasOrganizationRoles;
 use Carbon\Carbon;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Collection;
@@ -51,7 +52,7 @@ class User extends Authenticatable implements MustVerifyEmail
     use HasFactory,
         Notifiable,
         HasApiTokens,
-        HasRoles,
+        HasOrganizationRoles,
         HasOrganizationPermissions,
         SoftDeletes;
 
@@ -174,6 +175,7 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Team::class, 'team_lead_id');
     }
 
+    //TODO fix relationship
     /**
      * Get organisations where the user is an owner.
      *
@@ -185,6 +187,7 @@ class User extends Authenticatable implements MustVerifyEmail
             ->wherePivot('role', 'owner');
     }
 
+    //TOD fix relationship
     /**
      * Get organisations where the user is an admin.
      *
@@ -379,7 +382,7 @@ class User extends Authenticatable implements MustVerifyEmail
             ->hasOrganisationPermission($this, $permission, $organisation);
     }
 
-
+    //TODO fix relationship
     /**
      * Get user's role in specific organization
      */

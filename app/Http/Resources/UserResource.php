@@ -17,6 +17,22 @@ class UserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        // Get roles directly if the relationship doesn't work
+        $roleNames = [];
+
+        if ($this->relationLoaded('roles') && $this->roles->isNotEmpty()) {
+            $roleNames = $this->roles->pluck('name')->toArray();
+        } else if ($this->organisation_id) {
+            // Fallback to direct DB query
+            $roleNames = \DB::table('roles')
+                ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+                ->where('model_has_roles.model_id', $this->id)
+                ->where('model_has_roles.model_type', get_class($this))
+                ->where('model_has_roles.organisation_id', $this->organisation_id)
+                ->pluck('roles.name')
+                ->toArray();
+        }
+
         return [
             'id' => $this->id,
             'name' => $this->name,
@@ -29,11 +45,8 @@ class UserResource extends JsonResource
             'initials' => $this->initials,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-
-            // Include role information
-            'roles' => $this->whenLoaded('roles', function() {
-                return $this->roles->pluck('name');
-            }),
+            // Include role information - USING DIRECT ARRAY, NOT whenLoaded
+            'roles' => $roleNames,
 
             // Include permissions information
             'permissions' => $this->whenLoaded('permissions', function() {
@@ -68,17 +81,11 @@ class UserResource extends JsonResource
             'tasks' => TaskResource::collection($this->whenLoaded('tasksResponsibleFor')),
             'organisations' => OrganisationResource::collection($this->whenLoaded('organisations')),
 
-            // Add permission flags for the currently authenticated user
+            // Explicit can permissions for newly created user
             'can' => [
-                'update' => $this->when($request->user(), function() use ($request) {
-                    return $this->resource->hasRole('admin') || $request->user()->id === $this->id;
-                }, false),
-                'delete' => $this->when($request->user(), function() {
-                    return $this->resource->hasRole('admin');
-                }, false),
-                'manage_roles' => $this->when($request->user(), function() {
-                    return $this->resource->hasRole('admin');
-                }, false),
+                'update' => $this->id === $request->user()?->id || $this->hasRole('admin'),
+                'delete' => $this->hasRole('admin'),
+                'manage_roles' => $this->hasRole('admin'),
             ],
 
             // HATEOAS links

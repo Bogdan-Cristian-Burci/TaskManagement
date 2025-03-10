@@ -65,7 +65,32 @@ class UserPolicy
      */
     public function update(User $user, User $model): bool
     {
-        return $user->hasRole('admin') || $user->id === $model->id;
+        // Debug logging to see what's happening
+    \Log::debug('UserPolicy::update check', [
+        'checking_user_id' => $user->id,
+        'target_user_id' => $model->id,
+        'is_same_user' => $user->id === $model->id,
+        'checking_user_roles' => $user->roles->pluck('name'),
+        'checking_user_has_admin' => $user->hasRole('admin'),
+        'checking_user_permissions' => $user->getAllPermissions()->pluck('name'),
+        'direct_db_roles' => \DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $user->id)
+            ->where('model_has_roles.model_type', get_class($user))
+            ->pluck('roles.name')
+            ->toArray(),
+    ]);
+        // Original condition
+        $hasAdminRole = $user->hasRole('admin');
+        $isSameUser = $user->id === $model->id;
+
+        \Log::debug('UserPolicy::update result', [
+            'has_admin_role' => $hasAdminRole,
+            'is_same_user' => $isSameUser,
+            'final_result' => $hasAdminRole || $isSameUser
+        ]);
+
+        return $hasAdminRole || $isSameUser;
     }
 
     /**
