@@ -2,12 +2,10 @@
 
 namespace App\Http\Resources;
 
-use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
 
-/** @mixin User */
 class UserResource extends JsonResource
 {
     /**
@@ -18,24 +16,32 @@ class UserResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
-        // Get roles directly from the database to avoid issues
-        $roleNames = [];
+        // Get roles directly using the EXACT query that worked in simple-user-test
+        $roleNames = DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('model_has_roles.model_type', 'App\\Models\\User')
+            ->where('model_has_roles.organisation_id', $this->organisation_id)
+            ->pluck('roles.name')
+            ->toArray();
 
-        if ($this->organisation_id) {
-            $roleNames = \DB::table('roles')
-                ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-                ->where('model_has_roles.model_id', $this->id)
-                ->where('model_has_roles.model_type', get_class($this))
-                ->where('model_has_roles.organisation_id', $this->organisation_id)
-                ->pluck('roles.name')
-                ->toArray();
-        }
+        // Get permissions using the EXACT query that worked in simple-user-test
+        $permissionNames = DB::table('permissions')
+            ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+            ->join('model_has_roles', 'role_has_permissions.role_id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('model_has_roles.model_type', 'App\\Models\\User')
+            ->where('model_has_roles.organisation_id', $this->organisation_id)
+            ->pluck('permissions.name')
+            ->unique()
+            ->values()
+            ->toArray();
 
-        // Check if user has admin role
+        // Check if user has admin role - use the array we know works
         $isAdmin = in_array('admin', $roleNames);
 
-        // Get authenticated user ID
-        $authUserId = $request->user() ? $request->user()->id : null;
+        // Check if authenticated user is the same as current user
+        $isSelf = $request->user() && $request->user()->id === $this->id;
 
         return [
             'id' => $this->id,
@@ -50,17 +56,14 @@ class UserResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
-            // Always include roles
+            // Add roles and permissions using our direct queries
             'roles' => $roleNames,
+            'permissions' => $permissionNames,
 
-            // Include permissions information
-            'permissions' => $this->getAllPermissions()->pluck('name')->toArray(),
-
-            // Include organisation information
             'organisation_id' => $this->when($this->organisation_id, $this->organisation_id),
             'organisation' => new OrganisationResource($this->whenLoaded('organisation')),
 
-            // Social auth info - if applicable
+            // Social auth info
             'social_auth' => $this->when($this->provider, function() {
                 return [
                     'provider' => $this->provider,
@@ -84,9 +87,9 @@ class UserResource extends JsonResource
             'tasks' => TaskResource::collection($this->whenLoaded('tasksResponsibleFor')),
             'organisations' => OrganisationResource::collection($this->whenLoaded('organisations')),
 
-            // Use direct role check for permissions based on role names
+            // Calculate permissions - directly based on admin role
             'can' => [
-                'update' => $isAdmin || ($authUserId && $authUserId === $this->id),
+                'update' => $isAdmin || $isSelf,
                 'delete' => $isAdmin,
                 'manage_roles' => $isAdmin,
             ],

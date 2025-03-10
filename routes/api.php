@@ -341,3 +341,155 @@ Route::middleware('auth:api')->get('/debug/roles', function (Request $request) {
             ->toArray()
     ];
 });
+
+// Add this route for debugging
+Route::get('/debug/fix-role/{userId}', function ($userId) {
+    $user = \App\Models\User::find($userId);
+
+    if (!$user) {
+        return ['error' => 'User not found'];
+    }
+
+    // Get organization ID
+    $orgId = $user->organisation_id;
+
+    // Check if role exists
+    $adminRole = DB::table('roles')
+        ->where('name', 'admin')
+        ->where('guard_name', 'api')
+        ->where('organisation_id', $orgId)
+        ->first();
+
+    if (!$adminRole) {
+        // Create admin role
+        $adminRoleId = DB::table('roles')->insertGetId([
+            'name' => 'admin',
+            'guard_name' => 'api',
+            'organisation_id' => $orgId,
+            'level' => 80,
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+    } else {
+        $adminRoleId = $adminRole->id;
+    }
+
+    // Check if role assignment exists
+    $roleAssigned = DB::table('model_has_roles')
+        ->where('role_id', $adminRoleId)
+        ->where('model_id', $user->id)
+        ->where('model_type', get_class($user))
+        ->where('organisation_id', $orgId)
+        ->exists();
+
+    if (!$roleAssigned) {
+        // Assign role directly
+        DB::table('model_has_roles')->insert([
+            'role_id' => $adminRoleId,
+            'model_id' => $user->id,
+            'model_type' => get_class($user),
+            'organisation_id' => $orgId
+        ]);
+    }
+
+    // Get roles directly
+    $roles = DB::table('roles')
+        ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+        ->where('model_has_roles.model_id', $user->id)
+        ->where('model_has_roles.model_type', get_class($user))
+        ->where('model_has_roles.organisation_id', $orgId)
+        ->get(['roles.id', 'roles.name']);
+
+    // Clear cache
+    app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+
+    return [
+        'user_id' => $user->id,
+        'organisation_id' => $orgId,
+        'admin_role_id' => $adminRoleId,
+        'roles' => $roles,
+        'fixed' => !$roleAssigned
+    ];
+});
+
+// Add a test route to check user roles and permissions
+Route::get('/test/user/{userId}', function ($userId) {
+    $user = \App\Models\User::find($userId);
+
+    if (!$user) {
+        return ['error' => 'User not found'];
+    }
+
+    return new \App\Http\Resources\UserResource($user);
+});
+
+// Add a very simple test route for user data
+Route::get('/simple-user-test/{userId}', function ($userId) {
+    $user = \App\Models\User::find($userId);
+
+    if (!$user) {
+        return ['error' => 'User not found'];
+    }
+
+    // Get roles directly
+    $roles = \DB::table('roles')
+        ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+        ->where('model_has_roles.model_id', $user->id)
+        ->where('model_has_roles.model_type', get_class($user))
+        ->when($user->organisation_id, function($query) use ($user) {
+            return $query->where('model_has_roles.organisation_id', $user->organisation_id);
+        })
+        ->select('roles.id', 'roles.name')
+        ->get();
+
+    // Get permissions directly
+    $permissions = \DB::table('permissions')
+        ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+        ->join('model_has_roles', 'role_has_permissions.role_id', '=', 'model_has_roles.role_id')
+        ->where('model_has_roles.model_id', $user->id)
+        ->where('model_has_roles.model_type', get_class($user))
+        ->when($user->organisation_id, function($query) use ($user) {
+            return $query->where('model_has_roles.organisation_id', $user->organisation_id);
+        })
+        ->select('permissions.id', 'permissions.name')
+        ->distinct()
+        ->get();
+
+    return [
+        'user' => $user->only(['id', 'name', 'email', 'organisation_id']),
+        'raw_roles' => $roles,
+        'raw_permissions' => $permissions,
+    ];
+});
+
+// Check organization ID issue
+Route::get('/check-org/{userId}', function ($userId) {
+    $user = \App\Models\User::find($userId);
+
+    if (!$user) {
+        return ['error' => 'User not found'];
+    }
+
+    $dbOrg = \DB::table('model_has_roles')
+        ->where('model_id', $user->id)
+        ->where('model_type', get_class($user))
+        ->first();
+
+    return [
+        'user_id' => $user->id,
+        'user_organisation_id' => $user->organisation_id,
+        'db_organisation_id' => $dbOrg ? $dbOrg->organisation_id : null,
+        'roles_with_org_null' => \DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $user->id)
+            ->where('model_has_roles.model_type', get_class($user))
+            ->whereNull('model_has_roles.organisation_id')
+            ->get(),
+        'roles_with_org_match' => \DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $user->id)
+            ->where('model_has_roles.model_type', get_class($user))
+            ->where('model_has_roles.organisation_id', $user->organisation_id)
+            ->get(),
+    ];
+});
