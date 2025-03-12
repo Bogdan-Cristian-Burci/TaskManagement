@@ -283,13 +283,14 @@ Route::middleware('auth:api')->group(function () {
     Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
 
     // Tag routes
-    Route::get('/', [TagController::class, 'index'])->name('tags.index');
-    Route::post('/', [TagController::class, 'store'])->name('tags.store');
-    Route::get('/{tag}', [TagController::class, 'show'])->name('tags.show');
-    Route::put('/{tag}', [TagController::class, 'update'])->name('tags.update');
-    Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
-    Route::post('/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
-
+    Route::prefix('tags')->group(function () {
+        Route::get('/', [TagController::class, 'index'])->name('tags.index');
+        Route::post('/', [TagController::class, 'store'])->name('tags.store');
+        Route::get('/{tag}', [TagController::class, 'show'])->name('tags.show');
+        Route::put('/{tag}', [TagController::class, 'update'])->name('tags.update');
+        Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
+        Route::post('/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
+    });
     // Sprint routes
     Route::prefix('sprints')->group(function () {
         Route::get('/', [SprintController::class, 'index'])->name('sprints.index');
@@ -323,7 +324,7 @@ Route::middleware('auth:api')->group(function () {
         $directPermissions = $user->getDirectPermissions()->pluck('name');
         $permissionsViaRoles = $user->getPermissionsViaRoles()->pluck('name');
         $allPermissions = $user->getAllPermissions()->pluck('name');
-        $roles = $user->getRoleNames();
+        $roles = $user->organisationRole($user->organisation_id);
 
         return response()->json([
             'user_id' => $user->id,
@@ -335,6 +336,7 @@ Route::middleware('auth:api')->group(function () {
             'roles' => $roles
         ]);
     });
-});
 
+
+});
 

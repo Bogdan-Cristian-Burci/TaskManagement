@@ -32,11 +32,28 @@ trait HasOrganizationRoles
      */
     public function hasRole($roles, $guard = null): bool
     {
+        // If it's an array with organization ID context
+        if (is_array($roles) && count($roles) >= 2 && is_numeric($roles[1])) {
+            // Extract role name and org ID
+            $roleName = $roles[0];
+            $orgId = $roles[1];
+
+            // Query directly
+            return \DB::table('model_has_roles')
+                ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
+                ->where('model_has_roles.model_id', $this->id)
+                ->where('model_has_roles.model_type', get_class($this))
+                ->where('model_has_roles.organisation_id', $orgId)
+                ->where('roles.name', $roleName)
+                ->exists();
+        }
+
+        // For simple role checks, use the parent implementation
         if (!$this->organisation_id) {
             return parent::hasRole($roles, $guard);
         }
 
-        // Get role names
+        // Get role names from the current organization
         $roleNames = $this->getDirectRolesAttribute();
 
         // Normalize input roles

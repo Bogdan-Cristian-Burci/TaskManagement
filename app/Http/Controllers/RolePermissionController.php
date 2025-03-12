@@ -17,13 +17,15 @@ class RolePermissionController extends Controller
      */
     public function getRoles()
     {
-        // Check for the role.view permission instead of the general middleware
-        if (!auth()->user()->can('role.view')) {
+        // Check if user has the role.view permission in their organization context
+        $organisationId = auth()->user()->organisation_id;
+
+        // This is the correct way to check permissions with team support
+        if (!auth()->user()->hasPermissionTo('role.view', 'api')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
         // Get roles specific to the user's organization
-        $organisationId = auth()->user()->organisation_id;
         $roles = Role::where('organisation_id', $organisationId)->get();
 
         return response()->json($roles);
