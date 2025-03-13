@@ -17,7 +17,7 @@ class RoleController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        if (!$request->user()->can('role.view')) {
+        if (!$request->user()->canWithOrg('role.view')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -116,7 +116,7 @@ class RoleController extends Controller
      */
     public function show(Request $request, $id): JsonResponse
     {
-        if (!$request->user()->can('role.view')) {
+        if (!$request->user()->canWithOrg('role.view')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -251,7 +251,7 @@ class RoleController extends Controller
      */
     public function destroy(Request $request, $id): JsonResponse
     {
-        if (!$request->user()->can('role.delete')) {
+        if (!$request->user()->canWithOrg('role.delete')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -320,9 +320,16 @@ class RoleController extends Controller
      *
      * @param int $roleId
      * @param array $permissions
+     * @throws \Exception
      */
     private function assignPermissionsToRole(int $roleId, array $permissions)
     {
+        // Verify role belongs to the current organization
+        $role = DB::table('roles')->where('id', $roleId)->first();
+        if (!$role || $role->organisation_id !== auth()->user()->organisation_id) {
+            throw new \Exception('Invalid role for this organization');
+        }
+
         foreach ($permissions as $permissionName) {
             // First check if permission exists
             $permission = DB::table('permissions')
