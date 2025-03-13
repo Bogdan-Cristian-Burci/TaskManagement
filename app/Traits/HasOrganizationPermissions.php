@@ -3,7 +3,9 @@
 namespace App\Traits;
 
 use App\Models\Organisation;
+use App\Services\AuthorizationService;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 
 trait HasOrganizationPermissions
@@ -78,70 +80,20 @@ trait HasOrganizationPermissions
      */
     public function hasOrganisationPermission($permission, $organisation): bool
     {
-        // Convert organization ID to Organization object if needed
-        if (is_numeric($organisation)) {
-            $organisationObj = Organisation::find($organisation);
-            if (!$organisationObj) {
-                return false; // Organization doesn't exist
-            }
-            $organisation = $organisationObj;
-        }
+        $authService = App::make(AuthorizationService::class);
 
-        $orgId = $organisation->id;
-
-        // If user is admin/super-admin in this organization, return true
-        if ($this->hasRole(['admin', $orgId]) || $this->hasRole(['super-admin', $orgId])) {
-            return true;
-        }
-
-        // If user is organization owner, return true
-        if ($organisation->isOwner($this)) {
-            return true;
-        }
-
-        // Check if user has permission in this organization
+        // If permission is an array, check each one
         if (is_array($permission)) {
             foreach ($permission as $perm) {
-                if ($this->checkDirectPermissionInOrg($perm, $orgId)) {
+                if ($authService->hasOrganisationPermission($this, $perm, $organisation)) {
                     return true;
                 }
             }
             return false;
         }
 
-        return $this->checkDirectPermissionInOrg($permission, $orgId);
+        // For a single permission, delegate to the service
+        return $authService->hasOrganisationPermission($this, $permission, $organisation);
     }
 
-    /**
-     * Check direct permission in organization
-     *
-     * @param string $permission
-     * @param int $orgId
-     * @return bool
-     */
-    protected function checkDirectPermissionInOrg(string $permission, int $orgId): bool
-    {
-        // First check direct permissions
-        $directPermission = DB::table('permissions')
-            ->join('model_has_permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
-            ->where('model_has_permissions.model_id', $this->id)
-            ->where('model_has_permissions.model_type', get_class($this))
-            ->where('model_has_permissions.organisation_id', $orgId)
-            ->where('permissions.name', $permission)
-            ->exists();
-
-        if ($directPermission) {
-            return true;
-        }
-
-        // Then check role-based permissions
-        return DB::table('permissions')
-            ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
-            ->join('model_has_roles', 'role_has_permissions.role_id', '=', 'model_has_roles.role_id')
-            ->where('model_has_roles.model_id', $this->id)
-            ->where('model_has_roles.model_type', get_class($this))
-            ->where('model_has_roles.organisation_id', $orgId)
-            ->where('permissions.name', $permission)
-            ->exists();
-    }
 }

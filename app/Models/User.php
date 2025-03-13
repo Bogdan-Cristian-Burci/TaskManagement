@@ -403,7 +403,7 @@ class User extends Authenticatable implements MustVerifyEmail
     public function organisationRole(Organisation $organisation)
     {
         return $this->roles()
-            ->where('organisation_id', $organisation->id)
+            ->where('model_has_roles.organisation_id', $organisation->id)
             ->orderByDesc('level')
             ->first();
     }
@@ -430,8 +430,8 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return $this->roles()
-            ->where('organisation_id', $organisationId)
-            ->whereIn('name', is_array($roles) ? $roles : [$roles])
+            ->where('model_has_roles.organisation_id', $organisationId)
+            ->whereIn('roles.name', $roles) // Specify table name for name column too
             ->exists();
     }
 
