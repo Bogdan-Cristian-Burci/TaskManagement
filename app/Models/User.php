@@ -286,24 +286,6 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Get roles directly from database
-     */
-    public function getDirectRolesAttribute()
-    {
-        if (!$this->organisation_id) {
-            return [];
-        }
-
-        return \DB::table('roles')
-            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('model_has_roles.model_id', $this->id)
-            ->where('model_has_roles.model_type', get_class($this))
-            ->where('model_has_roles.organisation_id', $this->organisation_id)
-            ->pluck('roles.name')
-            ->toArray();
-    }
-
-    /**
      * Get the two-factor authentication enabled status.
      *
      * @return bool
