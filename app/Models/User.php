@@ -394,9 +394,22 @@ class User extends Authenticatable implements MustVerifyEmail
 
     /**
      * Check if user has permission in organization context
+     *
+     * @param string $permission
+     * @param Organisation|int $organisation
+     * @return bool
      */
-    public function hasOrganisationPermission(string $permission, Organisation $organisation): bool
+    public function hasOrganisationPermission(string $permission, $organisation): bool
     {
+        // Convert to Organization object if needed
+        if (is_numeric($organisation)) {
+            $organisationObj = Organisation::find($organisation);
+            if (!$organisationObj) {
+                return false;
+            }
+            $organisation = $organisationObj;
+        }
+
         return App::make(AuthorizationService::class)
             ->hasOrganisationPermission($this, $permission, $organisation);
     }
@@ -477,5 +490,92 @@ class User extends Authenticatable implements MustVerifyEmail
             $query->where('model_has_roles.organisation_id', $this->organisation_id)
                 ->orWhereNull('model_has_roles.organisation_id');
         });
+    }
+
+    /**
+     * Check permission with organization context
+     *
+     * @param string $permission
+     * @param int|Organisation|null $organization
+     * @return bool
+     */
+    public function canWithOrg(string $permission, $organization = null): bool
+    {
+        // Use provided organization or try to get from user
+        if ($organization === null) {
+            $organization = $this->organisation_id;
+            if (!$organization) {
+                return false;
+            }
+        }
+
+        // Get organization object if it's an ID
+        if (is_numeric($organization)) {
+            $orgObj = Organisation::find($organization);
+            if (!$orgObj) {
+                return false;
+            }
+            $organization = $orgObj;
+        }
+
+        try {
+            // Forward to the hasOrganisationPermission method with proper type handling
+            return $this->hasOrganisationPermission($permission, $organization);
+        } catch (\Exception $e) {
+            \Log::error("Permission check error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    /**
+     * Override can method to support organization context
+     *
+     * @param string|array $abilities
+     * @param mixed|array $arguments
+     * @return bool
+     */
+    public function can($abilities, $arguments = []): bool
+    {
+        // Extract organization context if present in arguments
+        $orgContext = null;
+        if (!empty($arguments)) {
+            $lastArg = is_array($arguments) ? end($arguments) : $arguments;
+            if ($lastArg instanceof Organisation || is_numeric($lastArg)) {
+                $orgContext = $lastArg;
+            }
+        }
+
+        // If we have a special handler for this permission with org context
+        if (is_string($abilities) && $orgContext) {
+            // Handle organization-specific permissions
+            return $this->hasOrganisationPermission($abilities, $orgContext);
+        }
+
+        // Fall back to standard Laravel permission check
+        return parent::can($abilities, $arguments);
+    }
+
+    /**
+     * Temporarily switch organization context for permission checks
+     *
+     * @param int|Organisation $organisation
+     * @param callable $callback
+     * @return mixed
+     */
+    public function withOrganisation($organisation, callable $callback): mixed
+    {
+        $originalOrgId = $this->organisation_id;
+
+        // Set temporary organization context
+        $orgId = $organisation instanceof Organisation ? $organisation->id : $organisation;
+        $this->organisation_id = $orgId;
+
+        try {
+            // Run the callback with the temporary context
+            return $callback($this);
+        } finally {
+            // Restore original organization context
+            $this->organisation_id = $originalOrgId;
+        }
     }
 }

@@ -4,6 +4,7 @@ namespace App\Traits;
 
 use App\Models\Organisation;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 trait HasOrganizationPermissions
 {
@@ -75,30 +76,72 @@ trait HasOrganizationPermissions
      * @param int|Organisation $organisation
      * @return bool
      */
-    public function hasOrganisationPermission(array|string $permission, int|Organisation $organisation) : bool
+    public function hasOrganisationPermission($permission, $organisation): bool
     {
-        $orgId = $organisation instanceof Organisation ? $organisation->id : $organisation;
+        // Convert organization ID to Organization object if needed
+        if (is_numeric($organisation)) {
+            $organisationObj = Organisation::find($organisation);
+            if (!$organisationObj) {
+                return false; // Organization doesn't exist
+            }
+            $organisation = $organisationObj;
+        }
 
-        // If user is admin/super-admin, return true
-        if ($this->hasRole(['admin', 'super-admin'])) {
+        $orgId = $organisation->id;
+
+        // If user is admin/super-admin in this organization, return true
+        if ($this->hasRole(['admin', $orgId]) || $this->hasRole(['super-admin', $orgId])) {
             return true;
         }
 
         // If user is organization owner, return true
-        $org = $organisation instanceof Organisation ? $organisation : Organisation::find($orgId);
-        if ($org && $org->isOwner($this)) {
+        if ($organisation->isOwner($this)) {
             return true;
         }
 
         // Check if user has permission in this organization
         if (is_array($permission)) {
-            $permParam = [];
             foreach ($permission as $perm) {
-                $permParam[] = [$perm, $orgId];
+                if ($this->checkDirectPermissionInOrg($perm, $orgId)) {
+                    return true;
+                }
             }
-            return $this->hasPermissionTo($permParam);
+            return false;
         }
 
-        return $this->hasPermissionTo([$permission, $orgId]);
+        return $this->checkDirectPermissionInOrg($permission, $orgId);
+    }
+
+    /**
+     * Check direct permission in organization
+     *
+     * @param string $permission
+     * @param int $orgId
+     * @return bool
+     */
+    protected function checkDirectPermissionInOrg(string $permission, int $orgId): bool
+    {
+        // First check direct permissions
+        $directPermission = DB::table('permissions')
+            ->join('model_has_permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+            ->where('model_has_permissions.model_id', $this->id)
+            ->where('model_has_permissions.model_type', get_class($this))
+            ->where('model_has_permissions.organisation_id', $orgId)
+            ->where('permissions.name', $permission)
+            ->exists();
+
+        if ($directPermission) {
+            return true;
+        }
+
+        // Then check role-based permissions
+        return DB::table('permissions')
+            ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+            ->join('model_has_roles', 'role_has_permissions.role_id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('model_has_roles.model_type', get_class($this))
+            ->where('model_has_roles.organisation_id', $orgId)
+            ->where('permissions.name', $permission)
+            ->exists();
     }
 }

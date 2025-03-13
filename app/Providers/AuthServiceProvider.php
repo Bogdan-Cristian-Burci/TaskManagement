@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Extensions\OrganizationGate;
 use App\Models\Attachment;
 use App\Models\Board;
 use App\Models\BoardColumn;
@@ -71,5 +72,7 @@ class AuthServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->registerPolicies();
+        // Register organization-aware gates
+        OrganizationGate::register();
     }
 }

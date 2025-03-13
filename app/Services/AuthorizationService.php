@@ -8,17 +8,21 @@ use App\Models\User;
 class AuthorizationService
 {
     /**
-     * Check if a user has permission in a specific organization
+     * Check if a user has permission in an organization
      */
-    public function hasOrganisationPermission(User $user, string $permission, Organisation $organisation): bool
+    public function hasOrganisationPermission($user, $permission, $organisation)
     {
-        // Check if the user belongs to this organization before checking permissions
-        if (!$user->organisations->contains($organisation->id)) {
-            return false;
-        }
+        // Set context for standard permission checks
+        \App\Services\OrganizationContext::setCurrentOrganization(
+            $organisation instanceof \App\Models\Organisation ? $organisation->id : $organisation
+        );
 
-        // Use Spatie's team permission check (with 'organisation_id' as team_id)
-        return $user->hasPermissionTo($permission, $organisation->id);
+        $result = $user->hasOrganisationPermission($permission, $organisation);
+
+        // Clear context after check
+        \App\Services\OrganizationContext::clear();
+
+        return $result;
     }
 
     /**

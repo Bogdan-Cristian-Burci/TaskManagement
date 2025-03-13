@@ -65,7 +65,7 @@ Route::get('auth/{provider}/callback', [OAuthSocialController::class, 'handlePro
 Route::get('auth/providers', [OAuthSocialController::class, 'providers'])->name('oauth.providers');
 // Protected routes
 //*PUT and PATCH methods are not Laravel default methods for updating resources, so we use POST method to update resources*//
-Route::middleware('auth:api')->group(function () {
+Route::middleware(['auth:api','org.context'])->group(function () {
 
     // User routes
     Route::get('profile', [UserController::class, 'profile'])->name('users.profile');

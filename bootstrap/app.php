@@ -16,7 +16,17 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'api.auth' => \App\Http\Middleware\ApiAuthenticationMiddleware::class,
             'two-factor'=> \App\Http\Middleware\EnsureTwoFactorAuthenticatedMiddleware::class,
-            'throttle-login'=> \App\Http\Middleware\ThrottleLoginAttemptsMiddleware::class
+            'throttle-login'=> \App\Http\Middleware\ThrottleLoginAttemptsMiddleware::class,
+            'org.context' => \App\Http\Middleware\OrganizationContextMiddleware::class,
+        ]);
+
+        // Add OrganizationContext to web and api middleware groups
+        $middleware->web(append: [
+            \App\Http\Middleware\OrganizationContextMiddleware::class,
+        ]);
+
+        $middleware->api(append: [
+            \App\Http\Middleware\OrganizationContextMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
