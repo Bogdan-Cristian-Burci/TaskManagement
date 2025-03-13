@@ -97,7 +97,7 @@ class AuthorizationService
      */
     public function isOrganisationOwner(User $user, Organisation $organisation): bool
     {
-        return $user->hasRole('Owner', $organisation->id);
+        return $organisation->owner_id === $user->id;
     }
 
     /**
@@ -106,28 +106,28 @@ class AuthorizationService
      */
     public function canManageUserInOrganisation(User $manager, User $user, Organisation $organisation): bool
     {
-        // Super admins can manage anyone
-        if ($manager->hasRole('super-admin')) {
-            return true;
-        }
-
-        // Get the manager's highest role level in the organization
-        $managerRole = $manager->roles()
-            ->where('organisation_id', $organisation->id)
-            ->orderByDesc('level')
-            ->first();
-
-        // Get the user's highest role level in the organization
-        $userRole = $user->roles()
-            ->where('organisation_id', $organisation->id)
-            ->orderByDesc('level')
-            ->first();
-
-        if (!$managerRole || !$userRole) {
+        // If they're the same user, can't manage themselves
+        if ($manager->id === $user->id) {
             return false;
         }
 
-        // Manager can only manage users with lower role levels
-        return $managerRole->level > $userRole->level;
+        // Organization owner can manage everyone
+        if ($this->isOrganisationOwner($manager, $organisation)) {
+            return true;
+        }
+
+        // Super admins can manage anyone except the owner
+        if ($manager->hasRoleInOrganisation('super-admin', $organisation->id)) {
+            return !$this->isOrganisationOwner($user, $organisation);
+        }
+
+        // Admins can manage regular users but not other admins or owners
+        if ($manager->hasRoleInOrganisation('admin', $organisation->id)) {
+            return !$this->isOrganisationOwner($user, $organisation) &&
+                !$user->hasRoleInOrganisation(['admin', 'super-admin'], $organisation->id);
+        }
+
+        // Non-admins can't manage others
+        return false;
     }
 }
