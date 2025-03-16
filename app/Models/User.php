@@ -396,12 +396,20 @@ class User extends Authenticatable implements MustVerifyEmail
             ->hasOrganisationPermission($this, $permission, $organisation);
     }
 
-    //TODO fix relationship
     /**
      * Get user's role in specific organization
      */
-    public function organisationRole(Organisation $organisation)
+    public function organisationRole($organisation)
     {
+        // Convert organization ID to Organization object if needed
+        if (is_numeric($organisation)) {
+            $organisationObj = \App\Models\Organisation::find($organisation);
+            if (!$organisationObj) {
+                return null;
+            }
+            $organisation = $organisationObj;
+        }
+
         return $this->roles()
             ->where('model_has_roles.organisation_id', $organisation->id)
             ->orderByDesc('level')

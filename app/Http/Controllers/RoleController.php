@@ -57,6 +57,9 @@ class RoleController extends Controller
      */
     public function store(StoreRoleRequest $request): JsonResponse
     {
+        if (!$request->user()->canWithOrg('manage roles')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
         $validated = $request->validated();
         $organisation_id = $request->user()->organisation_id;
 
@@ -161,6 +164,10 @@ class RoleController extends Controller
      */
     public function update(UpdateRoleRequest $request, $id): JsonResponse
     {
+        if (!$request->user()->canWithOrg('role.update')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
         $validated = $request->validated();
         $organisation_id = $request->user()->organisation_id;
 

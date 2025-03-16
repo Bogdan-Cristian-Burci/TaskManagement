@@ -10,26 +10,6 @@ use Spatie\Permission\Models\Role;
 
 class RolePermissionController extends Controller
 {
-    /**
-     * Get all roles.
-     *
-     * @return JsonResponse
-     */
-    public function getRoles()
-    {
-        // Check if user has the role.view permission in their organization context
-        $organisationId = auth()->user()->organisation_id;
-
-        // This is the correct way to check permissions with team support
-        if (!auth()->user()->hasPermissionTo('role.view', 'api')) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
-
-        // Get roles specific to the user's organization
-        $roles = Role::where('organisation_id', $organisationId)->get();
-
-        return response()->json($roles);
-    }
 
     /**
      * Get all permissions.
@@ -38,7 +18,7 @@ class RolePermissionController extends Controller
      */
     public function getPermissions()
     {
-        if (!auth()->user()->can('permission.view')) {
+        if (!auth()->user()->canWithOrg('permission.view')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -53,7 +33,7 @@ class RolePermissionController extends Controller
      */
     public function assignRole(Request $request)
     {
-        if (!auth()->user()->can('organisation.assignRole')) {
+        if (!auth()->user()->canWithOrg('organisation.assignRole')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -92,7 +72,7 @@ class RolePermissionController extends Controller
      */
     public function removeRole(Request $request)
     {
-        if (!auth()->user()->can('organisation.assignRole')) {
+        if (!auth()->user()->canWithOrg('organisation.assignRole')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -122,7 +102,7 @@ class RolePermissionController extends Controller
      */
     public function assignPermission(Request $request)
     {
-        if (!auth()->user()->can('permission.assign')) {
+        if (!auth()->user()->canWithOrg('permission.assign')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -152,7 +132,7 @@ class RolePermissionController extends Controller
      */
     public function removePermission(Request $request)
     {
-        if (!auth()->user()->can('permission.assign')) {
+        if (!auth()->user()->canWithOrg('permission.assign')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

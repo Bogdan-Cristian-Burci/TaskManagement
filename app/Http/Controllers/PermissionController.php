@@ -66,7 +66,7 @@ class PermissionController extends Controller
      */
     public function categories(): JsonResponse
     {
-        if (!request()->user()->can('permission.view')) {
+        if (!request()->user()->canWithOrg('permission.view')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

@@ -314,28 +314,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     });
     // Your other API endpoints go here...
 
-    // Add this temporary debugging route at the end of your routes file
-    Route::get('/debug-permissions', function () {
-        $user = auth()->user();
-        if (!$user) {
-            return response()->json(['message' => 'Not authenticated'], 401);
-        }
-
-        $directPermissions = $user->getDirectPermissions()->pluck('name');
-        $permissionsViaRoles = $user->getPermissionsViaRoles()->pluck('name');
-        $allPermissions = $user->getAllPermissions()->pluck('name');
-        $roles = $user->organisationRole($user->organisation_id);
-
-        return response()->json([
-            'user_id' => $user->id,
-            'email' => $user->email,
-            'organisation_id' => $user->organisation_id,
-            'direct_permissions' => $directPermissions,
-            'permissions_via_roles' => $permissionsViaRoles,
-            'all_permissions' => $allPermissions,
-            'roles' => $roles
-        ]);
-    });
 
 
 });
