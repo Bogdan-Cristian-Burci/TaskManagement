@@ -22,7 +22,6 @@ use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 use Laravel\Passport\HasApiTokens;
-use Spatie\Permission\Traits\HasRoles;
 
 /**
  * @property int $id
@@ -477,9 +476,11 @@ class User extends Authenticatable implements MustVerifyEmail
             config('permission.column_names.model_morph_key'),
             'role_id'
         )->where(function ($query) {
-            // Match roles for this user's organization or global roles (no organization)
-            $query->where('model_has_roles.organisation_id', $this->organisation_id)
-                ->orWhereNull('model_has_roles.organisation_id');
+            if ($this->organisation_id) {
+                // Match roles for this user's organization or global roles (no organization)
+                $query->where('model_has_roles.organisation_id', $this->organisation_id)
+                    ->orWhereNull('model_has_roles.organisation_id');
+            }
         });
     }
 

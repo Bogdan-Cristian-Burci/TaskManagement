@@ -62,7 +62,10 @@ class APIAuthenticationController extends Controller
             $user->organisations()->attach($organisation->id);
 
             // Create admin template if it doesn't exist
-            $this->createAdminRoleWithTemplate($organisation->id, $user->id);
+            $this->assignAdminRoleFromTemplate($user, $organisation->id);
+
+            // Clear permission cache
+            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
             // Create token
             $token = $user->createToken('Registration Token', ['read-user'])->accessToken;
@@ -270,168 +273,61 @@ class APIAuthenticationController extends Controller
         return $name;
     }
 
-    /**
-     * Assign permissions to a role
-     *
-     * @param int $roleId
-     */
-    private function assignPermissionsToRole($roleId)
-    {
-        // List of all permissions for admin
-        $permissions = [
-            // User permissions
-            'user.viewAny', 'user.view', 'user.create', 'user.update', 'user.delete', 'user.forceDelete', 'user.restore',
-
-            // Organisation permissions
-            'organisation.viewAny', 'organisation.view', 'organisation.create', 'organisation.update', 'organisation.delete', 'organisation.forceDelete', 'organisation.restore',
-            'organisation.inviteUser', 'organisation.removeUser', 'organisation.assignRole', 'organisation.viewMetrics', 'organisation.manageSettings', 'organisation.exportData',
-
-            // Project permissions
-            'project.viewAny', 'project.view', 'project.create', 'project.update', 'project.delete', 'project.forceDelete', 'project.restore',
-            'project.addMember', 'project.removeMember', 'project.changeOwner',
-
-            // Team permissions
-            'team.view', 'team.create', 'team.update', 'team.delete',
-
-            // Task permissions
-            'task.viewAny', 'task.view', 'task.create', 'task.update', 'task.delete', 'task.forceDelete', 'task.restore',
-            'task.assign', 'task.changeStatus', 'task.changePriority', 'task.addLabel', 'task.removeLabel', 'task.moveTask', 'task.attachFile', 'task.detachFile',
-
-            // Board permissions
-            'board.viewAny', 'board.view', 'board.create', 'board.update', 'board.delete', 'board.forceDelete', 'board.restore',
-            'board.reorderColumns', 'board.addColumn', 'board.changeColumSettings',
-
-            // Status permissions
-            'status.viewAny', 'status.view', 'status.create', 'status.update', 'status.delete', 'status.forceDelete', 'status.restore',
-
-            // Priority permissions
-            'priority.viewAny', 'priority.view', 'priority.create', 'priority.update', 'priority.delete', 'priority.forceDelete', 'priority.restore',
-
-            // Task Type permissions
-            'taskType.viewAny', 'taskType.view', 'taskType.create', 'taskType.update', 'taskType.delete', 'taskType.forceDelete', 'taskType.restore',
-
-            // Comment permissions
-            'comment.viewAny', 'comment.view', 'comment.create', 'comment.update', 'comment.delete', 'comment.forceDelete', 'comment.restore',
-
-            // Attachment permissions
-            'attachment.viewAny', 'attachment.view', 'attachment.create', 'attachment.update', 'attachment.delete', 'attachment.forceDelete', 'attachment.restore',
-
-            // Notification permissions
-            'notification.viewAny', 'notification.view', 'notification.create', 'notification.update', 'notification.delete', 'notification.forceDelete', 'notification.restore',
-
-            // Role and permission management
-            'role.view', 'role.create', 'role.update', 'role.delete',
-            'permission.view', 'permission.assign',
-        ];
-
-        // Create permissions and assign them to the role
-        foreach ($permissions as $permissionName) {
-            // First check if permission exists
-            $permission = DB::table('permissions')
-                ->where('name', $permissionName)
-                ->where('guard_name', 'api')
-                ->first();
-
-            if (!$permission) {
-                // Create the permission
-                $permissionId = DB::table('permissions')->insertGetId([
-                    'name' => $permissionName,
-                    'guard_name' => 'api',
-                    'created_at' => now(),
-                    'updated_at' => now()
-                ]);
-            } else {
-                $permissionId = $permission->id;
-            }
-
-            // Check if the role already has this permission
-            $exists = DB::table('role_has_permissions')
-                ->where('permission_id', $permissionId)
-                ->where('role_id', $roleId)
-                ->exists();
-
-            if (!$exists) {
-                // Assign it to the role
-                DB::table('role_has_permissions')->insert([
-                    'permission_id' => $permissionId,
-                    'role_id' => $roleId
-                ]);
-            }
-        }
-    }
-    /**
-     * Custom method to ensure proper role assignment with organization context
-     */
-    private function assignRoleToUser(User $user, Role $role, int $organisationId): void
-    {
-        // First try with the Spatie method
-        try {
-            $user->assignRole($role);
-        } catch (\Exception $e) {
-            \Log::warning('Error assigning role via Spatie method: ' . $e->getMessage());
-
-            // Direct DB insert as fallback
-            \DB::table('model_has_roles')->insert([
-                'role_id' => $role->id,
-                'model_id' => $user->id,
-                'model_type' => get_class($user),
-                'organisation_id' => $organisationId,
-            ]);
-        }
-
-        // Verify the assignment worked
-        $assigned = \DB::table('model_has_roles')
-            ->where('role_id', $role->id)
-            ->where('model_id', $user->id)
-            ->where('model_type', get_class($user))
-            ->where('organisation_id', $organisationId)
-            ->exists();
-
-        \Log::info('Role assignment check', [
-            'user_id' => $user->id,
-            'role_id' => $role->id,
-            'organisation_id' => $organisationId,
-            'assigned' => $assigned
-        ]);
-    }
-
     // When creating an admin role for new organization:
-    private function createAdminRoleWithTemplate(int $organisationId, int $userId): void
-    {
-        // Get or create admin template
-        $template = RoleTemplate::firstOrCreate(
-            [
-                'name' => 'Admin Template',
-                'organisation_id' => $organisationId
-            ],
-            [
-                'description' => 'All permissions for organization admin',
-                'permissions' => [
-                    // List all admin permissions here
-                    'user.viewAny', 'user.view', 'user.create', 'user.update', 'user.delete',
-                    // ... other permissions
-                ],
-                'organisation_id' => $organisationId
-            ]
-        );
 
-        // Create admin role
-        $roleId = DB::table('roles')->insertGetId([
+    /**
+     * Assign admin role to a user using the standard admin template
+     *
+     * @param User $user
+     * @param int $organisationId
+     * @throws \Exception
+     */
+    private function assignAdminRoleFromTemplate(User $user, int $organisationId): void
+    {
+        // Find the Demo Organization
+        $demoOrg = Organisation::where('name', 'Demo Organization')->first();
+
+        if (!$demoOrg) {
+            Log::error("Demo Organization not found. Please run the seeders first.");
+            throw new \Exception("Demo Organization not found. System is not properly initialized.");
+        }
+
+        // Find the admin role template from Demo Org
+        $adminRoleTemplate = DB::table('roles')
+            ->join('role_templates', 'roles.template_id', '=', 'role_templates.id')
+            ->where('roles.name', 'admin')
+            ->where('roles.organisation_id', $demoOrg->id)
+            ->select('role_templates.id as template_id', 'roles.level')
+            ->first();
+
+        if (!$adminRoleTemplate) {
+            Log::error("Admin template not found in Demo Organization. Please run the seeders first.");
+            throw new \Exception("Admin template not found. System is not properly initialized.");
+        }
+
+        // Create admin role with template reference
+        $adminRoleId = DB::table('roles')->insertGetId([
             'name' => 'admin',
             'guard_name' => 'api',
             'organisation_id' => $organisationId,
-            'template_id' => $template->id,
-            'level' => 100, // High level for admin
+            'level' => $adminRoleTemplate->level,
+            'template_id' => $adminRoleTemplate->template_id,
             'created_at' => now(),
             'updated_at' => now()
         ]);
 
         // Assign role to user
         DB::table('model_has_roles')->insert([
-            'role_id' => $roleId,
-            'model_id' => $userId,
+            'role_id' => $adminRoleId,
+            'model_id' => $user->id,
             'model_type' => 'App\\Models\\User',
             'organisation_id' => $organisationId
+        ]);
+
+        Log::info("Admin role assigned to user using template", [
+            'user_id' => $user->id,
+            'organisation_id' => $organisationId,
+            'template_id' => $adminRoleTemplate->template_id
         ]);
     }
 }

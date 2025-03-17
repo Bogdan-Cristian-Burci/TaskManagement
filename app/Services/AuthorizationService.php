@@ -206,8 +206,12 @@ class AuthorizationService
         $overridePermissions = ['grant' => [], 'deny' => []];
 
         // Get role and its template
-        $role = $user->roles()
-            ->where('organisation_id', $organisationId)
+        $role = DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $user->id)
+            ->where('model_has_roles.model_type', get_class($user))
+            ->where('model_has_roles.organisation_id', $organisationId) // Explicitly qualify this
+            ->select('roles.*')
             ->first();
 
         if ($role && $role->template_id) {
@@ -253,8 +257,6 @@ class AuthorizationService
         $allPermissions = array_diff($allPermissions, $overridePermissions['deny']);
 
         // Remove duplicates
-        $allPermissions = array_unique($allPermissions);
-
-        return $allPermissions;
+        return array_unique($allPermissions);
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Resources;
 
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\DB;
@@ -13,32 +14,14 @@ class UserResource extends JsonResource
      *
      * @param Request $request
      * @return array<string, mixed>
+     * @throws BindingResolutionException
      */
     public function toArray(Request $request): array
     {
-        // Get roles directly using the EXACT query that worked in simple-user-test
-        $roleNames = DB::table('roles')
-            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('model_has_roles.model_id', $this->id)
-            ->where('model_has_roles.model_type', 'App\\Models\\User')
-            ->where('model_has_roles.organisation_id', $this->organisation_id)
-            ->pluck('roles.name')
-            ->toArray();
-
-        // Get permissions using the EXACT query that worked in simple-user-test
-        $permissionNames = DB::table('permissions')
-            ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
-            ->join('model_has_roles', 'role_has_permissions.role_id', '=', 'model_has_roles.role_id')
-            ->where('model_has_roles.model_id', $this->id)
-            ->where('model_has_roles.model_type', 'App\\Models\\User')
-            ->where('model_has_roles.organisation_id', $this->organisation_id)
-            ->pluck('permissions.name')
-            ->unique()
-            ->values()
-            ->toArray();
+        $user = $this->resource;
 
         // Check if user has admin role - use the array we know works
-        $isAdmin = in_array('admin', $roleNames);
+        $isAdmin = in_array('admin', $user->roles->pluck('name')->toArray());
 
         // Check if authenticated user is the same as current user
         $isSelf = $request->user() && $request->user()->id === $this->id;
@@ -57,8 +40,8 @@ class UserResource extends JsonResource
             'updated_at' => $this->updated_at,
 
             // Add roles and permissions using our direct queries
-            'roles' => $roleNames,
-            'permissions' => $permissionNames,
+            'roles' => $user->roles->pluck('name'),
+            'permissions' => $user->getOrganisationPermissionsAttribute(),
 
             'organisation_id' => $this->when($this->organisation_id, $this->organisation_id),
             'organisation' => new OrganisationResource($this->whenLoaded('organisation')),

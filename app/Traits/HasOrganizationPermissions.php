@@ -182,4 +182,18 @@ trait HasOrganizationPermissions
         return $this;
     }
 
+    /**
+     * Get all permissions for this user in the current organization context
+     *
+     * @return array
+     */
+    public function getOrganisationPermissionsAttribute(): array
+    {
+        if (!$this->organisation_id) {
+            return [];
+        }
+
+        $authService = app(AuthorizationService::class);
+        return $authService->getEffectivePermissions($this, $this->organisation_id);
+    }
 }
