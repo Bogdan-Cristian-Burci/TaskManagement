@@ -55,36 +55,14 @@ class APIAuthenticationController extends Controller
                 'owner_id' => $user->id
             ]);
 
-            // IMPORTANT: Set organisation_id BEFORE assigning roles
-            $user->organisation_id = $organisation->id;
-            $user->save();
+            // Set organization as user's primary organization
+            $user->update(['organisation_id' => $organisation->id]);
 
             // Associate user with organization
             $user->organisations()->attach($organisation->id);
 
-            // Create admin role directly
-            $adminRoleId = DB::table('roles')->insertGetId([
-                'name' => 'admin',
-                'guard_name' => 'api',
-                'organisation_id' => $organisation->id,
-                'level' => 80,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-
-            // Assign permissions to role
-            $this->assignPermissionsToRole($adminRoleId);
-
-            // Assign role directly
-            DB::table('model_has_roles')->insert([
-                'role_id' => $adminRoleId,
-                'model_id' => $user->id,
-                'model_type' => 'App\\Models\\User',
-                'organisation_id' => $organisation->id
-            ]);
-
-            // Clear permission cache
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+            // Create admin template if it doesn't exist
+            $this->createAdminRoleWithTemplate($organisation->id, $user->id);
 
             // Create token
             $token = $user->createToken('Registration Token', ['read-user'])->accessToken;

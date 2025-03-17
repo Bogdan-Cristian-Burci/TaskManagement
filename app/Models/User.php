@@ -8,6 +8,7 @@ use App\Traits\HasOrganizationPermissions;
 use App\Traits\HasOrganizationRoles;
 use Carbon\Carbon;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -567,5 +568,52 @@ class User extends Authenticatable implements MustVerifyEmail
             // Restore original organization context
             $this->organisation_id = $originalOrgId;
         }
+    }
+
+    /**
+     * Get all permissions for this user in the current organization context
+     *
+     * @return array
+     * @throws BindingResolutionException
+     */
+    public function getOrganisationPermissionsAttribute(): array
+    {
+        if (!$this->organisation_id) {
+            return [];
+        }
+
+        $authService = App::make(AuthorizationService::class);
+        return $authService->getEffectivePermissions($this, $this->organisation_id);
+    }
+
+    /**
+     * Get permission overrides for this user in the current organization
+     *
+     * @return array
+     */
+    public function getPermissionOverridesAttribute(): array
+    {
+        if (!$this->organisation_id) {
+            return [];
+        }
+
+        $overrides = [
+            'grant' => [],
+            'deny' => []
+        ];
+
+        $results = DB::table('permissions')
+            ->join('model_has_permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+            ->where('model_has_permissions.model_id', $this->id)
+            ->where('model_has_permissions.model_type', get_class($this))
+            ->where('model_has_permissions.organisation_id', $this->organisation_id)
+            ->select('permissions.name', 'model_has_permissions.type')
+            ->get();
+
+        foreach ($results as $result) {
+            $overrides[$result->type][] = $result->name;
+        }
+
+        return $overrides;
     }
 }

@@ -189,4 +189,72 @@ class AuthorizationService
         // Non-admins can't manage others
         return false;
     }
+
+    /**
+     * Get effective permissions for a user in an organization context
+     * This is useful for UI features showing what permissions a user has
+     *
+     * @param User $user
+     * @param int $organisationId
+     * @return array
+     */
+    public function getEffectivePermissions(User $user, int $organisationId): array
+    {
+        $allPermissions = [];
+        $templatePermissions = [];
+        $directPermissions = [];
+        $overridePermissions = ['grant' => [], 'deny' => []];
+
+        // Get role and its template
+        $role = $user->roles()
+            ->where('organisation_id', $organisationId)
+            ->first();
+
+        if ($role && $role->template_id) {
+            $template = DB::table('role_templates')
+                ->where('id', $role->template_id)
+                ->first();
+
+            if ($template) {
+                $templatePermissions = json_decode($template->permissions, true);
+            }
+        }
+
+        // Get direct permissions from role_has_permissions
+        $directPermissions = DB::table('permissions')
+            ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+            ->join('model_has_roles', 'role_has_permissions.role_id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $user->id)
+            ->where('model_has_roles.model_type', get_class($user))
+            ->where('model_has_roles.organisation_id', $organisationId)
+            ->pluck('permissions.name')
+            ->toArray();
+
+        // Get overrides
+        $overrides = DB::table('permissions')
+            ->join('model_has_permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+            ->where('model_has_permissions.model_id', $user->id)
+            ->where('model_has_permissions.model_type', get_class($user))
+            ->where('model_has_permissions.organisation_id', $organisationId)
+            ->select('permissions.name', 'model_has_permissions.type')
+            ->get();
+
+        foreach ($overrides as $override) {
+            $overridePermissions[$override->type][] = $override->name;
+        }
+
+        // Calculate effective permissions
+        $basePermissions = array_merge($templatePermissions, $directPermissions);
+
+        // Add grants
+        $allPermissions = array_merge($basePermissions, $overridePermissions['grant']);
+
+        // Remove denies
+        $allPermissions = array_diff($allPermissions, $overridePermissions['deny']);
+
+        // Remove duplicates
+        $allPermissions = array_unique($allPermissions);
+
+        return $allPermissions;
+    }
 }
