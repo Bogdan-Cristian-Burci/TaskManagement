@@ -3,7 +3,9 @@
 namespace App\Traits;
 
 use App\Models\Organisation;
+use App\Models\User;
 use App\Services\AuthorizationService;
+use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
@@ -72,11 +74,13 @@ trait HasOrganizationPermissions
     }
 
     /**
-     * Check for permission in a specific organization
+     * Check if user has permission in organization context
+     * This method now checks both direct permissions and permissions from templates
      *
-     * @param array|string $permission
-     * @param int|Organisation $organisation
+     * @param string $permission
+     * @param Organisation|int $organisation
      * @return bool
+     * @throws BindingResolutionException
      */
     public function hasOrganisationPermission($permission, $organisation): bool
     {
@@ -94,6 +98,88 @@ trait HasOrganizationPermissions
 
         // For a single permission, delegate to the service
         return $authService->hasOrganisationPermission($this, $permission, $organisation);
+    }
+
+    /**
+     * Add a permission override for this user
+     *
+     * @param string $permission Permission name
+     * @param int|Organisation $organisation Organisation
+     * @param string $type Whether to grant or deny ('grant' or 'deny')
+     * @return User|HasOrganizationPermissions
+     */
+    public function addPermissionOverride(string $permission, int|Organisation $organisation, string $type = 'grant'): self
+    {
+        $organisationId = $organisation instanceof Organisation ? $organisation->id : $organisation;
+
+        // Find the permission
+        $permissionId = DB::table('permissions')
+            ->where('name', $permission)
+            ->value('id');
+
+        if (!$permissionId) {
+            // Create the permission if it doesn't exist
+            $permissionId = DB::table('permissions')->insertGetId([
+                'name' => $permission,
+                'guard_name' => 'api',
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+        }
+
+        // Check if override already exists
+        $exists = DB::table('model_has_permissions')
+            ->where('permission_id', $permissionId)
+            ->where('model_id', $this->id)
+            ->where('model_type', get_class($this))
+            ->where('organisation_id', $organisationId)
+            ->exists();
+
+        if ($exists) {
+            // Update existing override
+            DB::table('model_has_permissions')
+                ->where('permission_id', $permissionId)
+                ->where('model_id', $this->id)
+                ->where('model_type', get_class($this))
+                ->where('organisation_id', $organisationId)
+                ->update(['type' => $type]);
+        } else {
+            // Create new override
+            DB::table('model_has_permissions')->insert([
+                'permission_id' => $permissionId,
+                'model_id' => $this->id,
+                'model_type' => get_class($this),
+                'organisation_id' => $organisationId,
+                'type' => $type
+            ]);
+        }
+
+        return $this;
+    }
+
+    /**
+     * Remove a permission override for this user
+     */
+    public function removePermissionOverride(string $permission, $organisation): self
+    {
+        $organisationId = $organisation instanceof Organisation ? $organisation->id : $organisation;
+
+        // Find the permission
+        $permissionId = DB::table('permissions')
+            ->where('name', $permission)
+            ->value('id');
+
+        if ($permissionId) {
+            // Remove the override
+            DB::table('model_has_permissions')
+                ->where('permission_id', $permissionId)
+                ->where('model_id', $this->id)
+                ->where('model_type', get_class($this))
+                ->where('organisation_id', $organisationId)
+                ->delete();
+        }
+
+        return $this;
     }
 
 }

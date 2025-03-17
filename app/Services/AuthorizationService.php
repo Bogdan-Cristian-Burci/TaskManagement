@@ -37,7 +37,66 @@ class AuthorizationService
             return true;
         }
 
+        // First check if there's a 'deny' override for this permission
+        if ($this->hasPermissionOverride($user, $permission, $organisation->id, 'deny')) {
+            return false;
+        }
+
+        // Then check if there's a 'grant' override
+        if ($this->hasPermissionOverride($user, $permission, $organisation->id, 'grant')) {
+            return true;
+        }
+
+        // Check if permission is in user's role template
+        if ($this->checkTemplatePermission($user, $permission, $organisation->id)) {
+            return true;
+        }
+
         return $this->checkDirectPermissionInOrg($user, $permission, $organisation->id);
+    }
+
+    /**
+     * Check if user has a permission override of specified type
+     */
+    protected function hasPermissionOverride(User $user, string $permission, int $orgId, string $type): bool
+    {
+        return DB::table('permissions')
+            ->join('model_has_permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+            ->where('model_has_permissions.model_id', $user->id)
+            ->where('model_has_permissions.model_type', get_class($user))
+            ->where('model_has_permissions.organisation_id', $orgId)
+            ->where('permissions.name', $permission)
+            ->where('model_has_permissions.type', $type)
+            ->exists();
+    }
+
+    /**
+     * Check if permission exists in user's role template
+     */
+    protected function checkTemplatePermission(User $user, string $permission, int $orgId): bool
+    {
+        // Get user's role in this organization
+        $role = $user->roles()
+            ->where('organisation_id', $orgId)
+            ->first();
+
+        if (!$role || !$role->template_id) {
+            return false;
+        }
+
+        // Get role template
+        $template = DB::table('role_templates')
+            ->where('id', $role->template_id)
+            ->where('organisation_id', $orgId)
+            ->first();
+
+        if (!$template) {
+            return false;
+        }
+
+        // Check if permission is in template
+        $permissions = json_decode($template->permissions, true);
+        return in_array($permission, $permissions);
     }
 
     /**

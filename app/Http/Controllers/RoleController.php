@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 
+use App\Models\RoleTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use App\Http\Requests\StoreRoleRequest;
@@ -57,7 +58,7 @@ class RoleController extends Controller
      */
     public function store(StoreRoleRequest $request): JsonResponse
     {
-        if (!$request->user()->canWithOrg('manage roles')) {
+        if (!$request->user()->canWithOrg('role.create')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
         $validated = $request->validated();
@@ -66,34 +67,42 @@ class RoleController extends Controller
         DB::beginTransaction();
 
         try {
+
+            // Check if template_id is provided and valid
+            $templateId = null;
+            if (isset($validated['template_id'])) {
+                $template = RoleTemplate::where('id', $validated['template_id'])
+                    ->where('organisation_id', $organisationId)
+                    ->first();
+
+                if (!$template) {
+                    return response()->json(['message' => 'Invalid template'], 422);
+                }
+
+                $templateId = $template->id;
+            }
+
             // Create the role
             $roleId = DB::table('roles')->insertGetId([
                 'name' => $validated['name'],
                 'guard_name' => 'api',
                 'organisation_id' => $organisation_id,
                 'level' => $validated['level'] ?? 10, // Default level if not provided
-                'description' => $validated['description'] ?? null,
+                'template_id' => $templateId,
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
-
-            // Assign permissions if provided
-            if (isset($validated['permissions']) && is_array($validated['permissions'])) {
-                $this->assignPermissionsToRole($roleId, $validated['permissions']);
-            }
 
             DB::commit();
 
             $role = DB::table('roles')->where('id', $roleId)->first();
 
-            // Get permissions for this role
-            $permissions = DB::table('permissions')
-                ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
-                ->where('role_has_permissions.role_id', $roleId)
-                ->pluck('permissions.name')
-                ->toArray();
-
-            $role->permissions = $permissions;
+            // Get template information
+            if ($templateId) {
+                $template = RoleTemplate::find($templateId);
+                $role->template = $template;
+                $role->permissions = $template->permissions;
+            }
 
             return response()->json([
                 'message' => 'Role created successfully',
@@ -101,16 +110,8 @@ class RoleController extends Controller
             ], 201);
         } catch (\Exception $e) {
             DB::rollBack();
-
-            Log::error('Failed to create role', [
-                'error' => $e->getMessage(),
-                'trace' => $e->getTraceAsString()
-            ]);
-
-            return response()->json([
-                'message' => 'Failed to create role',
-                'error' => $e->getMessage()
-            ], 500);
+            Log::error('Failed to create role', ['error' => $e->getMessage()]);
+            return response()->json(['message' => 'Failed to create role'], 500);
         }
     }
 
@@ -134,22 +135,29 @@ class RoleController extends Controller
             return response()->json(['message' => 'Role not found'], 404);
         }
 
-        // Get permissions for this role
-        $permissions = DB::table('permissions')
-            ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
-            ->where('role_has_permissions.role_id', $id)
-            ->pluck('permissions.name')
-            ->toArray();
+        // Get template information if available
+        if ($role->template_id) {
+            $template = RoleTemplate::find($role->template_id);
+            $role->template = $template;
+            $role->permissions = $template ? $template->permissions : [];
+        } else {
+            // For legacy roles, get permissions from role_has_permissions
+            $permissions = DB::table('permissions')
+                ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+                ->where('role_has_permissions.role_id', $id)
+                ->pluck('permissions.name')
+                ->toArray();
 
-        $role->permissions = $permissions;
+            $role->permissions = $permissions;
+        }
 
         // Get users with this role
         $users = DB::table('users')
-            ->join('model_has_roles', function($join) use ($id, $organisation_id) {
+            ->join('model_has_roles', function($join) use ($id, $organisationId) {
                 $join->on('users.id', '=', 'model_has_roles.model_id')
                     ->where('model_has_roles.model_type', 'App\\Models\\User')
                     ->where('model_has_roles.role_id', $id)
-                    ->where('model_has_roles.organisation_id', $organisation_id);
+                    ->where('model_has_roles.organisation_id', $organisationId);
             })
             ->select('users.id', 'users.name', 'users.email')
             ->get();
@@ -169,12 +177,12 @@ class RoleController extends Controller
         }
 
         $validated = $request->validated();
-        $organisation_id = $request->user()->organisation_id;
+        $organisationId = $request->user()->organisation_id;
 
         // Find the role
         $role = DB::table('roles')
             ->where('id', $id)
-            ->where('organisation_id', $organisation_id)
+            ->where('organisation_id', $organisationId)
             ->first();
 
         if (!$role) {
@@ -194,8 +202,23 @@ class RoleController extends Controller
                 $updateData['level'] = $validated['level'];
             }
 
-            if (array_key_exists('description', $validated)) {
-                $updateData['description'] = $validated['description'];
+            // Handle template_id updates
+            if (isset($validated['template_id'])) {
+                if ($validated['template_id'] === null) {
+                    // Remove template association
+                    $updateData['template_id'] = null;
+                } else {
+                    // Verify template exists and belongs to this org
+                    $template = RoleTemplate::where('id', $validated['template_id'])
+                        ->where('organisation_id', $organisationId)
+                        ->first();
+
+                    if (!$template) {
+                        return response()->json(['message' => 'Invalid template'], 422);
+                    }
+
+                    $updateData['template_id'] = $template->id;
+                }
             }
 
             if (!empty($updateData)) {
@@ -207,32 +230,26 @@ class RoleController extends Controller
                     ->update($updateData);
             }
 
-            // Update permissions if provided
-            if (isset($validated['permissions'])) {
-                // Remove existing permissions
-                DB::table('role_has_permissions')
-                    ->where('role_id', $id)
-                    ->delete();
-
-                // Assign new permissions if not empty
-                if (!empty($validated['permissions'])) {
-                    $this->assignPermissionsToRole($id, $validated['permissions']);
-                }
-            }
-
             DB::commit();
 
             // Get updated role
             $updatedRole = DB::table('roles')->where('id', $id)->first();
 
-            // Get permissions for this role
-            $permissions = DB::table('permissions')
-                ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
-                ->where('role_has_permissions.role_id', $id)
-                ->pluck('permissions.name')
-                ->toArray();
+            // Get template information if available
+            if ($updatedRole->template_id) {
+                $template = RoleTemplate::find($updatedRole->template_id);
+                $updatedRole->template = $template;
+                $updatedRole->permissions = $template ? $template->permissions : [];
+            } else {
+                // For legacy roles, get permissions from role_has_permissions
+                $permissions = DB::table('permissions')
+                    ->join('role_has_permissions', 'permissions.id', '=', 'role_has_permissions.permission_id')
+                    ->where('role_has_permissions.role_id', $id)
+                    ->pluck('permissions.name')
+                    ->toArray();
 
-            $updatedRole->permissions = $permissions;
+                $updatedRole->permissions = $permissions;
+            }
 
             return response()->json([
                 'message' => 'Role updated successfully',

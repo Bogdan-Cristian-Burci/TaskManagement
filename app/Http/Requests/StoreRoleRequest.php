@@ -11,7 +11,7 @@ class StoreRoleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('role.create');
+        return $this->user()->canWithOrg('role.create');
     }
 
     /**
@@ -23,6 +23,7 @@ class StoreRoleRequest extends FormRequest
             'name' => 'required|string|max:255|unique:roles,name,NULL,id,organisation_id,' . $this->user()->organisation_id,
             'description' => 'nullable|string|max:1000',
             'level' => 'nullable|integer|min:1|max:100',
+            'template_id'=> 'nullable|integer|exists:role_templates,id,organisation_id,' . $this->user()->organisation_id,
             'permissions' => 'nullable|array',
             'permissions.*' => 'string|exists:permissions,name',
         ];

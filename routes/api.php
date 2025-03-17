@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\PermissionController;
+use App\Http\Controllers\RoleTemplateController;
+use App\Http\Controllers\UserPermissionOverrideController;
 use App\Http\Controllers\UserRoleController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\BoardColumnController;
@@ -112,6 +114,14 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::get('/users/{userId}/roles', [UserRoleController::class, 'getUserRoles']);
         Route::post('/users/{userId}/roles', [UserRoleController::class, 'assignRoles']);
         Route::get('/roles/{roleId}/users', [UserRoleController::class, 'getUsersByRole']);
+
+        // User permission overrides
+        Route::get('users/{user}/permission-overrides', [UserPermissionOverrideController::class, 'index']);
+        Route::post('users/{user}/permission-overrides', [UserPermissionOverrideController::class, 'store']);
+        Route::delete('users/{user}/permission-overrides/{permission}', [UserPermissionOverrideController::class, 'destroy']);
+
+        // Role templates
+        Route::apiResource('role-templates', RoleTemplateController::class);
 
     // Organisation routes
     Route::apiResource('organisations', OrganisationController::class);

@@ -6,6 +6,7 @@ use App\Http\Requests\CreateUserRequest;
 use App\Http\Requests\LoginUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\Organisation;
+use App\Models\RoleTemplate;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -413,6 +414,46 @@ class APIAuthenticationController extends Controller
             'role_id' => $role->id,
             'organisation_id' => $organisationId,
             'assigned' => $assigned
+        ]);
+    }
+
+    // When creating an admin role for new organization:
+    private function createAdminRoleWithTemplate(int $organisationId, int $userId): void
+    {
+        // Get or create admin template
+        $template = RoleTemplate::firstOrCreate(
+            [
+                'name' => 'Admin Template',
+                'organisation_id' => $organisationId
+            ],
+            [
+                'description' => 'All permissions for organization admin',
+                'permissions' => [
+                    // List all admin permissions here
+                    'user.viewAny', 'user.view', 'user.create', 'user.update', 'user.delete',
+                    // ... other permissions
+                ],
+                'organisation_id' => $organisationId
+            ]
+        );
+
+        // Create admin role
+        $roleId = DB::table('roles')->insertGetId([
+            'name' => 'admin',
+            'guard_name' => 'api',
+            'organisation_id' => $organisationId,
+            'template_id' => $template->id,
+            'level' => 100, // High level for admin
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        // Assign role to user
+        DB::table('model_has_roles')->insert([
+            'role_id' => $roleId,
+            'model_id' => $userId,
+            'model_type' => 'App\\Models\\User',
+            'organisation_id' => $organisationId
         ]);
     }
 }

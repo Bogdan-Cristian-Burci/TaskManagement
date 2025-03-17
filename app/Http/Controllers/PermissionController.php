@@ -173,4 +173,109 @@ class PermissionController extends Controller
             'permission_categories' => $result
         ]);
     }
+
+    /**
+     * Get all available permissions categorized
+     */
+    public function availablePermissions(Request $request): JsonResponse
+    {
+        if (!$request->user()->canWithOrg('permission.view')) {
+            return response()->json(['message' => 'Unauthorized'], 403);
+        }
+
+        // Define standard permission actions
+        $standardActions = [
+            'viewAny' => 'View list',
+            'view' => 'View details',
+            'create' => 'Create',
+            'update' => 'Update',
+            'delete' => 'Delete',
+            'forceDelete' => 'Force delete',
+            'restore' => 'Restore'
+        ];
+
+        // Define special permissions by category
+        $specialPermissions = [
+            'project' => [
+                'addMember' => 'Add member',
+                'removeMember' => 'Remove member',
+                'changeOwner' => 'Change owner'
+            ],
+            'task' => [
+                'assign' => 'Assign task',
+                'changeStatus' => 'Change status',
+                'changePriority' => 'Change priority',
+                'addLabel' => 'Add label',
+                'removeLabel' => 'Remove label',
+                'moveTask' => 'Move task',
+                'attachFile' => 'Attach file',
+                'detachFile' => 'Detach file'
+            ],
+            'organisation' => [
+                'inviteUser' => 'Invite user',
+                'removeUser' => 'Remove user',
+                'assignRole' => 'Assign role',
+                'viewMetrics' => 'View metrics',
+                'manageSettings' => 'Manage settings',
+                'exportData' => 'Export data'
+            ],
+            'board' => [
+                'reorderColumns' => 'Reorder columns',
+                'addColumn' => 'Add column',
+                'changeColumSettings' => 'Change column settings'
+            ],
+            'permission' => [
+                'assign' => 'Assign permission'
+            ]
+        ];
+
+        // Define categories
+        $categories = [
+            'project' => 'Projects',
+            'task' => 'Tasks',
+            'user' => 'Users',
+            'organisation' => 'Organizations',
+            'board' => 'Boards',
+            'status' => 'Statuses',
+            'priority' => 'Priorities',
+            'taskType' => 'Task Types',
+            'comment' => 'Comments',
+            'attachment' => 'Attachments',
+            'notification' => 'Notifications',
+            'team' => 'Teams',
+            'role' => 'Roles',
+            'permission' => 'Permissions'
+        ];
+
+        $result = [];
+
+        // Build the complete permissions structure
+        foreach ($categories as $category => $displayName) {
+            $permissionActions = $standardActions;
+
+            // Add special permissions if they exist
+            if (isset($specialPermissions[$category])) {
+                $permissionActions = array_merge($permissionActions, $specialPermissions[$category]);
+            }
+
+            $categoryPermissions = [];
+            foreach ($permissionActions as $action => $actionName) {
+                $permissionName = $category . '.' . $action;
+                $categoryPermissions[] = [
+                    'name' => $permissionName,
+                    'display_name' => $actionName
+                ];
+            }
+
+            $result[] = [
+                'category' => $category,
+                'display_name' => $displayName,
+                'permissions' => $categoryPermissions
+            ];
+        }
+
+        return response()->json([
+            'permission_categories' => $result
+        ]);
+    }
 }
