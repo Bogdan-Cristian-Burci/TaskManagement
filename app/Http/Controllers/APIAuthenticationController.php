@@ -52,7 +52,8 @@ class APIAuthenticationController extends Controller
                 'name' => $organisationName,
                 'description' => 'Personal workspace created during registration',
                 'unique_id' => Str::slug($organisationName) . '-' . Str::random(6),
-                'owner_id' => $user->id
+                'owner_id' => $user->id,
+                'created_by' => $user->id
             ]);
 
             // Set organization as user's primary organization

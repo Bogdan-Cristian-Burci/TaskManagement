@@ -176,19 +176,17 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Team::class, 'team_lead_id');
     }
 
-    //TODO fix relationship
     /**
      * Get organisations where the user is an owner.
      *
-     * @return BelongsToMany
+     * @return HasMany|User
      */
-    public function ownedOrganisations(): BelongsToMany
+    public function ownedOrganisations(): User|HasMany
     {
-        return $this->organisations()
-            ->wherePivot('role', 'owner');
+        return $this->hasMany(Organisation::class, 'owner_id');
     }
 
-    //TOD fix relationship
+
     /**
      * Get organisations where the user is an admin.
      *
@@ -196,8 +194,12 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function adminOrganisations(): BelongsToMany
     {
-        return $this->organisations()
-            ->wherePivot('role', 'admin');
+        return $this->belongsToMany(Organisation::class, 'model_has_roles', 'model_id', 'organisation_id')
+            ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
+            ->where('model_has_roles.model_type', get_class($this))
+            ->where('roles.name', 'admin')
+            ->select('organisations.*')
+            ->distinct();
     }
 
     /**
@@ -380,6 +382,7 @@ class User extends Authenticatable implements MustVerifyEmail
      * @param string $permission
      * @param Organisation|int $organisation
      * @return bool
+     * @throws BindingResolutionException
      */
     public function hasOrganisationPermission(string $permission, $organisation): bool
     {
@@ -437,9 +440,12 @@ class User extends Authenticatable implements MustVerifyEmail
             $roles = [$roles];
         }
 
-        return $this->roles()
+        return DB::table('roles')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('model_has_roles.model_type', get_class($this))
             ->where('model_has_roles.organisation_id', $organisationId)
-            ->whereIn('roles.name', $roles) // Specify table name for name column too
+            ->whereIn('roles.name', $roles)
             ->exists();
     }
 
