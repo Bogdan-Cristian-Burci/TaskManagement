@@ -18,6 +18,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'two-factor'=> \App\Http\Middleware\EnsureTwoFactorAuthenticatedMiddleware::class,
             'throttle-login'=> \App\Http\Middleware\ThrottleLoginAttemptsMiddleware::class,
             'org.context' => \App\Http\Middleware\OrganizationContextMiddleware::class,
+            'active.organisation' => \App\Http\Middleware\SetActiveOrganisationMiddleware::class,
         ]);
 
         // Add OrganizationContext to web and api middleware groups

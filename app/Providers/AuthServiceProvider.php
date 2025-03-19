@@ -36,6 +36,7 @@ use App\Policies\TaskTypePolicy;
 use App\Policies\TeamPolicy;
 use App\Policies\UserPolicy;
 use Illuminate\Foundation\Support\Providers\AuthServiceProvider as ServiceProvider;
+use Illuminate\Support\Facades\Gate;
 
 class AuthServiceProvider extends ServiceProvider
 {
@@ -74,5 +75,9 @@ class AuthServiceProvider extends ServiceProvider
         $this->registerPolicies();
         // Register organization-aware gates
         OrganizationGate::register();
+        // Define a gate check that respects organization context
+        Gate::define('permission', function (User $user, $permission, $organisationId = null) {
+            return $user->hasPermission($permission, $organisationId);
+        });
     }
 }

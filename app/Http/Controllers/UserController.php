@@ -8,13 +8,19 @@ use App\Http\Resources\ProjectResource;
 use App\Http\Resources\TaskResource;
 use App\Http\Resources\TeamResource;
 use App\Http\Resources\UserResource;
+use App\Models\Organisation;
 use App\Models\User;
+use App\Notifications\OrganizationAddedNotification;
+use App\Notifications\OrganizationInvitationNotification;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Spatie\Permission\Models\Role;
+use Spatie\Permission\PermissionRegistrar;
 use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends Controller
@@ -433,6 +439,204 @@ class UserController extends Controller
 
         return response()->json([
             'roles' => $roles
+        ]);
+    }
+
+    /**
+     * Invite a user to an organization.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     * @throws AuthorizationException
+     */
+    public function inviteToOrganisation(Request $request): JsonResponse
+    {
+        // Validate that the user can invite others to their organization
+        $this->authorize('manageMembers', $request->user()->organisation);
+
+        $request->validate([
+            'email' => 'required|email',
+            'name' => 'sometimes|string|max:255',
+            'organisation_id' => 'sometimes|exists:organisations,id',
+            'send_invitation' => 'sometimes|boolean',
+        ]);
+
+        // Use current user's organization if none specified
+        $organisationId = $request->input('organisation_id', $request->user()->organisation_id);
+
+        if (!$organisationId) {
+            return response()->json([
+                'message' => 'No organization specified and user does not have a default organization'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // Check if the user already exists
+        $user = User::where('email', $request->email)->first();
+        $isNewUser = !$user;
+
+        // If user doesn't exist, create a new one
+        if ($isNewUser) {
+            // Generate a temporary password
+            $tempPassword = \Str::random(12);
+
+            $user = User::create([
+                'email' => $request->email,
+                'name' => $request->input('name', ''),
+                'password' => Hash::make($tempPassword),
+                'organisation_id' => $organisationId,
+            ]);
+        }
+
+        // Check if the user is already a member of this organization
+        $alreadyMember = $user->organisations()
+            ->where('organisations.id', $organisationId)
+            ->exists();
+
+        if (!$alreadyMember) {
+            // Add user to the organization
+            $user->organisations()->attach($organisationId);
+
+            // Set as primary organization if user doesn't have one
+            if (!$user->organisation_id) {
+                $user->update(['organisation_id' => $organisationId]);
+            }
+        } else {
+            return response()->json([
+                'message' => 'User is already a member of this organization',
+                'user' => new UserResource($user)
+            ], Response::HTTP_OK);
+        }
+
+        // Find the member role template from the organization
+        $memberRoleTemplate = $this->getMemberRoleTemplate($organisationId);
+
+        if ($memberRoleTemplate) {
+            // Create role with template for the user in this organization
+            $role = Role::firstOrCreate(
+                [
+                    'name' => 'member',
+                    'guard_name' => 'api',
+                    'organisation_id' => $organisationId
+                ],
+                [
+                    'template_id' => $memberRoleTemplate->id,
+                    'level' => $memberRoleTemplate->level ?? 10,
+                ]
+            );
+
+            // Assign role to user in organization context
+            DB::table('model_has_roles')->updateOrInsert(
+                [
+                    'role_id' => $role->id,
+                    'model_id' => $user->id,
+                    'model_type' => get_class($user),
+                    'organisation_id' => $organisationId
+                ],
+                [
+                    'role_id' => $role->id // Needed for updateOrInsert
+                ]
+            );
+        }
+
+        // Send invitation email if requested
+        if ($request->input('send_invitation', true)) {
+            // Send email invitation with reset password link
+            if($isNewUser){
+                try {
+                    $token = Password::createToken($user);
+                    $user->notify(new OrganizationInvitationNotification($token, $organisationId));
+                } catch (\Exception $e) {
+                    \Log::error('Failed to send invitation email: ' . $e->getMessage());
+                    // Continue execution even if email fails
+                }
+            }else{
+                try{
+                    $user->notify(new OrganizationAddedNotification(Organisation::find($organisationId)));
+                }catch (\Exception $e){
+                    \Log::error('Failed to send invitation email: ' . $e->getMessage());
+                    // Continue execution
+                }
+
+            }
+
+        }
+
+        return response()->json([
+            'message' => $isNewUser ? 'User invited to organization' : 'Existing user added to organization',
+            'user' => new UserResource($user->load(['roles', 'organisations'])),
+            'is_new_user' => $isNewUser
+        ], Response::HTTP_OK);
+    }
+
+    /**
+     * Helper method to get the member role template
+     *
+     * @param int $organisationId
+     * @return mixed
+     */
+    private function getMemberRoleTemplate(int $organisationId)
+    {
+        // Try to get template from the same organization first
+        $template = DB::table('role_templates')
+            ->join('roles', 'role_templates.id', '=', 'roles.template_id')
+            ->where('roles.name', 'member')
+            ->where('roles.organisation_id', $organisationId)
+            ->select('role_templates.*', 'roles.level')
+            ->first();
+
+        if (!$template) {
+            // Fall back to the template from Demo Organization
+            $demoOrg = \App\Models\Organisation::where('name', 'Demo Organization')->first();
+
+            if ($demoOrg) {
+                $template = DB::table('role_templates')
+                    ->join('roles', 'role_templates.id', '=', 'roles.template_id')
+                    ->where('roles.name', 'member')
+                    ->where('roles.organisation_id', $demoOrg->id)
+                    ->select('role_templates.*', 'roles.level')
+                    ->first();
+            }
+        }
+
+        return $template;
+    }
+
+    /**
+     * Switch the user's active organization.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function switchOrganisation(Request $request): JsonResponse
+    {
+        $request->validate([
+            'organisation_id' => 'required|exists:organisations,id'
+        ]);
+
+        $organisationId = $request->organisation_id;
+        $user = $request->user();
+
+        // Check if user belongs to this organization
+        $isMember = $user->organisations()
+            ->where('organisations.id', $organisationId)
+            ->exists();
+
+        if (!$isMember) {
+            return response()->json([
+                'message' => 'You are not a member of this organization'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
+        // Update the user's active organization
+        $user->update(['organisation_id' => $organisationId]);
+
+        // Clear permission cache to reflect new organization context
+        app(PermissionRegistrar::class)->forgetCachedPermissions();
+
+        return response()->json([
+            'message' => 'Active organization switched successfully',
+            'organisation_id' => $organisationId,
+            'user' => new UserResource($user->load(['roles', 'permissions', 'organisation']))
         ]);
     }
 }

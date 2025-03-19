@@ -33,7 +33,7 @@ class TeamPolicy
     {
         // Users can view teams they belong to
         return $team->hasMember($user) ||
-            $user->hasRole(['admin', 'super-admin']);
+            $user->canWithOrg('team.view');
     }
 
     /**
@@ -46,8 +46,7 @@ class TeamPolicy
     {
         // Only users with proper permissions can create teams
         return $user->organisations()->exists() &&
-            ($user->hasPermissionTo('create-teams') ||
-                $user->hasRole(['admin', 'super-admin']));
+            $user->canWithOrg('team.create');
     }
 
     /**
@@ -61,11 +60,7 @@ class TeamPolicy
     {
         // Only team leads or admins can update teams
         return $team->isTeamLead($user) ||
-            $user->hasRole(['admin', 'super-admin']) ||
-            ($user->organisations()
-                ->where('organisations.id', $team->organisation_id)
-                ->wherePivot('role', 'admin')
-                ->exists());
+            $user->canWithOrg('team.update');
     }
 
     /**
@@ -79,11 +74,7 @@ class TeamPolicy
     {
         // Only team leads or admins can delete teams
         return $team->isTeamLead($user) ||
-            $user->hasRole(['admin', 'super-admin']) ||
-            ($user->organisations()
-                ->where('organisations.id', $team->organisation_id)
-                ->wherePivot('role', 'admin')
-                ->exists());
+            $user->canWithOrg('team.delete');
     }
 
     /**
@@ -95,11 +86,7 @@ class TeamPolicy
      */
     public function restore(User $user, Team $team): bool
     {
-        return $user->hasRole(['admin', 'super-admin']) ||
-            ($user->organisations()
-                ->where('organisations.id', $team->organisation_id)
-                ->wherePivot('role', 'admin')
-                ->exists());
+        return $user->canWithOrg('team.restore');
     }
 
     /**
@@ -111,7 +98,7 @@ class TeamPolicy
      */
     public function forceDelete(User $user, Team $team): bool
     {
-        return $user->hasRole(['admin', 'super-admin']);
+        return $user->canWithOrg('team.forceDelete');
     }
 
     /**
@@ -124,11 +111,7 @@ class TeamPolicy
     public function manageMembers(User $user, Team $team): bool
     {
         return $team->isTeamLead($user) ||
-            $user->hasRole(['admin', 'super-admin']) ||
-            ($user->organisations()
-                ->where('organisations.id', $team->organisation_id)
-                ->wherePivot('role', 'admin')
-                ->exists());
+            $user->canWithOrg('manage teams');
     }
 
     /**
@@ -141,10 +124,6 @@ class TeamPolicy
     public function changeTeamLead(User $user, Team $team): bool
     {
         return $team->isTeamLead($user) ||
-            $user->hasRole(['admin', 'super-admin']) ||
-            ($user->organisations()
-                ->where('organisations.id', $team->organisation_id)
-                ->wherePivot('role', 'admin')
-                ->exists());
+            $user->canWithOrg('team.changeLead');
     }
 }

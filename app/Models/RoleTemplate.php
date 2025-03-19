@@ -3,46 +3,76 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class RoleTemplate extends Model
 {
-    protected $fillable = ['name', 'description', 'permissions', 'organisation_id'];
+    use HasFactory;
 
-    protected $casts = [
-        'permissions' => 'array',
+    protected $fillable = [
+        'name',
+        'display_name',
+        'description',
+        'level',
+        'is_system'
     ];
 
     /**
-     * Get the organization that owns the template
+     * Get the permissions associated with this template.
      */
-    public function organisation(): BelongsTo
+    public function permissions(): BelongsToMany
     {
-        return $this->belongsTo(Organisation::class);
+        return $this->belongsToMany(Permission::class, 'template_permissions', 'template_id', 'permission_id');
     }
 
     /**
-     * Get the roles that use this template
+     * Get the roles based on this template.
      */
-    public function roles(): HasMany
+    public function roles(): HasMany|RoleTemplate
     {
         return $this->hasMany(Role::class, 'template_id');
     }
 
     /**
-     * Scope templates to a specific organization
+     * Check if this template has a specific permission.
      */
-    public function scopeForOrganisation($query, $organisationId)
+    public function hasPermission($permission): bool
     {
-        return $query->where('organisation_id', $organisationId);
+        if (is_string($permission)) {
+            return $this->permissions()->where('permissions.name', $permission)->exists();
+        }
+
+        if (is_int($permission)) {
+            return $this->permissions()->where('permissions.id', $permission)->exists();
+        }
+
+        if ($permission instanceof Permission) {
+            return $this->permissions()->where('permissions.id', $permission->id)->exists();
+        }
+
+        return false;
     }
 
     /**
-     * Check if the template contains a specific permission
+     * Create org roles from this template for all organizations or a specific one.
      */
-    public function hasPermission(string $permission): bool
+    public function createOrganisationRoles($organisationId = null): array
     {
-        return in_array($permission, $this->permissions);
+        $roles = [];
+
+        if ($organisationId) {
+            // Create for specific organization
+            $roles[] = Role::createFromTemplate($this, $organisationId);
+        } else {
+            // Create for all organizations
+            $organisations = Organisation::all();
+            foreach ($organisations as $org) {
+                $roles[] = Role::createFromTemplate($this, $org->id);
+            }
+        }
+
+        return $roles;
     }
 }

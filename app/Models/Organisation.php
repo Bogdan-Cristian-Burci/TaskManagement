@@ -211,4 +211,97 @@ class Organisation extends Model
     {
         return $this->belongsToMany(User::class, 'organisation_user', 'organisation_id', 'user_id');
     }
+
+    /**
+     * Get the roles defined for this organization.
+     */
+    public function roles(): HasMany|Organisation
+    {
+        return $this->hasMany(Role::class, 'organisation_id');
+    }
+
+    /**
+     * Create standard roles from templates for this organization.
+     */
+    public function createStandardRoles(): array
+    {
+        $createdRoles = [];
+        $templates = RoleTemplate::where('is_system', true)->get();
+
+        foreach ($templates as $template) {
+            $role = Role::createFromTemplate($template, $this->id);
+            $createdRoles[] = $role;
+        }
+
+        return $createdRoles;
+    }
+
+    /**
+     * Create a role from template.
+     */
+    public function createRoleFromTemplate($templateName)
+    {
+        $template = RoleTemplate::where('name', $templateName)->first();
+
+        if (!$template) {
+            return null;
+        }
+
+        return Role::createFromTemplate($template, $this->id);
+    }
+
+    /**
+     * Create a custom role.
+     */
+    public function createRole(array $data, array $permissionIds = [])
+    {
+        $data['organisation_id'] = $this->id;
+        $role = Role::create($data);
+
+        if (!empty($permissionIds)) {
+            $role->permissions()->attach($permissionIds);
+        }
+
+        return $role;
+    }
+
+    /**
+     * Get members with a specific role.
+     */
+    public function getMembersWithRole($roleName)
+    {
+        $role = $this->roles()->where('name', $roleName)->first();
+
+        if (!$role) {
+            return collect([]);
+        }
+
+        return $role->users;
+    }
+
+    /**
+     * Add member to this organization with a specific role.
+     */
+    public function addMemberWithRole(User $user, $roleName): bool
+    {
+        // Attach user to organization if not already attached
+        if (!$user->organisations()->where('organisations.id', $this->id)->exists()) {
+            $user->organisations()->attach($this->id);
+        }
+
+        // Find role by name
+        $role = $this->roles()->where('name', $roleName)->first();
+
+        if (!$role) {
+            $roleTemplate = RoleTemplate::where('name', $roleName)->first();
+            if ($roleTemplate) {
+                $role = Role::createFromTemplate($roleTemplate, $this->id);
+            } else {
+                return false;
+            }
+        }
+
+        // Attach role to user
+        return $user->attachRole($role, $this->id);
+    }
 }

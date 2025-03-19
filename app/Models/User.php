@@ -6,6 +6,9 @@ use App\Notifications\PasswordResetNotification;
 use App\Services\AuthorizationService;
 use App\Traits\HasOrganizationPermissions;
 use App\Traits\HasOrganizationRoles;
+use App\Traits\HasPermissions;
+use App\Traits\HasRoles;
+use App\Traits\OrganisationHelpers;
 use Carbon\Carbon;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Contracts\Container\BindingResolutionException;
@@ -53,8 +56,9 @@ class User extends Authenticatable implements MustVerifyEmail
     use HasFactory,
         Notifiable,
         HasApiTokens,
-        HasOrganizationRoles,
-        HasOrganizationPermissions,
+        HasRoles,
+        HasPermissions,
+        OrganisationHelpers,
         SoftDeletes;
 
     /**
@@ -470,24 +474,24 @@ class User extends Authenticatable implements MustVerifyEmail
             ->get();
     }
 
+
     /**
-     * Override the morphToMany relationship for roles to include organization_id
+     * Get the roles that the user has.
      */
-    public function roles(): BelongsToMany
+    public function roles() : BelongsToMany
     {
-        return $this->morphToMany(
-            config('permission.models.role'),
-            'model',
-            config('permission.table_names.model_has_roles'),
-            config('permission.column_names.model_morph_key'),
-            'role_id'
-        )->where(function ($query) {
-            if ($this->organisation_id) {
-                // Match roles for this user's organization or global roles (no organization)
-                $query->where('model_has_roles.organisation_id', $this->organisation_id)
-                    ->orWhereNull('model_has_roles.organisation_id');
-            }
-        });
+        return $this->belongsToMany(Role::class, 'user_roles')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get direct permissions for this user.
+     */
+    public function permissions() : BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class, 'user_permissions')
+            ->withPivot('organisation_id', 'grant')
+            ->withTimestamps();
     }
 
     /**

@@ -21,7 +21,7 @@ trait AuthorizesOrganizationActions
     /**
      * Check if the current user has a specific permission in the provided organization
      */
-    protected function authorizeOrganizationPermission(string $permission, Organisation $organisation, string $message = null)
+    protected function authorizeOrganizationPermission(string $permission, Organisation $organisation, string $message = null): void
     {
         $user = auth()->user();
 
@@ -37,7 +37,7 @@ trait AuthorizesOrganizationActions
     /**
      * Check if the current user has sufficient role level in the organization
      */
-    protected function authorizeOrganizationRoleLevel(int $requiredLevel, Organisation $organisation)
+    protected function authorizeOrganizationRoleLevel(int $requiredLevel, Organisation $organisation): void
     {
         $user = auth()->user();
 

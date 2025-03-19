@@ -74,12 +74,18 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::apiResource('users', UserController::class);
     Route::post('users/{id}/restore', [UserController::class, 'restore'])->name('users.restore');
 
-// User related resources
+   // User related resources
     Route::get('users/{user}/teams', [UserController::class, 'teams'])->name('users.teams');
     Route::get('users/{user}/tasks', [UserController::class, 'tasks'])->name('users.tasks');
     Route::get('users/{user}/projects', [UserController::class, 'projects'])->name('users.projects');
 
-// User roles management
+    // User invitation routes
+    Route::post('/users/invite', [UserController::class, 'inviteToOrganisation']);
+
+    // Organization switching
+    Route::post('/users/switch-organisation', [UserController::class, 'switchOrganisation']);
+
+    // User roles management
     Route::put('users/{user}/roles', [UserController::class, 'updateRoles'])->name('users.roles.update');
     Route::get('roles', [UserController::class, 'roles'])->name('roles.index');
 
