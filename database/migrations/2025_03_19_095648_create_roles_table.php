@@ -34,8 +34,7 @@ return new class extends Migration
                 ->on('roles')
                 ->onDelete('set null');
 
-            // Ensure unique role names within an organization or system scope
-            $table->unique(['name', 'organisation_id']);
+            $table->unique(['template_id', 'organisation_id'], 'role_template_org_unique');
         });
     }
 

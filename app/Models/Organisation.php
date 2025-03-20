@@ -6,6 +6,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Str;
 
 class Organisation extends Model
 {
@@ -18,6 +19,17 @@ class Organisation extends Model
         'owner_id',
         'created_by'
     ];
+
+    protected static function boot()
+    {
+        parent::boot();
+
+        static::creating(function ($organisation) {
+            if (empty($organisation->slug)) {
+                $organisation->slug = Str::slug($organisation->name);
+            }
+        });
+    }
 
     /**
      * Get the owner of the organization.
@@ -49,15 +61,23 @@ class Organisation extends Model
      */
     public function getAvailableRoles()
     {
-        // Get system role names that are overridden
-        $overriddenNames = $this->roles()
+        // First, get template names that are overridden in this organization
+        $overriddenTemplateIds = $this->roles()
             ->where('overrides_system', true)
+            ->pluck('template_id')
+            ->toArray();
+
+        // Get template names from these IDs
+        $overriddenTemplateNames = RoleTemplate::whereIn('id', $overriddenTemplateIds)
             ->pluck('name')
             ->toArray();
 
-        // Get system roles that aren't overridden
+        // Get system roles that aren't overridden (by template name)
         $systemRoles = Role::whereNull('organisation_id')
-            ->whereNotIn('name', $overriddenNames)
+            ->whereHas('template', function($query) use ($overriddenTemplateNames) {
+                $query->where('is_system', true)
+                    ->whereNotIn('name', $overriddenTemplateNames);
+            })
             ->get();
 
         // Get org-specific roles
@@ -80,17 +100,23 @@ class Organisation extends Model
             ->get();
 
         foreach ($systemTemplates as $template) {
-            // Check if role already exists
+            // Check if role from this template already exists in this org
             $exists = $this->roles()
-                ->where('name', $template->name)
+                ->where('template_id', $template->id)
                 ->exists();
 
             if (!$exists) {
-                // Create from template
-                $role = $template->createRoleInOrganisation($this);
-                $created[] = $role->name;
+                // Create role from template
+                $role = Role::create([
+                    'organisation_id' => $this->id,
+                    'template_id' => $template->id,
+                    'overrides_system' => false,
+                    'system_role_id' => null
+                ]);
 
-                // If this is admin role and we have an owner, assign them
+                $created[] = $template->name; // Store template name for reporting
+
+                // If this is admin role template and we have an owner, assign them
                 if ($template->name === 'admin' && $this->owner_id) {
                     $owner = User::find($this->owner_id);
                     if ($owner) {

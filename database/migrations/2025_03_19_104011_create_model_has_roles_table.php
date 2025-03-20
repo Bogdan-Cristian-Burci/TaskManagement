@@ -20,7 +20,10 @@ return new class extends Migration
             $table->timestamps();
 
             $table->index(['model_id', 'model_type']);
-            $table->unique(['role_id', 'model_id', 'model_type', 'organisation_id']);
+            $table->unique(
+                ['role_id', 'model_id', 'model_type', 'organisation_id'],
+                'model_role_unique'
+            );
 
             $table->foreign('role_id')
                 ->references('id')

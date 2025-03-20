@@ -127,10 +127,6 @@ class RoleTemplate extends Model
 
         // Merge our attributes with defaults
         $roleData = array_merge([
-            'name' => $this->name,
-            'display_name' => $this->display_name,
-            'description' => $this->description,
-            'level' => $this->level,
             'organisation_id' => $organisation->id,
             'template_id' => $this->id,
             'overrides_system' => $isSystemOverride,
