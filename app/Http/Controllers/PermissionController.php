@@ -10,10 +10,13 @@ class PermissionController extends Controller
 {
     /**
      * Display a listing of available permissions
+     *
+     * Current Date: 2025-03-20 16:40:15
+     * Developer: Bogdan-Cristian-Burci
      */
     public function index(Request $request): JsonResponse
     {
-        if (!$request->user()->can('permission.view')) {
+        if (!$request->user()->hasPermission('permissions.view', $request->user()->organisation_id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -66,7 +69,7 @@ class PermissionController extends Controller
      */
     public function categories(): JsonResponse
     {
-        if (!request()->user()->canWithOrg('permission.view')) {
+        if (!request()->user()->hasPermission('permissions.view', request()->user()->organisation_id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -83,12 +86,12 @@ class PermissionController extends Controller
 
         // Define special permissions by category
         $specialPermissions = [
-            'project' => [
+            'projects' => [
                 'addMember' => 'Add member',
                 'removeMember' => 'Remove member',
                 'changeOwner' => 'Change owner'
             ],
-            'task' => [
+            'tasks' => [
                 'assign' => 'Assign task',
                 'changeStatus' => 'Change status',
                 'changePriority' => 'Change priority',
@@ -98,7 +101,7 @@ class PermissionController extends Controller
                 'attachFile' => 'Attach file',
                 'detachFile' => 'Detach file'
             ],
-            'organisation' => [
+            'organisations' => [
                 'inviteUser' => 'Invite user',
                 'removeUser' => 'Remove user',
                 'assignRole' => 'Assign role',
@@ -106,32 +109,37 @@ class PermissionController extends Controller
                 'manageSettings' => 'Manage settings',
                 'exportData' => 'Export data'
             ],
-            'board' => [
+            'boards' => [
                 'reorderColumns' => 'Reorder columns',
                 'addColumn' => 'Add column',
                 'changeColumSettings' => 'Change column settings'
             ],
-            'permission' => [
-                'assign' => 'Assign permission'
+            'permissions' => [
+                'assign' => 'Assign permission',
+                'manage' => 'Manage permissions'
+            ],
+            'roles' => [
+                'assign' => 'Assign roles',
+                'manage' => 'Manage roles'
             ]
         ];
 
         // Define categories and their human-readable names
         $categories = [
-            'project' => 'Projects',
-            'task' => 'Tasks',
-            'user' => 'Users',
-            'organisation' => 'Organizations',
-            'board' => 'Boards',
-            'status' => 'Statuses',
-            'priority' => 'Priorities',
-            'taskType' => 'Task Types',
-            'comment' => 'Comments',
-            'attachment' => 'Attachments',
-            'notification' => 'Notifications',
-            'team' => 'Teams',
-            'role' => 'Roles',
-            'permission' => 'Permissions'
+            'projects' => 'Projects',
+            'tasks' => 'Tasks',
+            'users' => 'Users',
+            'organisations' => 'Organizations',
+            'boards' => 'Boards',
+            'statuses' => 'Statuses',
+            'priorities' => 'Priorities',
+            'taskTypes' => 'Task Types',
+            'comments' => 'Comments',
+            'attachments' => 'Attachments',
+            'notifications' => 'Notifications',
+            'teams' => 'Teams',
+            'roles' => 'Roles',
+            'permissions' => 'Permissions'
         ];
 
         $result = [];
@@ -176,10 +184,11 @@ class PermissionController extends Controller
 
     /**
      * Get all available permissions categorized
+     *
      */
     public function availablePermissions(Request $request): JsonResponse
     {
-        if (!$request->user()->canWithOrg('permission.view')) {
+        if (!$request->user()->hasPermission('permissions.view', $request->user()->organisation_id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -196,12 +205,12 @@ class PermissionController extends Controller
 
         // Define special permissions by category
         $specialPermissions = [
-            'project' => [
+            'projects' => [
                 'addMember' => 'Add member',
                 'removeMember' => 'Remove member',
                 'changeOwner' => 'Change owner'
             ],
-            'task' => [
+            'tasks' => [
                 'assign' => 'Assign task',
                 'changeStatus' => 'Change status',
                 'changePriority' => 'Change priority',
@@ -211,7 +220,7 @@ class PermissionController extends Controller
                 'attachFile' => 'Attach file',
                 'detachFile' => 'Detach file'
             ],
-            'organisation' => [
+            'organisations' => [
                 'inviteUser' => 'Invite user',
                 'removeUser' => 'Remove user',
                 'assignRole' => 'Assign role',
@@ -219,32 +228,37 @@ class PermissionController extends Controller
                 'manageSettings' => 'Manage settings',
                 'exportData' => 'Export data'
             ],
-            'board' => [
+            'boards' => [
                 'reorderColumns' => 'Reorder columns',
                 'addColumn' => 'Add column',
                 'changeColumSettings' => 'Change column settings'
             ],
-            'permission' => [
-                'assign' => 'Assign permission'
+            'permissions' => [
+                'assign' => 'Assign permission',
+                'manage' => 'Manage permissions'
+            ],
+            'roles' => [
+                'assign' => 'Assign roles',
+                'manage' => 'Manage roles'
             ]
         ];
 
         // Define categories
         $categories = [
-            'project' => 'Projects',
-            'task' => 'Tasks',
-            'user' => 'Users',
-            'organisation' => 'Organizations',
-            'board' => 'Boards',
-            'status' => 'Statuses',
-            'priority' => 'Priorities',
-            'taskType' => 'Task Types',
-            'comment' => 'Comments',
-            'attachment' => 'Attachments',
-            'notification' => 'Notifications',
-            'team' => 'Teams',
-            'role' => 'Roles',
-            'permission' => 'Permissions'
+            'projects' => 'Projects',
+            'tasks' => 'Tasks',
+            'users' => 'Users',
+            'organisations' => 'Organizations',
+            'boards' => 'Boards',
+            'statuses' => 'Statuses',
+            'priorities' => 'Priorities',
+            'taskTypes' => 'Task Types',
+            'comments' => 'Comments',
+            'attachments' => 'Attachments',
+            'notifications' => 'Notifications',
+            'teams' => 'Teams',
+            'roles' => 'Roles',
+            'permissions' => 'Permissions'
         ];
 
         $result = [];
