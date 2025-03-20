@@ -4,8 +4,6 @@ namespace App\Models;
 
 use App\Notifications\PasswordResetNotification;
 use App\Services\AuthorizationService;
-use App\Traits\HasOrganizationPermissions;
-use App\Traits\HasOrganizationRoles;
 use App\Traits\HasPermissions;
 use App\Traits\HasRoles;
 use App\Traits\OrganisationHelpers;
@@ -480,7 +478,9 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function roles() : BelongsToMany
     {
-        return $this->belongsToMany(Role::class, 'user_roles')
+        return $this->belongsToMany(Role::class, 'model_has_roles', 'model_id', 'role_id')
+            ->where('model_type', User::class)
+            ->withPivot('organisation_id')
             ->withTimestamps();
     }
 
@@ -489,8 +489,11 @@ class User extends Authenticatable implements MustVerifyEmail
      */
     public function permissions() : BelongsToMany
     {
-        return $this->belongsToMany(Permission::class, 'user_permissions')
-            ->withPivot('organisation_id', 'grant')
+        // We'll use this relation for compatibility with existing code,
+        // but permissions are actually determined through templates
+        return $this->belongsToMany(Permission::class, 'model_has_permissions', 'model_id', 'permission_id')
+            ->where('model_type', User::class)
+            ->withPivot('organisation_id')
             ->withTimestamps();
     }
 

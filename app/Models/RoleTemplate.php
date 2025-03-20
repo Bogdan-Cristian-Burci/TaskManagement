@@ -47,9 +47,13 @@ class RoleTemplate extends Model
      */
     public function permissions(): BelongsToMany
     {
-        return $this->belongsToMany(Permission::class, 'template_has_permissions')
-            ->withTimestamps();
+        return $this->belongsToMany(Permission::class, 'template_has_permissions', 'model_id', 'permission_id')
+            ->join('model_has_roles', 'model_has_roles.role_id', '=', 'roles.id')
+            ->join('role_templates', 'roles.template_id', '=', 'role_templates.id')
+            ->where('model_has_roles.model_type', User::class)
+            ->select('permissions.*');
     }
+
 
     /**
      * Check if template has specific permission.
