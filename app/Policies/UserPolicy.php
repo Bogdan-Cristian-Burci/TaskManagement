@@ -30,7 +30,7 @@ class UserPolicy
      */
     public function view(User $user, User $model): bool
     {
-        return $user->canWithOrg('user.view');
+        return $user->hasPermission('users.view', $user->organisation_id);
     }
 
     /**
@@ -41,7 +41,7 @@ class UserPolicy
      */
     public function create(User $user): bool
     {
-           return $user->canWithOrg('user.create');
+        return $user->hasPermission('users.create', $user->organisation_id);
     }
 
     /**
@@ -53,7 +53,12 @@ class UserPolicy
      */
     public function update(User $user, User $model): bool
     {
-        return $user->canWithOrg('user.update');
+        // Allow users to update their own profile
+        if ($user->id === $model->id) {
+            return true;
+        }
+
+        return $user->hasPermission('users.update', $user->organisation_id);
     }
 
     /**
@@ -65,7 +70,12 @@ class UserPolicy
      */
     public function delete(User $user, User $model): bool
     {
-        return $user->canWithOrg('user.delete');
+        // Prevent users from deleting themselves
+        if ($user->id === $model->id) {
+            return false;
+        }
+
+        return $user->hasPermission('users.delete', $user->organisation_id);
     }
 
     /**
@@ -77,7 +87,7 @@ class UserPolicy
      */
     public function restore(User $user, User $model): bool
     {
-        return $user->canWithOrg('user.restore');
+        return $user->hasPermission('users.restore', $user->organisation_id);
     }
 
     /**
@@ -89,7 +99,7 @@ class UserPolicy
      */
     public function forceDelete(User $user, User $model): bool
     {
-        return $user->canWithOrg('user.forceDelete');
+        return $user->hasPermission('users.forceDelete', $user->organisation_id);
     }
 
     /**
@@ -101,6 +111,23 @@ class UserPolicy
      */
     public function manageRoles(User $user, User $model): bool
     {
-        return $user->canWithOrg('manage roles');
+        // Prevent users from changing their own roles
+        if ($user->id === $model->id) {
+            return false;
+        }
+
+        // Check if user has higher role level than the target user
+        $highestUserRole = $user->getHighestRole($user->organisation_id);
+        $highestTargetRole = $model->getHighestRole($user->organisation_id);
+
+        $hasHigherRole = false;
+        if ($highestUserRole && $highestTargetRole) {
+            $hasHigherRole = $highestUserRole->getLevel() > $highestTargetRole->getLevel();
+        } elseif ($highestUserRole) {
+            // If target has no role, user can manage them if they have any role
+            $hasHigherRole = true;
+        }
+
+        return $user->hasPermission('roles.manage', $user->organisation_id) && $hasHigherRole;
     }
 }
