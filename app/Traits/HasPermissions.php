@@ -4,9 +4,10 @@ namespace App\Traits;
 
 use App\Models\Permission;
 use App\Models\Organisation;
+use App\Models\RoleTemplate;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 trait HasPermissions
 {
@@ -15,51 +16,81 @@ trait HasPermissions
     /**
      * Check if user has a specific permission in the specified organization.
      *
-     * @param mixed $permission Permission name, ID, or object
+     * @param string|int|Permission $permission Permission name, ID, or object
      * @param int|Organisation|null $organisation Organisation context
      * @return bool
      */
     public function hasPermission(mixed $permission, int|Organisation $organisation = null): bool
     {
         $organisationId = $this->getOrganisationId($organisation);
+        if (!$organisationId) {
+            return false;
+        }
 
-        // First check for explicit denials
-        $denied = $this->permissions()
-            ->wherePivot('organisation_id', $organisationId)
-            ->wherePivot('grant', false)
-            ->where(function($q) use ($permission) {
-                $this->addPermissionConstraint($q, $permission);
-            })
+        // Get permission ID or name
+        $permissionName = null;
+        $permissionId = null;
+
+        if ($permission instanceof Permission) {
+            $permissionId = $permission->id;
+            $permissionName = $permission->name;
+        } elseif (is_int($permission)) {
+            $permissionId = $permission;
+            $permissionObj = Permission::find($permissionId);
+            if ($permissionObj) {
+                $permissionName = $permissionObj->name;
+            } else {
+                return false;
+            }
+        } elseif (is_string($permission)) {
+            $permissionName = $permission;
+            $permissionObj = Permission::where('name', $permissionName)->first();
+            if ($permissionObj) {
+                $permissionId = $permissionObj->id;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // First check for direct permission overrides (denials)
+        $denied = DB::table('model_has_permissions')
+            ->where('model_id', $this->id)
+            ->where('model_type', static::class)
+            ->where('permission_id', $permissionId)
+            ->where('organisation_id', $organisationId)
+            ->where('grant', false)
             ->exists();
 
         if ($denied) {
             return false;
         }
 
-        // Then check for explicit grants
-        $directGrant = $this->permissions()
-            ->wherePivot('organisation_id', $organisationId)
-            ->wherePivot('grant', true)
-            ->where(function($q) use ($permission) {
-                $this->addPermissionConstraint($q, $permission);
-            })
+        // Then check for direct permission overrides (grants)
+        $granted = DB::table('model_has_permissions')
+            ->where('model_id', $this->id)
+            ->where('model_type', static::class)
+            ->where('permission_id', $permissionId)
+            ->where('organisation_id', $organisationId)
+            ->where('grant', true)
             ->exists();
 
-        if ($directGrant) {
+        if ($granted) {
             return true;
         }
 
-        // Finally check role-based permissions
-        $hasPermissionViaRole = $this->roles()
-            ->whereHas('organisation', function ($q) use ($organisationId) {
-                $q->where('organisations.id', $organisationId);
-            })
-            ->whereHas('permissions', function ($q) use ($permission) {
-                $this->addPermissionConstraint($q, $permission);
-            })
+        // Check permissions through roles/templates
+        return DB::table('permissions')
+            ->join('template_has_permissions', 'permissions.id', '=', 'template_has_permissions.permission_id')
+            ->join('role_templates', 'template_has_permissions.role_template_id', '=', 'role_templates.id')
+            ->join('roles', 'role_templates.id', '=', 'roles.template_id')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('permissions.name', $permissionName)
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('model_has_roles.model_type', static::class)
+            ->where('model_has_roles.organisation_id', $organisationId)
             ->exists();
-
-        return $hasPermissionViaRole;
     }
 
     /**
@@ -76,7 +107,6 @@ trait HasPermissions
                 return true;
             }
         }
-
         return false;
     }
 
@@ -94,36 +124,58 @@ trait HasPermissions
                 return false;
             }
         }
-
         return true;
     }
 
     /**
      * Grant a direct permission to user in specified organization.
      *
-     * @param mixed $permission Permission name, ID, or object
+     * @param string|int|Permission $permission Permission name, ID, or object
      * @param int|Organisation|null $organisation Organisation context
      * @return bool
      */
     public function grantPermission(mixed $permission, int|Organisation $organisation = null): bool
     {
         $organisationId = $this->getOrganisationId($organisation);
-        $permissionId = $this->getPermissionId($permission);
-
-        if (!$permissionId) {
+        if (!$organisationId) {
             return false;
         }
 
-        // Remove any existing denial first
-        $this->permissions()
-            ->wherePivot('permission_id', $permissionId)
-            ->wherePivot('organisation_id', $organisationId)
-            ->detach();
+        // Get permission ID
+        $permissionId = null;
 
-        // Then add the grant
-        $this->permissions()->attach($permissionId, [
+        if ($permission instanceof Permission) {
+            $permissionId = $permission->id;
+        } elseif (is_int($permission)) {
+            $permissionId = $permission;
+        } elseif (is_string($permission)) {
+            $permissionObj = Permission::where('name', $permission)->first();
+            if ($permissionObj) {
+                $permissionId = $permissionObj->id;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // Remove any existing permission override
+        DB::table('model_has_permissions')
+            ->where('model_id', $this->id)
+            ->where('model_type', static::class)
+            ->where('permission_id', $permissionId)
+            ->where('organisation_id', $organisationId)
+            ->delete();
+
+        // Add grant permission
+        DB::table('model_has_permissions')->insert([
+            'model_id' => $this->id,
+            'model_type' => static::class,
+            'permission_id' => $permissionId,
             'organisation_id' => $organisationId,
-            'grant' => true
+            'grant' => true,
+            'created_at' => now(),
+            'updated_at' => now()
         ]);
 
         return true;
@@ -132,29 +184,52 @@ trait HasPermissions
     /**
      * Deny a permission to user in specified organization.
      *
-     * @param mixed $permission Permission name, ID, or object
+     * @param string|int|Permission $permission Permission name, ID, or object
      * @param int|Organisation|null $organisation Organisation context
      * @return bool
      */
     public function denyPermission($permission, $organisation = null): bool
     {
         $organisationId = $this->getOrganisationId($organisation);
-        $permissionId = $this->getPermissionId($permission);
-
-        if (!$permissionId) {
+        if (!$organisationId) {
             return false;
         }
 
-        // Remove any existing grant first
-        $this->permissions()
-            ->wherePivot('permission_id', $permissionId)
-            ->wherePivot('organisation_id', $organisationId)
-            ->detach();
+        // Get permission ID
+        $permissionId = null;
 
-        // Then add the denial
-        $this->permissions()->attach($permissionId, [
+        if ($permission instanceof Permission) {
+            $permissionId = $permission->id;
+        } elseif (is_int($permission)) {
+            $permissionId = $permission;
+        } elseif (is_string($permission)) {
+            $permissionObj = Permission::where('name', $permission)->first();
+            if ($permissionObj) {
+                $permissionId = $permissionObj->id;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // Remove any existing permission override
+        DB::table('model_has_permissions')
+            ->where('model_id', $this->id)
+            ->where('model_type', static::class)
+            ->where('permission_id', $permissionId)
+            ->where('organisation_id', $organisationId)
+            ->delete();
+
+        // Add deny permission
+        DB::table('model_has_permissions')->insert([
+            'model_id' => $this->id,
+            'model_type' => static::class,
+            'permission_id' => $permissionId,
             'organisation_id' => $organisationId,
-            'grant' => false
+            'grant' => false,
+            'created_at' => now(),
+            'updated_at' => now()
         ]);
 
         return true;
@@ -163,24 +238,44 @@ trait HasPermissions
     /**
      * Remove a direct permission from user.
      *
-     * @param mixed $permission Permission name, ID, or object
+     * @param string|int|Permission $permission Permission name, ID, or object
      * @param int|Organisation|null $organisation Organisation context
      * @return bool
      */
     public function removePermission($permission, $organisation = null): bool
     {
         $organisationId = $this->getOrganisationId($organisation);
-        $permissionId = $this->getPermissionId($permission);
-
-        if (!$permissionId) {
+        if (!$organisationId) {
             return false;
         }
 
-        $this->permissions()->wherePivot('permission_id', $permissionId)
-                          ->wherePivot('organisation_id', $organisationId)
-                          ->detach();
+        // Get permission ID
+        $permissionId = null;
 
-        return true;
+        if ($permission instanceof Permission) {
+            $permissionId = $permission->id;
+        } elseif (is_int($permission)) {
+            $permissionId = $permission;
+        } elseif (is_string($permission)) {
+            $permissionObj = Permission::where('name', $permission)->first();
+            if ($permissionObj) {
+                $permissionId = $permissionObj->id;
+            } else {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        // Remove any permission override
+        $affected = DB::table('model_has_permissions')
+            ->where('model_id', $this->id)
+            ->where('model_type', static::class)
+            ->where('permission_id', $permissionId)
+            ->where('organisation_id', $organisationId)
+            ->delete();
+
+        return $affected > 0;
     }
 
     /**
@@ -192,36 +287,54 @@ trait HasPermissions
     public function getAllPermissions(int|Organisation $organisation = null): Collection
     {
         $organisationId = $this->getOrganisationId($organisation);
+        if (!$organisationId) {
+            return collect();
+        }
 
         // Get denied permissions
-        $deniedIds = $this->permissions()
-            ->wherePivot('organisation_id', $organisationId)
-            ->wherePivot('grant', false)
-            ->pluck('permissions.id')
+        $deniedIds = DB::table('model_has_permissions')
+            ->where('model_id', $this->id)
+            ->where('model_type', static::class)
+            ->where('organisation_id', $organisationId)
+            ->where('grant', false)
+            ->pluck('permission_id')
             ->toArray();
 
         // Get direct granted permissions
-        $directPermissions = $this->permissions()
-            ->wherePivot('organisation_id', $organisationId)
-            ->wherePivot('grant', true)
-            ->get();
+        $directPermissions = Permission::whereIn('id', function($query) use ($organisationId) {
+            $query->select('permission_id')
+                ->from('model_has_permissions')
+                ->where('model_id', $this->id)
+                ->where('model_type', static::class)
+                ->where('organisation_id', $organisationId)
+                ->where('grant', true);
+        })->get();
 
-        // Get role permissions
-        $rolePermissionsQuery = Permission::whereHas('roles', function($query) use ($organisationId) {
-            $query->whereHas('users', function($q) {
-                $q->where('users.id', $this->id);
-            })
-            ->where('roles.organisation_id', $organisationId);
+        // Get role permissions through templates
+        $rolePermissionsQuery = Permission::whereIn('id', function($query) use ($organisationId) {
+            $query->select('permission_id')
+                ->from('template_has_permissions')
+                ->whereIn('role_template_id', function($q) use ($organisationId) {
+                    $q->select('template_id')
+                        ->from('roles')
+                        ->whereIn('id', function($r) use ($organisationId) {
+                            $r->select('role_id')
+                                ->from('model_has_roles')
+                                ->where('model_id', $this->id)
+                                ->where('model_type', static::class)
+                                ->where('organisation_id', $organisationId);
+                        });
+                });
         });
 
         // Exclude denied permissions
         if (!empty($deniedIds)) {
-            $rolePermissionsQuery->whereNotIn('permissions.id', $deniedIds);
+            $rolePermissionsQuery->whereNotIn('id', $deniedIds);
         }
 
         $rolePermissions = $rolePermissionsQuery->get();
 
-        // Merge both sets
+        // Merge both sets and return unique permissions
         return $directPermissions->merge($rolePermissions)->unique('id');
     }
 
@@ -234,7 +347,7 @@ trait HasPermissions
     }
 
     /**
-     * Backwards compatibility - alias for grantPermission
+     * Backwards compatibility - alias for grantPermission/denyPermission
      */
     public function addPermissionOverride(string $permission, $organisation = null, string $type = 'grant'): self
     {
@@ -279,21 +392,27 @@ trait HasPermissions
             return ['grant' => [], 'deny' => []];
         }
 
-        $grant = $this->permissions()
-            ->wherePivot('organisation_id', $this->organisation_id)
-            ->wherePivot('grant', true)
-            ->pluck('name')
+        $granted = DB::table('model_has_permissions')
+            ->join('permissions', 'model_has_permissions.permission_id', '=', 'permissions.id')
+            ->where('model_has_permissions.model_id', $this->id)
+            ->where('model_has_permissions.model_type', static::class)
+            ->where('model_has_permissions.organisation_id', $this->organisation_id)
+            ->where('model_has_permissions.grant', true)
+            ->pluck('permissions.name')
             ->toArray();
 
-        $deny = $this->permissions()
-            ->wherePivot('organisation_id', $this->organisation_id)
-            ->wherePivot('grant', false)
-            ->pluck('name')
+        $denied = DB::table('model_has_permissions')
+            ->join('permissions', 'model_has_permissions.permission_id', '=', 'permissions.id')
+            ->where('model_has_permissions.model_id', $this->id)
+            ->where('model_has_permissions.model_type', static::class)
+            ->where('model_has_permissions.organisation_id', $this->organisation_id)
+            ->where('model_has_permissions.grant', false)
+            ->pluck('permissions.name')
             ->toArray();
 
         return [
-            'grant' => $grant,
-            'deny' => $deny
+            'grant' => $granted,
+            'deny' => $denied
         ];
     }
 }

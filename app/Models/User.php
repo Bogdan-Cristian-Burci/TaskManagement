@@ -472,28 +472,18 @@ class User extends Authenticatable implements MustVerifyEmail
             ->get();
     }
 
-
-    /**
-     * Get the roles that the user has.
-     */
-    public function roles() : BelongsToMany
-    {
-        return $this->belongsToMany(Role::class, 'model_has_roles', 'model_id', 'role_id')
-            ->where('model_type', User::class)
-            ->withPivot('organisation_id')
-            ->withTimestamps();
-    }
-
     /**
      * Get direct permissions for this user.
      */
-    public function permissions() : BelongsToMany
+    public function permissions(): BelongsToMany
     {
-        // We'll use this relation for compatibility with existing code,
-        // but permissions are actually determined through templates
-        return $this->belongsToMany(Permission::class, 'model_has_permissions', 'model_id', 'permission_id')
-            ->where('model_type', User::class)
-            ->withPivot('organisation_id')
+        // This is a compatibility method that returns a query builder
+        return $this->belongsToMany(Permission::class, 'template_has_permissions', 'role_template_id', 'permission_id')
+            ->join('roles', 'template_has_permissions.role_template_id', '=', 'roles.template_id')
+            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+            ->where('model_has_roles.model_id', $this->id)
+            ->where('model_has_roles.model_type', get_class($this))
+            ->withPivot([])
             ->withTimestamps();
     }
 
