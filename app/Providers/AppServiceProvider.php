@@ -47,6 +47,5 @@ class AppServiceProvider extends ServiceProvider
         Board::observe(BoardObserver::class);
         BoardColumn::observe(BoardColumnObserver::class);
         BoardType::observe(BoardTypeObserver::class);
-        Organisation::observe(OrganisationObserver::class);
     }
 }
