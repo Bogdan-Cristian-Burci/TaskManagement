@@ -12,6 +12,9 @@ class UserResource extends JsonResource
     /**
      * Transform the resource into an array.
      *
+     * Current Date: 2025-03-20 16:04:10
+     * Developer: Bogdan-Cristian-Burci
+     *
      * @param Request $request
      * @return array<string, mixed>
      * @throws BindingResolutionException
@@ -19,12 +22,26 @@ class UserResource extends JsonResource
     public function toArray(Request $request): array
     {
         $user = $this->resource;
+        $organisationId = $user->organisation_id;
 
-        // Check if user has admin role - use the array we know works
-        $isAdmin = in_array('admin', $user->roles->pluck('name')->toArray());
+        // Check if user has admin role - using template names
+        $isAdmin = false;
+        if ($organisationId) {
+            $isAdmin = $user->hasRole('admin', $organisationId);
+        }
 
         // Check if authenticated user is the same as current user
         $isSelf = $request->user() && $request->user()->id === $this->id;
+
+        // Get role template names for current organization
+        $roleTemplateNames = [];
+        if ($organisationId) {
+            $roleTemplateNames = $user->getRolesInOrganisation($organisationId)
+                ->map(function($role) {
+                    return $role->template->name;
+                })
+                ->toArray();
+        }
 
         return [
             'id' => $this->id,
@@ -39,9 +56,14 @@ class UserResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
-            // Add roles and permissions using our direct queries
-            'roles' => $user->roles->pluck('name'),
-            'permissions' => $user->getOrganisationPermissionsAttribute(),
+            // Add roles and permissions using the new structure
+            'roles' => $roleTemplateNames,
+            'permissions' => $user->organisation_permissions,
+
+            // Add permission overrides if any
+            'permission_overrides' => $this->when($organisationId, function() use ($user) {
+                return $user->permission_overrides;
+            }),
 
             'organisation_id' => $this->when($this->organisation_id, $this->organisation_id),
             'organisation' => new OrganisationResource($this->whenLoaded('organisation')),
@@ -70,11 +92,11 @@ class UserResource extends JsonResource
             'tasks' => TaskResource::collection($this->whenLoaded('tasksResponsibleFor')),
             'organisations' => OrganisationResource::collection($this->whenLoaded('organisations')),
 
-            // Calculate permissions - directly based on admin role
+            // Calculate permissions based on actual permission checks
             'can' => [
-                'update' => $isAdmin || $isSelf,
-                'delete' => $isAdmin,
-                'manage_roles' => $isAdmin,
+                'update' => $isAdmin || $isSelf || ($organisationId && $user->hasPermission('users.update', $organisationId)),
+                'delete' => $isAdmin || ($organisationId && $user->hasPermission('users.delete', $organisationId)),
+                'manage_roles' => $isAdmin || ($organisationId && $user->hasPermission('roles.manage', $organisationId)),
             ],
 
             // HATEOAS links

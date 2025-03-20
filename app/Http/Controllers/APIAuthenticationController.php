@@ -9,7 +9,6 @@ use App\Models\Organisation;
 use App\Models\Role;
 use App\Models\RoleTemplate;
 use App\Models\User;
-use App\Services\AuthorizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;

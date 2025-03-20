@@ -78,7 +78,7 @@ class RoleTemplate extends Model
     /**
      * Get template by name prioritizing org-specific over system.
      */
-    public static function getTemplateByName(string $name, ?int $organisationId = null)
+    public static function getTemplateByName(string $name, ?int $organisationId = null): RoleTemplate
     {
         // First try organization-specific template if org ID provided
         if ($organisationId) {
