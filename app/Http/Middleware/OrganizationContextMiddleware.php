@@ -2,62 +2,107 @@
 
 namespace App\Http\Middleware;
 
+use App\Models\Organisation;
 use Closure;
 use Illuminate\Http\Request;
-use App\Models\Organisation;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Session;
 
 class OrganizationContextMiddleware
 {
     /**
      * Handle an incoming request.
+     * Sets the organization context for the current request.
      *
      * @param Request $request
-     * @param  \Closure  $next
+     * @param Closure $next
      * @return mixed
      */
     public function handle(Request $request, Closure $next)
     {
-        // Get organization from request
-        $orgId = $this->getOrganizationFromRequest($request);
+        // Try to determine organization ID from various sources
+        $orgId = $this->getOrganisationIdFromRequest($request);
 
-        // Store in session for later use
-        if ($orgId) {
-            session(['current_organization_id' => $orgId]);
+        if (Auth::check()) {
+            $user = Auth::user();
 
-            // Set organization ID on user object if authenticated
-            if ($request->user()) {
-                $request->user()->organisation_id = $orgId;
+            if ($orgId) {
+                // Verify user belongs to this organization before setting it
+                if ($user->organisations()->where('organisations.id', $orgId)->exists()) {
+                    // Set organization on user object
+                    $user->organisation_id = $orgId;
+
+                    // We don't save the user model here to avoid unnecessary DB writes
+                    // The organization_id is just for the current request
+
+                    // Store in session for future requests
+                    Session::put('active_organisation_id', $orgId);
+                } else {
+                    // If user doesn't belong to requested org, don't set it
+                    $orgId = null;
+                }
+            }
+
+            // If no valid org set and user has no org_id, use their first organization
+            if (!$orgId && !$user->organisation_id) {
+                $firstOrg = $user->organisations()->first();
+
+                if ($firstOrg) {
+                    $user->organisation_id = $firstOrg->id;
+                    Session::put('active_organisation_id', $firstOrg->id);
+                    $orgId = $firstOrg->id;
+                }
             }
         }
 
-        return $next($request);
+        // For API use - set a global organization context if needed
+        if (class_exists('\App\Services\OrganisationContext')) {
+            \App\Services\OrganisationContext::setCurrentOrganisation($orgId);
+        }
+
+        $response = $next($request);
+
+        // Clear any static context after request is processed
+        if (class_exists('\App\Services\OrganisationContext')) {
+            \App\Services\OrganisationContext::clear();
+        }
+
+        return $response;
     }
 
     /**
-     * Get organization ID from request
+     * Get organization ID from various request sources
+     *
+     * @param Request $request
+     * @return int|null
      */
-    protected function getOrganizationFromRequest(Request $request)
+    protected function getOrganisationIdFromRequest(Request $request): ?int
     {
         // From route parameter
         if ($request->route('organisation')) {
             return $request->route('organisation') instanceof Organisation
                 ? $request->route('organisation')->id
-                : $request->route('organisation');
+                : (int) $request->route('organisation');
+        }
+
+        // From route parameter (alternative naming)
+        if ($request->route('organisation_id')) {
+            return (int) $request->route('organisation_id');
         }
 
         // From request input
         if ($request->has('organisation_id')) {
-            return $request->input('organisation_id');
+            return (int) $request->input('organisation_id');
         }
 
         // From session
-        if (session('current_organization_id')) {
-            return session('current_organization_id');
+        if (Session::has('active_organisation_id')) {
+            return (int) Session::get('active_organisation_id');
         }
 
         // From authenticated user
         if ($request->user() && $request->user()->organisation_id) {
-            return $request->user()->organisation_id;
+            return (int) $request->user()->organisation_id;
         }
 
         return null;
