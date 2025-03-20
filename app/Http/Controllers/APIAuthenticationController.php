@@ -282,29 +282,49 @@ class APIAuthenticationController extends Controller
     private function assignAdminRoleFromTemplate(User $user, int $organisationId): void
     {
         try {
-            // Find the admin role for this org (or system admin)
-            $adminRole = \App\Models\Role::where('name', 'admin')
-                ->where(function($query) use ($organisationId) {
-                    $query->where('organisation_id', $organisationId)
-                        ->orWhereNull('organisation_id');
-                })
+            // First check if the admin template exists
+            $adminTemplate = RoleTemplate::where('name', 'admin')
+                ->where('is_system', true)
+                ->whereNull('organisation_id')
                 ->first();
 
-            if (!$adminRole) {
-                throw new \Exception("Admin role not found. Please run the seeders first.");
+            if (!$adminTemplate) {
+                throw new \Exception("Admin template not found. Please run the seeders first.");
             }
 
-            // Simple user_roles insert without organisation_id
-            DB::table('user_roles')->insert([
-                'user_id' => $user->id,
+            // Find or create the admin role for this organization
+            $adminRole = Role::where('template_id', $adminTemplate->id)
+                ->where('organisation_id', $organisationId)
+                ->first();
+
+            // If admin role doesn't exist for this org, create it
+            if (!$adminRole) {
+                $adminRole = Role::create([
+                    'template_id' => $adminTemplate->id,
+                    'organisation_id' => $organisationId,
+                    'overrides_system' => false,
+                    'system_role_id' => null
+                ]);
+
+                Log::info("Admin role created for organization", [
+                    'organisation_id' => $organisationId,
+                    'role_id' => $adminRole->id
+                ]);
+            }
+            // Assign the role to the user using model_has_roles table
+            DB::table('model_has_roles')->insert([
                 'role_id' => $adminRole->id,
+                'model_id' => $user->id,
+                'model_type' => User::class,
+                'organisation_id' => $organisationId,
                 'created_at' => now(),
                 'updated_at' => now()
             ]);
 
             Log::info("Admin role assigned to user", [
                 'user_id' => $user->id,
-                'role_id' => $adminRole->id
+                'role_id' => $adminRole->id,
+                'organisation_id' => $organisationId
             ]);
         } catch (\Exception $e) {
             Log::error("Error assigning admin role: " . $e->getMessage(), [
