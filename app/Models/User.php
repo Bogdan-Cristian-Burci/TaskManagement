@@ -3,13 +3,11 @@
 namespace App\Models;
 
 use App\Notifications\PasswordResetNotification;
-use App\Services\AuthorizationService;
 use App\Traits\HasPermissions;
 use App\Traits\HasRoles;
 use App\Traits\OrganisationHelpers;
 use Carbon\Carbon;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
-use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -20,7 +18,6 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\DatabaseNotification;
 use Illuminate\Notifications\DatabaseNotificationCollection;
 use Illuminate\Notifications\Notifiable;
-use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\DB;
 use Laravel\Passport\HasApiTokens;
 

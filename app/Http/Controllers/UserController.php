@@ -19,8 +19,6 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
-use Spatie\Permission\Models\Role;
-use Spatie\Permission\PermissionRegistrar;
 use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends Controller
@@ -31,9 +29,7 @@ class UserController extends Controller
     public function __construct()
     {
         $this->middleware('auth:api');
-        $this->authorizeResource(User::class, 'user', [
-            'except' => ['store', 'index', 'profile']
-        ]);
+        // Remove authorizeResource and handle permissions explicitly per action
     }
 
     /**
@@ -55,9 +51,15 @@ class UserController extends Controller
      *
      * @param Request $request
      * @return AnonymousResourceCollection
+     * @throws AuthorizationException
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('users.view', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view users.');
+        }
+
         $query = User::query();
 
         // Filter by organization if specified
@@ -126,18 +128,20 @@ class UserController extends Controller
      *
      * @param StoreUserRequest $request
      * @return UserResource
-     * @throws AuthorizationException
+     * @throws AuthorizationException|\Exception
      */
     public function store(StoreUserRequest $request): UserResource
     {
-        $this->authorize('create', User::class);
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('users.create', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to create users.');
+        }
 
         $data = $request->validated();
         $data['password'] = Hash::make($data['password']);
 
         // If organisation_id is not provided but user has only one organisation,
-        // use that organisation's ID (this should be already handled by the request,
-        // but we're adding an extra safeguard here)
+        // use that organisation's ID
         if (empty($data['organisation_id']) && $request->user()->organisations()->count() === 1) {
             $organisation = $request->user()->organisations()->first();
             $data['organisation_id'] = $organisation->id;
@@ -145,26 +149,28 @@ class UserController extends Controller
 
         $user = User::create($data);
 
-        // Assign role if specified
-        if ($request->has('role')) {
-            $organisationId = $request->organisation_id ?? null;
-            $user->assignRole([$request->role, ['organisation_id' => $organisationId]]);
-        } else {
-            // Assign default role
-            if ($request->has('organisation_id')) {
-                $user->assignRole(['guest', ['organisation_id' => $request->organisation_id]]);
-            } else {
-                $user->assignRole('guest');
-            }
-        }
-
         // Assign organization if specified
-        if ($request->has('organisation_id')) {
+        if (!empty($data['organisation_id'])) {
             $orgRole = $request->input('organisation_role', 'member');
-            $user->organisations()->attach($request->organisation_id, ['role' => $orgRole]);
+            $user->organisations()->attach($data['organisation_id'], ['role' => $orgRole]);
 
             // Also set as primary organization
-            $user->update(['organisation_id' => $request->organisation_id]);
+            $user->update(['organisation_id' => $data['organisation_id']]);
+
+            // Assign role if specified - using the correct signature
+            if (!empty($data['role'])) {
+                try {
+                    // This uses the correct signature: assignRole(string $templateName, int $organisationId)
+                    $user->assignRole($data['role'], $data['organisation_id']);
+                } catch (\Exception $e) {
+                    \Log::error('Failed to assign role: ' . $e->getMessage());
+                    // Fallback to default role if custom role assignment fails
+                    $user->assignRole('guest', $data['organisation_id']);
+                }
+            } else {
+                // Assign default role using correct signature
+                $user->assignRole('guest', $data['organisation_id']);
+            }
         }
 
         return new UserResource($user->load(['roles', 'permissions', 'organisations']));
@@ -176,9 +182,15 @@ class UserController extends Controller
      * @param Request $request
      * @param User $user
      * @return UserResource
+     * @throws AuthorizationException
      */
     public function show(Request $request, User $user): UserResource
     {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('users.view', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view this user.');
+        }
+
         // Build includes based on request or defaults
         $includes = ['roles'];
 
@@ -198,9 +210,21 @@ class UserController extends Controller
      * @param UpdateUserRequest $request
      * @param User $user
      * @return UserResource
+     * @throws AuthorizationException
      */
     public function update(UpdateUserRequest $request, User $user): UserResource
     {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('users.edit', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to update users.');
+        }
+
+        // Additional check for self-updates
+        if ($request->user()->id !== $user->id &&
+            !$request->user()->hasPermission('users.edit.others', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to update other users.');
+        }
+
         $data = $request->validated();
 
         // Handle password update if provided
@@ -211,8 +235,23 @@ class UserController extends Controller
         $user->update($data);
 
         // Update roles if authorized and specified
-        if ($request->has('role') && $request->user()->can('manageRoles', $user)) {
-            $user->syncRoles([$request->role]);
+        if ($request->has('role') && $request->user()->hasPermission('roles.assign', $request->user()->organisation_id)) {
+            $organisationId = $request->user()->organisation_id;
+
+            // Using the correct signature for assignRole
+            try {
+                // Remove existing roles in this organization
+                DB::table('model_has_roles')
+                    ->where('model_id', $user->id)
+                    ->where('model_type', get_class($user))
+                    ->where('organisation_id', $organisationId)
+                    ->delete();
+
+                // Assign the new role
+                $user->assignRole($request->role, $organisationId);
+            } catch (\Exception $e) {
+                \Log::error('Failed to update role: ' . $e->getMessage());
+            }
         }
 
         // Update primary organization if specified
@@ -233,11 +272,25 @@ class UserController extends Controller
     /**
      * Remove the specified user.
      *
+     * @param Request $request
      * @param User $user
      * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function destroy(User $user): JsonResponse
+    public function destroy(Request $request, User $user): JsonResponse
     {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('users.delete', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to delete users.');
+        }
+
+        // Prevent self-deletion
+        if ($request->user()->id === $user->id) {
+            return response()->json([
+                'message' => 'You cannot delete your own account.'
+            ], Response::HTTP_FORBIDDEN);
+        }
+
         // Check if user has active tasks
         $activeTasksCount = $user->tasksResponsibleFor()->where('status', '!=', 'completed')->count();
 
@@ -286,9 +339,12 @@ class UserController extends Controller
      */
     public function restore(Request $request, int $id): JsonResponse
     {
-        $user = User::withTrashed()->findOrFail($id);
-        $this->authorize('restore', $user);
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('users.restore', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to restore users.');
+        }
 
+        $user = User::withTrashed()->findOrFail($id);
         $user->restore();
 
         return response()->json([
@@ -303,9 +359,15 @@ class UserController extends Controller
      * @param Request $request
      * @param User $user
      * @return AnonymousResourceCollection
+     * @throws AuthorizationException
      */
     public function teams(Request $request, User $user): AnonymousResourceCollection
     {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('teams.view', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view teams.');
+        }
+
         $query = $user->teams();
 
         // Support for searching
@@ -325,9 +387,21 @@ class UserController extends Controller
      * @param Request $request
      * @param User $user
      * @return AnonymousResourceCollection
+     * @throws AuthorizationException
      */
     public function tasks(Request $request, User $user): AnonymousResourceCollection
     {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('tasks.view', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view tasks.');
+        }
+
+        // If viewing tasks of another user, require additional permission
+        if ($request->user()->id !== $user->id &&
+            !$request->user()->hasPermission('tasks.view.all', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view other users\' tasks.');
+        }
+
         $query = $user->tasksResponsibleFor();
 
         // Filter by status
@@ -371,9 +445,15 @@ class UserController extends Controller
      * @param Request $request
      * @param User $user
      * @return AnonymousResourceCollection
+     * @throws AuthorizationException
      */
     public function projects(Request $request, User $user): AnonymousResourceCollection
     {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('projects.view', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view projects.');
+        }
+
         $query = $user->projects();
 
         // Support for searching
@@ -400,45 +480,87 @@ class UserController extends Controller
      */
     public function updateRoles(Request $request, User $user): JsonResponse
     {
-        $this->authorize('manageRoles', $user);
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('roles.assign', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to manage user roles.');
+        }
 
         $request->validate([
             'roles' => 'required|array',
-            'roles.*' => 'exists:roles,name'
+            'roles.*' => 'exists:role_templates,name'
         ]);
 
-        // Get the user's current roles
-        $currentRoles = $user->getRoleNames();
+        // Get the user's current roles in this organization
+        $organisationId = $request->user()->organisation_id;
+        $currentRoles = $user->getOrganisationRoles($organisationId)
+            ->map(function ($role) {
+                return $role->template->name ?? null;
+            })
+            ->filter()
+            ->toArray();
 
-        // Sync the roles
-        $user->syncRoles($request->roles);
+        // Remove existing roles in this organization context
+        DB::table('model_has_roles')
+            ->where('model_id', $user->id)
+            ->where('model_type', get_class($user))
+            ->where('organisation_id', $organisationId)
+            ->delete();
 
-        // Get added and removed roles
-        $addedRoles = array_values(array_diff($request->roles, $currentRoles->toArray()));
-        $removedRoles = array_values(array_diff($currentRoles->toArray(), $request->roles));
+        // Add the new roles using the correct signature
+        $addedRoles = [];
+        foreach ($request->roles as $roleName) {
+            try {
+                $user->assignRole($roleName, $organisationId);
+                $addedRoles[] = $roleName;
+            } catch (\Exception $e) {
+                \Log::error("Failed to assign role {$roleName}: " . $e->getMessage());
+            }
+        }
+
+        // Calculate removed roles
+        $removedRoles = array_values(array_diff($currentRoles, $addedRoles));
+
+        // Get current roles after update
+        $newRoles = $user->getOrganisationRoles($organisationId)
+            ->map(function ($role) {
+                return $role->template->name ?? null;
+            })
+            ->filter()
+            ->toArray();
 
         return response()->json([
             'message' => 'User roles updated successfully.',
             'added_roles' => $addedRoles,
             'removed_roles' => $removedRoles,
-            'current_roles' => $user->getRoleNames()
+            'current_roles' => $newRoles
         ]);
     }
 
     /**
      * Get available roles.
      *
+     * @param Request $request
      * @return JsonResponse
      * @throws AuthorizationException
      */
-    public function roles(): JsonResponse
+    public function roles(Request $request): JsonResponse
     {
-        $this->authorize('viewAny', Role::class);
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('roles.view', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view roles.');
+        }
 
-        $roles = Role::all(['id', 'name']);
+        // Get role templates for the current organization
+        $templates = DB::table('role_templates')
+            ->join('roles', 'role_templates.id', '=', 'roles.template_id')
+            ->where('roles.organisation_id', $request->user()->organisation_id)
+            ->orWhereNull('roles.organisation_id')
+            ->select('role_templates.id', 'role_templates.name', 'roles.level')
+            ->distinct()
+            ->get();
 
         return response()->json([
-            'roles' => $roles
+            'roles' => $templates
         ]);
     }
 
@@ -451,17 +573,7 @@ class UserController extends Controller
      */
     public function inviteToOrganisation(Request $request): JsonResponse
     {
-        // Validate that the user can invite others to their organization
-        $this->authorize('manageMembers', $request->user()->organisation);
-
-        $request->validate([
-            'email' => 'required|email',
-            'name' => 'sometimes|string|max:255',
-            'organisation_id' => 'sometimes|exists:organisations,id',
-            'send_invitation' => 'sometimes|boolean',
-        ]);
-
-        // Use current user's organization if none specified
+        // Get organization ID - use specified or fall back to user's current org
         $organisationId = $request->input('organisation_id', $request->user()->organisation_id);
 
         if (!$organisationId) {
@@ -469,6 +581,19 @@ class UserController extends Controller
                 'message' => 'No organization specified and user does not have a default organization'
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
+
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('users.invite', $organisationId)) {
+            throw new AuthorizationException('You do not have permission to invite users to this organization.');
+        }
+
+        $request->validate([
+            'email' => 'required|email',
+            'name' => 'sometimes|string|max:255',
+            'organisation_id' => 'sometimes|exists:organisations,id',
+            'send_invitation' => 'sometimes|boolean',
+            'role' => 'sometimes|string|exists:role_templates,name',
+        ]);
 
         // Check if the user already exists
         $user = User::where('email', $request->email)->first();
@@ -507,41 +632,27 @@ class UserController extends Controller
             ], Response::HTTP_OK);
         }
 
-        // Find the member role template from the organization
-        $memberRoleTemplate = $this->getMemberRoleTemplate($organisationId);
+        // Assign role to the user if specified, otherwise use default member role
+        $roleName = $request->input('role', 'member');
 
-        if ($memberRoleTemplate) {
-            // Create role with template for the user in this organization
-            $role = Role::firstOrCreate(
-                [
-                    'name' => 'member',
-                    'guard_name' => 'api',
-                    'organisation_id' => $organisationId
-                ],
-                [
-                    'template_id' => $memberRoleTemplate->id,
-                    'level' => $memberRoleTemplate->level ?? 10,
-                ]
-            );
+        try {
+            // Using the correct signature for assignRole
+            $user->assignRole($roleName, $organisationId);
+        } catch (\Exception $e) {
+            \Log::error('Failed to assign role during invitation: ' . $e->getMessage());
 
-            // Assign role to user in organization context
-            DB::table('model_has_roles')->updateOrInsert(
-                [
-                    'role_id' => $role->id,
-                    'model_id' => $user->id,
-                    'model_type' => get_class($user),
-                    'organisation_id' => $organisationId
-                ],
-                [
-                    'role_id' => $role->id // Needed for updateOrInsert
-                ]
-            );
+            // Try to assign the default member role as fallback
+            try {
+                $user->assignRole('member', $organisationId);
+            } catch (\Exception $innerE) {
+                \Log::error('Failed to assign fallback role: ' . $innerE->getMessage());
+            }
         }
 
         // Send invitation email if requested
         if ($request->input('send_invitation', true)) {
             // Send email invitation with reset password link
-            if($isNewUser){
+            if ($isNewUser) {
                 try {
                     $token = Password::createToken($user);
                     $user->notify(new OrganizationInvitationNotification($token, $organisationId));
@@ -549,16 +660,14 @@ class UserController extends Controller
                     \Log::error('Failed to send invitation email: ' . $e->getMessage());
                     // Continue execution even if email fails
                 }
-            }else{
-                try{
+            } else {
+                try {
                     $user->notify(new OrganizationAddedNotification(Organisation::find($organisationId)));
-                }catch (\Exception $e){
+                } catch (\Exception $e) {
                     \Log::error('Failed to send invitation email: ' . $e->getMessage());
                     // Continue execution
                 }
-
             }
-
         }
 
         return response()->json([
@@ -629,9 +738,6 @@ class UserController extends Controller
 
         // Update the user's active organization
         $user->update(['organisation_id' => $organisationId]);
-
-        // Clear permission cache to reflect new organization context
-        app(PermissionRegistrar::class)->forgetCachedPermissions();
 
         return response()->json([
             'message' => 'Active organization switched successfully',

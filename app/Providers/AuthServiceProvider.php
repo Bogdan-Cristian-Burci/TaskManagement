@@ -2,7 +2,6 @@
 
 namespace App\Providers;
 
-use App\Extensions\OrganizationGate;
 use App\Models\Attachment;
 use App\Models\Board;
 use App\Models\BoardColumn;
@@ -74,10 +73,9 @@ class AuthServiceProvider extends ServiceProvider
     {
         $this->registerPolicies();
         // Register organization-aware gates
-        OrganizationGate::register();
         // Define a gate check that respects organization context
         Gate::define('permission', function (User $user, $permission, $organisationId = null) {
-            return $user->hasPermission($permission, $organisationId);
+            return $user->hasPermission($permission, $organisationId ?? $user->organisation_id);
         });
     }
 }

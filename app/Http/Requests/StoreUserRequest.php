@@ -25,7 +25,7 @@ class StoreUserRequest extends FormRequest
             'phone' => 'nullable|string|max:20',
             'bio' => 'nullable|string|max:1000',
             'job_title' => 'nullable|string|max:100',
-            'role' => 'nullable|string|exists:roles,name',
+            'role' => 'nullable|string|exists:role_templates,name', // Changed to check role_templates instead of roles
             'organisation_role' => 'nullable|string|in:owner,admin,member',
         ];
     }
@@ -37,7 +37,8 @@ class StoreUserRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user() && $this->user()->can('create', User::class);
+        // Use hasPermission directly instead of can()
+        return $this->user() && $this->user()->hasPermission('users.create', $this->user()->organisation_id);
     }
 
     /**
@@ -50,7 +51,7 @@ class StoreUserRequest extends FormRequest
         return [
             'name' => 'full name',
             'email' => 'email address',
-            'role' => 'user role',
+            'role' => 'user role template',
             'organisation_id' => 'organization',
             'organisation_role' => 'organization role',
         ];
@@ -67,6 +68,7 @@ class StoreUserRequest extends FormRequest
             'email.unique' => 'This email address is already in use.',
             'password.confirmed' => 'The password confirmation does not match.',
             'organisation_role.in' => 'The organization role must be owner, admin, or member.',
+            'role.exists' => 'The selected role template does not exist.',
         ];
     }
 
