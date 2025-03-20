@@ -20,7 +20,10 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->integer('level')->default(1); // Hierarchy level (higher = more access)
             $table->boolean('is_system')->default(false); // System templates cannot be deleted
+            $table->unsignedBigInteger('organisation_id')->nullable();
             $table->timestamps();
+
+            $table->index(['organisation_id', 'is_system']);
         });
     }
 

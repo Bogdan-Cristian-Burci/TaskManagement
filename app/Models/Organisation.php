@@ -304,4 +304,44 @@ class Organisation extends Model
         // Attach role to user
         return $user->attachRole($role, $this->id);
     }
+
+    /**
+     * Get all roles accessible by this organization
+     * (custom + non-overridden system roles)
+     */
+    public function getAvailableRoles()
+    {
+        return Role::getOrganisationRoles($this->id);
+    }
+
+    /**
+     * Check if this organization has overridden a system role
+     */
+    public function hasOverriddenRole(string $roleName): bool
+    {
+        return $this->roles()
+            ->where('name', $roleName)
+            ->where('overrides_system', true)
+            ->exists();
+    }
+
+    /**
+     * Get effective role (either system or overridden)
+     */
+    public function getRole(string $roleName)
+    {
+        // First check for custom override
+        $overrideRole = $this->roles()
+            ->where('name', $roleName)
+            ->first();
+
+        if ($overrideRole) {
+            return $overrideRole;
+        }
+
+        // Fall back to system role
+        return Role::where('name', $roleName)
+            ->where('is_system', true)
+            ->first();
+    }
 }

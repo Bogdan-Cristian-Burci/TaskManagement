@@ -6,8 +6,10 @@ use App\Http\Requests\CreateUserRequest;
 use App\Http\Requests\LoginUserRequest;
 use App\Http\Resources\UserResource;
 use App\Models\Organisation;
+use App\Models\Role;
 use App\Models\RoleTemplate;
 use App\Models\User;
+use App\Services\AuthorizationService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -16,7 +18,6 @@ use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
-use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\Response;
 
 class APIAuthenticationController extends Controller
@@ -65,8 +66,6 @@ class APIAuthenticationController extends Controller
             // Create admin template if it doesn't exist
             $this->assignAdminRoleFromTemplate($user, $organisation->id);
 
-            // Clear permission cache
-            app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
             // Create token
             $token = $user->createToken('Registration Token', ['read-user'])->accessToken;
@@ -165,9 +164,6 @@ class APIAuthenticationController extends Controller
                 'temp_token' => $temporaryToken
             ], Response::HTTP_OK);
         }
-
-        // Clear permission cache
-        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
 
         // Create new token with appropriate scopes
         $token = $user->createToken('Login Token', ['read-user'])->accessToken;
@@ -285,50 +281,37 @@ class APIAuthenticationController extends Controller
      */
     private function assignAdminRoleFromTemplate(User $user, int $organisationId): void
     {
-        // Find the Demo Organization
-        $demoOrg = Organisation::where('name', 'Demo Organization')->first();
+        try {
+            // Find the admin role for this org (or system admin)
+            $adminRole = \App\Models\Role::where('name', 'admin')
+                ->where(function($query) use ($organisationId) {
+                    $query->where('organisation_id', $organisationId)
+                        ->orWhereNull('organisation_id');
+                })
+                ->first();
 
-        if (!$demoOrg) {
-            Log::error("Demo Organization not found. Please run the seeders first.");
-            throw new \Exception("Demo Organization not found. System is not properly initialized.");
+            if (!$adminRole) {
+                throw new \Exception("Admin role not found. Please run the seeders first.");
+            }
+
+            // Simple user_roles insert without organisation_id
+            DB::table('user_roles')->insert([
+                'user_id' => $user->id,
+                'role_id' => $adminRole->id,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
+
+            Log::info("Admin role assigned to user", [
+                'user_id' => $user->id,
+                'role_id' => $adminRole->id
+            ]);
+        } catch (\Exception $e) {
+            Log::error("Error assigning admin role: " . $e->getMessage(), [
+                'user_id' => $user->id,
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
         }
-
-        // Find the admin role template from Demo Org
-        $adminRoleTemplate = DB::table('roles')
-            ->join('role_templates', 'roles.template_id', '=', 'role_templates.id')
-            ->where('roles.name', 'admin')
-            ->where('roles.organisation_id', $demoOrg->id)
-            ->select('role_templates.id as template_id', 'roles.level')
-            ->first();
-
-        if (!$adminRoleTemplate) {
-            Log::error("Admin template not found in Demo Organization. Please run the seeders first.");
-            throw new \Exception("Admin template not found. System is not properly initialized.");
-        }
-
-        // Create admin role with template reference
-        $adminRoleId = DB::table('roles')->insertGetId([
-            'name' => 'admin',
-            'guard_name' => 'api',
-            'organisation_id' => $organisationId,
-            'level' => $adminRoleTemplate->level,
-            'template_id' => $adminRoleTemplate->template_id,
-            'created_at' => now(),
-            'updated_at' => now()
-        ]);
-
-        // Assign role to user
-        DB::table('model_has_roles')->insert([
-            'role_id' => $adminRoleId,
-            'model_id' => $user->id,
-            'model_type' => 'App\\Models\\User',
-            'organisation_id' => $organisationId
-        ]);
-
-        Log::info("Admin role assigned to user using template", [
-            'user_id' => $user->id,
-            'organisation_id' => $organisationId,
-            'template_id' => $adminRoleTemplate->template_id
-        ]);
     }
 }

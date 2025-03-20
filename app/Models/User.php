@@ -501,7 +501,7 @@ class User extends Authenticatable implements MustVerifyEmail
      * @param int|Organisation|null $organization
      * @return bool
      */
-    public function canWithOrg(string $permission, $organization = null): bool
+    public function canWithOrg(string $permission, int|Organisation $organization = null): bool
     {
         // Use provided organization or try to get from user
         if ($organization === null) {
@@ -511,18 +511,9 @@ class User extends Authenticatable implements MustVerifyEmail
             }
         }
 
-        // Get organization object if it's an ID
-        if (is_numeric($organization)) {
-            $orgObj = Organisation::find($organization);
-            if (!$orgObj) {
-                return false;
-            }
-            $organization = $orgObj;
-        }
-
         try {
-            // Forward to the hasOrganisationPermission method with proper type handling
-            return $this->hasOrganisationPermission($permission, $organization);
+            // Use our new hasPermission method
+            return $this->hasPermission($permission, $organization);
         } catch (\Exception $e) {
             \Log::error("Permission check error: " . $e->getMessage());
             return false;
@@ -530,7 +521,7 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Override can method to support organization context
+     * Legacy compatibility method for "can" within org context.
      *
      * @param string|array $abilities
      * @param mixed|array $arguments
@@ -544,16 +535,19 @@ class User extends Authenticatable implements MustVerifyEmail
             $lastArg = is_array($arguments) ? end($arguments) : $arguments;
             if ($lastArg instanceof Organisation || is_numeric($lastArg)) {
                 $orgContext = $lastArg;
+
+                // Now delegate to our permission system
+                if (is_string($abilities)) {
+                    return $this->hasPermission($abilities, $orgContext);
+                }
+
+                if (is_array($abilities)) {
+                    return $this->hasAnyPermission($abilities, $orgContext);
+                }
             }
         }
 
-        // If we have a special handler for this permission with org context
-        if (is_string($abilities) && $orgContext) {
-            // Handle organization-specific permissions
-            return $this->hasOrganisationPermission($abilities, $orgContext);
-        }
-
-        // Fall back to standard Laravel permission check
+        // Fall back to standard Laravel permission check for non-org permissions
         return parent::can($abilities, $arguments);
     }
 
@@ -564,7 +558,7 @@ class User extends Authenticatable implements MustVerifyEmail
      * @param callable $callback
      * @return mixed
      */
-    public function withOrganisation($organisation, callable $callback): mixed
+    public function withOrganisation(int|Organisation $organisation, callable $callback): mixed
     {
         $originalOrgId = $this->organisation_id;
 
@@ -626,5 +620,41 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return $overrides;
+    }
+
+    /**
+     * Assign a role to user in organization context
+     * Handles both system and org-specific roles
+     * @throws \Exception
+     */
+    public function assignRole(string $roleName, int $organisationId): void
+    {
+        // Find the role - first check for org-specific, then system
+        $role = Role::where('name', $roleName)
+            ->where('organisation_id', $organisationId)
+            ->first();
+
+        // If not found, try system role
+        if (!$role) {
+            $role = Role::where('name', $roleName)
+                ->whereNull('organisation_id')
+                ->first();
+        }
+
+        if (!$role) {
+            throw new \Exception("Role '{$roleName}' not found");
+        }
+
+        // Assign role (without organisation_id column in user_roles)
+        DB::table('user_roles')->updateOrInsert(
+            [
+                'user_id' => $this->id,
+                'role_id' => $role->id
+            ],
+            [
+                'created_at' => now(),
+                'updated_at' => now()
+            ]
+        );
     }
 }

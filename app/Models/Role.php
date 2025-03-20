@@ -30,7 +30,10 @@ class Role extends Model
         'organisation_id',
         'created_at',
         'updated_at',
-        'template_id'
+        'template_id',
+        'is_system',
+        'overrides_system',
+        'system_role_id'
     ];
 
     /**
@@ -41,7 +44,9 @@ class Role extends Model
     protected $casts = [
         'level' => 'integer',
         'organisation_id' => 'integer',
-        'template_id' => 'integer'
+        'template_id' => 'integer',
+        'overrides_system' => 'boolean',
+        'is_system' => 'boolean'
     ];
     /**
      * Get the organization that owns this role.
@@ -117,7 +122,7 @@ class Role extends Model
      */
     public static function createFromTemplate(RoleTemplate $template, $organisationId)
     {
-        $roleName = $template->name . '_org' . $organisationId;
+        $roleName = $template->name;
 
         // Check if role already exists
         $existingRole = self::where('name', $roleName)
@@ -163,5 +168,57 @@ class Role extends Model
         }
 
         return false;
+    }
+
+    /**
+     * Get all roles available to an organization
+     * (custom roles + non-overridden system roles)
+     */
+    public static function getOrganisationRoles(int $organisationId)
+    {
+        // Get custom org roles
+        $orgRoleNames = self::where('organisation_id', $organisationId)
+            ->pluck('name')
+            ->toArray();
+
+        // Get system roles that aren't overridden
+        $systemRoles = self::where('is_system', true)
+            ->whereNotIn('name', $orgRoleNames)
+            ->get();
+
+        // Get org-specific roles
+        $orgRoles = self::where('organisation_id', $organisationId)->get();
+
+        // Combine collections
+        return $systemRoles->concat($orgRoles);
+    }
+
+    /**
+     * Create an organization-specific version of a system role
+     * @throws \Exception
+     */
+    public static function overrideSystemRole(string $roleName, int $organisationId, int $templateId): self
+    {
+        // Find system role
+        $systemRole = self::where('name', $roleName)
+            ->where('is_system', true)
+            ->first();
+
+        if (!$systemRole) {
+            throw new \Exception("System role '{$roleName}' not found");
+        }
+
+        // Create the overriding role
+        return self::create([
+            'name' => $systemRole->name,
+            'display_name' => $systemRole->display_name,
+            'description' => $systemRole->description,
+            'level' => $systemRole->level,
+            'organisation_id' => $organisationId,
+            'template_id' => $templateId,
+            'is_system' => false,
+            'overrides_system' => true,
+            'system_role_id' => $systemRole->id
+        ]);
     }
 }

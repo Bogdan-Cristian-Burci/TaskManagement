@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
@@ -16,6 +17,7 @@ class RoleTemplate extends Model
         'display_name',
         'description',
         'level',
+        'organisation_id',
         'is_system'
     ];
 
@@ -25,6 +27,11 @@ class RoleTemplate extends Model
     public function permissions(): BelongsToMany
     {
         return $this->belongsToMany(Permission::class, 'template_permissions', 'template_id', 'permission_id');
+    }
+
+    public function organisation(): BelongsTo
+    {
+        return $this->belongsTo(Organisation::class);
     }
 
     /**
@@ -74,5 +81,10 @@ class RoleTemplate extends Model
         }
 
         return $roles;
+    }
+
+    public function isSystemTemplate(): bool
+    {
+        return $this->is_system === true;
     }
 }

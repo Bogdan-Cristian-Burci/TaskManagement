@@ -21,6 +21,8 @@ return new class extends Migration
             $table->integer('level')->default(1);
             $table->unsignedBigInteger('organisation_id');
             $table->unsignedBigInteger('template_id')->nullable();
+            $table->boolean('overrides_system')->default(false);
+            $table->unsignedBigInteger('system_role_id')->nullable();
             $table->timestamps();
 
             // A role name must be unique within an organization
@@ -35,6 +37,10 @@ return new class extends Migration
                 ->references('id')
                 ->on('role_templates')
                 ->onDelete('set null');
+
+            $table->foreign('system_role_id')
+                ->references('id')
+                ->on('roles');
         });
     }
 
