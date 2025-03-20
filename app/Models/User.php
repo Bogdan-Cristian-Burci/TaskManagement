@@ -188,7 +188,6 @@ class User extends Authenticatable implements MustVerifyEmail
         return $this->hasMany(Organisation::class, 'owner_id');
     }
 
-
     /**
      * Get organisations where the user is an admin.
      *
@@ -198,8 +197,9 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return $this->belongsToMany(Organisation::class, 'model_has_roles', 'model_id', 'organisation_id')
             ->join('roles', 'model_has_roles.role_id', '=', 'roles.id')
+            ->join('role_templates', 'roles.template_id', '=', 'role_templates.id')
             ->where('model_has_roles.model_type', get_class($this))
-            ->where('roles.name', 'admin')
+            ->where('role_templates.name', 'admin')
             ->select('organisations.*')
             ->distinct();
     }
@@ -207,10 +207,10 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * Check if the user is a member of a given organisation.
      *
-     * @param Organisation|int $organisation
+     * @param int|Organisation $organisation
      * @return bool
      */
-    public function isMemberOf($organisation): bool
+    public function isMemberOf(int|Organisation $organisation): bool
     {
         $organisationId = $organisation instanceof Organisation ? $organisation->id : $organisation;
         return $this->organisations()
@@ -221,10 +221,10 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * Check if the user is a member of a given team.
      *
-     * @param Team|int $team
+     * @param int|Team $team
      * @return bool
      */
-    public function isInTeam($team): bool
+    public function isInTeam(Team|int $team): bool
     {
         $teamId = $team instanceof Team ? $team->id : $team;
         return $this->teams()
@@ -235,10 +235,10 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * Check if the user is the team lead of a given team.
      *
-     * @param Team|int $team
+     * @param int|Team $team
      * @return bool
      */
-    public function isTeamLeadOf($team): bool
+    public function isTeamLeadOf(Team|int $team): bool
     {
         $teamId = $team instanceof Team ? $team->id : $team;
         return $this->ledTeams()
@@ -249,10 +249,10 @@ class User extends Authenticatable implements MustVerifyEmail
     /**
      * Check if the user is assigned to a given project.
      *
-     * @param Project|int $project
+     * @param int|Project $project
      * @return bool
      */
-    public function isAssignedToProject($project): bool
+    public function isAssignedToProject(Project|int $project): bool
     {
         $projectId = $project instanceof Project ? $project->id : $project;
         return $this->projects()
@@ -384,31 +384,22 @@ class User extends Authenticatable implements MustVerifyEmail
      * @param string $permission
      * @param Organisation|int $organisation
      * @return bool
-     * @throws BindingResolutionException
      */
     public function hasOrganisationPermission(string $permission, $organisation): bool
     {
-        // Convert to Organization object if needed
-        if (is_numeric($organisation)) {
-            $organisationObj = Organisation::find($organisation);
-            if (!$organisationObj) {
-                return false;
-            }
-            $organisation = $organisationObj;
-        }
-
-        return App::make(AuthorizationService::class)
-            ->hasOrganisationPermission($this, $permission, $organisation);
+        // Use the trait-based hasPermission method directly
+        return $this->hasPermission($permission, $organisation);
     }
 
     /**
      * Get user's role in specific organization
+     *
      */
     public function organisationRole($organisation)
     {
         // Convert organization ID to Organization object if needed
         if (is_numeric($organisation)) {
-            $organisationObj = \App\Models\Organisation::find($organisation);
+            $organisationObj = Organisation::find($organisation);
             if (!$organisationObj) {
                 return null;
             }
@@ -417,14 +408,18 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return $this->roles()
             ->where('model_has_roles.organisation_id', $organisation->id)
-            ->orderByDesc('level')
+            ->with('template')  // Include template to get level
+            ->get()
+            ->sortByDesc(function($role) {
+                return $role->getLevel();
+            })
             ->first();
     }
 
     /**
      * Check if user has a role within a specific organization
      *
-     * @param string|array $roles
+     * @param string|array $roles Template names
      * @param int|null $organisationId
      * @return bool
      */
@@ -443,11 +438,12 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         return DB::table('roles')
+            ->join('role_templates', 'roles.template_id', '=', 'role_templates.id')
             ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
             ->where('model_has_roles.model_id', $this->id)
             ->where('model_has_roles.model_type', get_class($this))
             ->where('model_has_roles.organisation_id', $organisationId)
-            ->whereIn('roles.name', $roles)
+            ->whereIn('role_templates.name', $roles)
             ->exists();
     }
 
@@ -469,22 +465,60 @@ class User extends Authenticatable implements MustVerifyEmail
 
         return $this->roles()
             ->where('model_has_roles.organisation_id', $organisationId)
+            ->with('template')
             ->get();
     }
 
     /**
-     * Get direct permissions for this user.
+     * Get all permissions for this user in the current organization context
+     *
+     * @return array
      */
-    public function permissions(): BelongsToMany
+    public function getOrganisationPermissionsAttribute(): array
     {
-        // This is a compatibility method that returns a query builder
-        return $this->belongsToMany(Permission::class, 'template_has_permissions', 'role_template_id', 'permission_id')
-            ->join('roles', 'template_has_permissions.role_template_id', '=', 'roles.template_id')
-            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('model_has_roles.model_id', $this->id)
-            ->where('model_has_roles.model_type', get_class($this))
-            ->withPivot([])
-            ->withTimestamps();
+        if (!$this->organisation_id) {
+            return [];
+        }
+
+        return $this->getAllPermissions($this->organisation_id)
+            ->pluck('name')
+            ->toArray();
+    }
+
+    /**
+     * Get permission overrides for this user in the current organization
+     *
+     *
+     * @return array
+     */
+    public function getPermissionOverridesAttribute(): array
+    {
+        if (!$this->organisation_id) {
+            return ['grant' => [], 'deny' => []];
+        }
+
+        $granted = DB::table('model_has_permissions')
+            ->join('permissions', 'model_has_permissions.permission_id', '=', 'permissions.id')
+            ->where('model_has_permissions.model_id', $this->id)
+            ->where('model_has_permissions.model_type', get_class($this))
+            ->where('model_has_permissions.organisation_id', $this->organisation_id)
+            ->where('model_has_permissions.grant', true)
+            ->pluck('permissions.name')
+            ->toArray();
+
+        $denied = DB::table('model_has_permissions')
+            ->join('permissions', 'model_has_permissions.permission_id', '=', 'permissions.id')
+            ->where('model_has_permissions.model_id', $this->id)
+            ->where('model_has_permissions.model_type', get_class($this))
+            ->where('model_has_permissions.organisation_id', $this->organisation_id)
+            ->where('model_has_permissions.grant', false)
+            ->pluck('permissions.name')
+            ->toArray();
+
+        return [
+            'grant' => $granted,
+            'deny' => $denied
+        ];
     }
 
     /**
@@ -505,7 +539,7 @@ class User extends Authenticatable implements MustVerifyEmail
         }
 
         try {
-            // Use our new hasPermission method
+            // Use our hasPermission method
             return $this->hasPermission($permission, $organization);
         } catch (\Exception $e) {
             \Log::error("Permission check error: " . $e->getMessage());
@@ -569,80 +603,43 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Get all permissions for this user in the current organization context
-     *
-     * @return array
-     * @throws BindingResolutionException
-     */
-    public function getOrganisationPermissionsAttribute(): array
-    {
-        if (!$this->organisation_id) {
-            return [];
-        }
-
-        $authService = App::make(AuthorizationService::class);
-        return $authService->getEffectivePermissions($this, $this->organisation_id);
-    }
-
-    /**
-     * Get permission overrides for this user in the current organization
-     *
-     * @return array
-     */
-    public function getPermissionOverridesAttribute(): array
-    {
-        if (!$this->organisation_id) {
-            return [];
-        }
-
-        $overrides = [
-            'grant' => [],
-            'deny' => []
-        ];
-
-        $results = DB::table('permissions')
-            ->join('model_has_permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
-            ->where('model_has_permissions.model_id', $this->id)
-            ->where('model_has_permissions.model_type', get_class($this))
-            ->where('model_has_permissions.organisation_id', $this->organisation_id)
-            ->select('permissions.name', 'model_has_permissions.type')
-            ->get();
-
-        foreach ($results as $result) {
-            $overrides[$result->type][] = $result->name;
-        }
-
-        return $overrides;
-    }
-
-    /**
      * Assign a role to user in organization context
-     * Handles both system and org-specific roles
+     * Handles role assignment using templates
+     *
+     * @param string $templateName Role template name
+     * @param int $organisationId Organization context
      * @throws \Exception
      */
-    public function assignRole(string $roleName, int $organisationId): void
+    public function assignRole(string $templateName, int $organisationId): void
     {
-        // Find the role - first check for org-specific, then system
-        $role = Role::where('name', $roleName)
+        // Find the template
+        $template = RoleTemplate::getTemplateByName($templateName, $organisationId);
+
+        if (!$template) {
+            throw new \Exception("Role template '{$templateName}' not found");
+        }
+
+        // Find or create the role for this template in this organization
+        $role = Role::where('template_id', $template->id)
             ->where('organisation_id', $organisationId)
             ->first();
 
-        // If not found, try system role
         if (!$role) {
-            $role = Role::where('name', $roleName)
-                ->whereNull('organisation_id')
-                ->first();
+            // Create the role using the template
+            $org = Organisation::find($organisationId);
+            if (!$org) {
+                throw new \Exception("Organization with ID {$organisationId} not found");
+            }
+            $role = $template->createRoleInOrganisation($org);
         }
 
-        if (!$role) {
-            throw new \Exception("Role '{$roleName}' not found");
-        }
-
-        // Assign role (without organisation_id column in user_roles)
-        DB::table('user_roles')->updateOrInsert(
+        // Assign the role using model_has_roles table
+        DB::table('model_has_roles')->updateOrInsert(
             [
-                'user_id' => $this->id,
-                'role_id' => $role->id
+                'model_id' => $this->id,
+                'model_type' => get_class($this),
+                'role_id' => $role->id,
+                'organisation_id' => $organisationId
             ],
             [
                 'created_at' => now(),
