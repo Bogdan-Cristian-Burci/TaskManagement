@@ -5,6 +5,7 @@ namespace App\Traits;
 use App\Models\Organisation;
 use App\Models\Permission;
 use App\Models\Role;
+use App\Models\RoleTemplate;
 use Illuminate\Database\Eloquent\Builder;
 
 trait OrganisationHelpers
@@ -31,7 +32,7 @@ trait OrganisationHelpers
     /**
      * Helper method to get role ID.
      *
-     * @param mixed $role
+     * @param mixed $role Role template name, Role ID, or Role object
      * @param int|null $organisationId
      * @return int|null
      */
@@ -46,11 +47,26 @@ trait OrganisationHelpers
         }
 
         if (is_string($role) && $organisationId) {
-            $roleModel = Role::where('name', $role)
+            // First try to find a role with this template name in the organization
+            $roleModel = Role::whereHas('template', function($query) use ($role) {
+                $query->where('name', $role);
+            })
                 ->where('organisation_id', $organisationId)
                 ->first();
 
-            return $roleModel ? $roleModel->id : null;
+            if ($roleModel) {
+                return $roleModel->id;
+            }
+
+            // If not found, try to create a role from a template with this name
+            $template = RoleTemplate::getTemplateByName($role, $organisationId);
+            if ($template) {
+                $organisation = Organisation::find($organisationId);
+                if ($organisation) {
+                    $roleModel = $template->createRoleInOrganisation($organisation);
+                    return $roleModel->id;
+                }
+            }
         }
 
         return null;
@@ -95,6 +111,49 @@ trait OrganisationHelpers
             $query->where('permissions.id', $permission);
         } elseif ($permission instanceof Permission) {
             $query->where('permissions.id', $permission->id);
+        }
+    }
+
+    /**
+     * Helper method to get role template ID.
+     *
+     * @param mixed $template Template name, Template ID, or Template object
+     * @param int|null $organisationId
+     * @return int|null
+     */
+    protected function getRoleTemplateId(mixed $template, ?int $organisationId = null): ?int
+    {
+        if (is_int($template)) {
+            return $template;
+        }
+
+        if ($template instanceof RoleTemplate) {
+            return $template->id;
+        }
+
+        if (is_string($template)) {
+            $templateModel = RoleTemplate::getTemplateByName($template, $organisationId);
+            return $templateModel ? $templateModel->id : null;
+        }
+
+        return null;
+    }
+
+    /**
+     * Add role template constraint to a query.
+     *
+     * @param Builder $query
+     * @param mixed $template
+     * @return void
+     */
+    protected function addRoleTemplateConstraint(Builder $query, mixed $template): void
+    {
+        if (is_string($template)) {
+            $query->where('role_templates.name', $template);
+        } elseif (is_int($template)) {
+            $query->where('role_templates.id', $template);
+        } elseif ($template instanceof RoleTemplate) {
+            $query->where('role_templates.id', $template->id);
         }
     }
 }

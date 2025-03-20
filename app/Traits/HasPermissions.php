@@ -16,16 +16,6 @@ trait HasPermissions
     use OrganisationHelpers;
 
     /**
-     * Check if the model_has_permissions table exists in the database.
-     *
-     * @return bool
-     */
-    protected function hasPermissionOverrideTable(): bool
-    {
-        return Schema::hasTable('model_has_permissions');
-    }
-
-    /**
      * Check if user has a specific permission in the specified organization.
      *
      * @param string|int|Permission $permission Permission name, ID, or object
@@ -66,8 +56,8 @@ trait HasPermissions
             return false;
         }
 
-        // Check for permission overrides in model_has_permissions if the table exists
-        if ($this->hasPermissionOverrideTable()) {
+        // Check for permission overrides in model_has_permissions
+
             try {
                 // First check for direct permission overrides (denials)
                 $denied = DB::table('model_has_permissions')
@@ -98,7 +88,7 @@ trait HasPermissions
                 // If there's an issue with the table, log it and continue to check permissions through roles
                 \Log::warning("Failed to check permission overrides: " . $e->getMessage());
             }
-        }
+
 
         // Check permissions through roles/templates
         return DB::table('permissions')
@@ -331,10 +321,10 @@ trait HasPermissions
             return collect();
         }
 
-        // Get denied permissions if table exists
+        // Get denied permissions
         $deniedIds = collect();
 
-        if ($this->hasPermissionOverrideTable()) {
+
             try {
                 $deniedIds = DB::table('model_has_permissions')
                     ->where('model_id', $this->id)
@@ -345,12 +335,11 @@ trait HasPermissions
             } catch (\Exception $e) {
                 \Log::warning("Failed to get denied permissions: " . $e->getMessage());
             }
-        }
+
 
         // Get direct granted permissions if table exists
         $directPermissions = collect();
 
-        if ($this->hasPermissionOverrideTable()) {
             try {
                 $directPermissions = Permission::whereIn('id', function($query) use ($organisationId) {
                     $query->select('permission_id')
@@ -363,7 +352,7 @@ trait HasPermissions
             } catch (\Exception $e) {
                 \Log::warning("Failed to get granted permissions: " . $e->getMessage());
             }
-        }
+
 
         // Get role permissions through templates
         $rolePermissionsQuery = Permission::whereIn('id', function($query) use ($organisationId) {
@@ -448,7 +437,7 @@ trait HasPermissions
      */
     public function getPermissionOverridesAttribute(): array
     {
-        if (!$this->organisation_id || !$this->hasPermissionOverrideTable()) {
+        if (!$this->organisation_id ) {
             return ['grant' => [], 'deny' => []];
         }
 
