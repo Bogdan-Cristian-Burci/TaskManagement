@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Http\Resources\UserResource;
+use App\Models\Organisation;
 use App\Models\User;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Log;
@@ -19,6 +20,7 @@ class OAuthSocialController extends Controller
 
     /**
      * Default scopes for each provider
+     *
      */
     protected array $providerScopes = [
         'github' => ['user:email'],
@@ -60,6 +62,9 @@ class OAuthSocialController extends Controller
 
             // Create new user if not found
             if (!$user) {
+                // Get default organization for new users
+                $defaultOrganisation = $this->getDefaultOrganisation();
+
                 $user = User::create([
                     'name' => $socialUser->getName() ?: $socialUser->getNickname(),
                     'email' => $socialUser->getEmail(),
@@ -68,10 +73,30 @@ class OAuthSocialController extends Controller
                     'provider_id' => $socialUser->getId(),
                     'avatar' => $socialUser->getAvatar(),
                     'email_verified_at' => now(), // Social login provides verified email
+                    'organisation_id' => $defaultOrganisation?->id,
                 ]);
 
-                // Assign default role
-                $user->assignRole('user');
+                // If we have a default organization, attach the user and assign default role
+                if ($defaultOrganisation) {
+                    // Attach user to organization
+                    $user->organisations()->attach($defaultOrganisation->id, ['role' => 'member']);
+
+                    // Assign default role using the correct signature
+                    try {
+                        // Using the new signature: assignRole(string $templateName, int $organisationId)
+                        $user->assignRole('member', $defaultOrganisation->id);
+                    } catch (\Exception $e) {
+                        Log::error('Error assigning role to OAuth user: ' . $e->getMessage());
+                        // Fallback to guest role if member doesn't exist
+                        try {
+                            $user->assignRole('guest', $defaultOrganisation->id);
+                        } catch (\Exception $innerE) {
+                            Log::error('Error assigning fallback role: ' . $innerE->getMessage());
+                        }
+                    }
+                } else {
+                    Log::warning('No default organization found for OAuth user registration');
+                }
             }
 
             // Update avatar if it's not set yet
@@ -151,5 +176,23 @@ class OAuthSocialController extends Controller
         }, $this->supportedProviders);
 
         return response()->json(['providers' => $providers]);
+    }
+
+    /**
+     * Get default organization for new users.
+     *
+     * @return Organisation|null
+     */
+    private function getDefaultOrganisation(): ?Organisation
+    {
+        // Try to get the Demo Organization first
+        $organisation = Organisation::where('name', 'Demo Organization')->first();
+
+        // If no Demo Organization, try to get any organization
+        if (!$organisation) {
+            $organisation = Organisation::first();
+        }
+
+        return $organisation;
     }
 }

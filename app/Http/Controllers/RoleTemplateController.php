@@ -14,8 +14,6 @@ class RoleTemplateController extends Controller
     /**
      * Display a listing of templates for the current organization
      *
-     * Current Date: 2025-03-20 16:45:38
-     * Developer: Bogdan-Cristian-Burci
      */
     public function index(Request $request): JsonResponse
     {
@@ -43,8 +41,6 @@ class RoleTemplateController extends Controller
     /**
      * Store a new template
      *
-     * Current Date: 2025-03-20 16:45:38
-     * Developer: Bogdan-Cristian-Burci
      */
     public function store(Request $request): JsonResponse
     {
@@ -128,8 +124,6 @@ class RoleTemplateController extends Controller
     /**
      * Display a specific template
      *
-     * Current Date: 2025-03-20 16:45:38
-     * Developer: Bogdan-Cristian-Burci
      */
     public function show(Request $request, $id): JsonResponse
     {
@@ -161,8 +155,6 @@ class RoleTemplateController extends Controller
     /**
      * Update a template
      *
-     * Current Date: 2025-03-20 16:45:38
-     * Developer: Bogdan-Cristian-Burci
      */
     public function update(Request $request, $id): JsonResponse
     {
@@ -273,8 +265,6 @@ class RoleTemplateController extends Controller
     /**
      * Delete a template
      *
-     * Current Date: 2025-03-20 16:45:38
-     * Developer: Bogdan-Cristian-Burci
      */
     public function destroy(Request $request, $id): JsonResponse
     {
