@@ -2,62 +2,36 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
-/**
- * @property int $id
- * @property string $name
- * @property string $display_name
- * @property string $description
- * @property int $level
- * @property int $organisation_id
- * @property int $template_id
- * @property string $created_at
- * @property string $updated_at
- * @property-read Organisation $organisation
- * @property-read RoleTemplate $template
- */
 class Role extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
-        'name',
-        'display_name',
-        'description',
-        'level',
         'organisation_id',
-        'created_at',
-        'updated_at',
         'template_id',
-        'is_system',
         'overrides_system',
         'system_role_id'
     ];
 
-    /**
-     * The attributes that should be cast.
-     *
-     * @var array<string, string>
-     */
     protected $casts = [
-        'level' => 'integer',
-        'organisation_id' => 'integer',
-        'template_id' => 'integer',
-        'overrides_system' => 'boolean',
-        'is_system' => 'boolean'
+        'overrides_system' => 'boolean'
     ];
+
     /**
-     * Get the organization that owns this role.
+     * Get the organization this role belongs to.
      */
     public function organisation(): BelongsTo
     {
-        return $this->belongsTo(Organisation::class);
+        return $this->belongsTo(Organisation::class, 'organisation_id');
     }
 
     /**
-     * Get the template for this role
+     * Get the template this role uses.
      */
     public function template(): BelongsTo
     {
@@ -65,160 +39,102 @@ class Role extends Model
     }
 
     /**
-     * Get the permissions attached to this role.
+     * Get the system role this role overrides.
      */
-    public function permissions(): BelongsToMany
+    public function systemRole(): BelongsTo
     {
-        return $this->belongsToMany(Permission::class, 'role_permissions');
+        return $this->belongsTo(Role::class, 'system_role_id');
     }
 
     /**
      * Get the users assigned to this role.
      */
-    public function users()
+    public function users(): BelongsToMany
     {
-        return $this->belongsToMany(User::class, 'user_roles')
+        return $this->belongsToMany(User::class, 'model_has_roles', 'role_id', 'model_id')
+            ->where('model_type', User::class)
+            ->withPivot('organisation_id')
             ->withTimestamps();
     }
 
     /**
-     * Sync this role with its template permissions.
+     * Get name through template relationship
      */
-    public function syncWithTemplate(): bool
+    public function getName()
     {
-        if ($this->template_id) {
-            $template = RoleTemplate::find($this->template_id);
-            if ($template) {
-                // Sync permissions while preserving existing ones not in template
-                $currentPermissions = $this->permissions()->pluck('permissions.id')->toArray();
-                $templatePermissions = $template->permissions()->pluck('permissions.id')->toArray();
-
-                // Get union of both sets
-                $allPermissions = array_unique(array_merge($currentPermissions, $templatePermissions));
-
-                $this->permissions()->sync($allPermissions);
-
-                // Update role attributes if needed
-                if ($this->display_name != $template->display_name ||
-                    $this->description != $template->description ||
-                    $this->level != $template->level) {
-
-                    $this->update([
-                        'display_name' => $template->display_name,
-                        'description' => $template->description,
-                        'level' => $template->level
-                    ]);
-                }
-
-                return true;
-            }
-        }
-
-        return false;
+        return $this->template ? $this->template->name : null;
     }
 
     /**
-     * Create a role from template for an organization.
+     * Get display name through template relationship
      */
-    public static function createFromTemplate(RoleTemplate $template, $organisationId)
+    public function getDisplayName()
     {
-        $roleName = $template->name;
+        return $this->template ? $this->template->display_name : null;
+    }
 
-        // Check if role already exists
-        $existingRole = self::where('name', $roleName)
-            ->where('organisation_id', $organisationId)
+    /**
+     * Get description through template relationship
+     */
+    public function getDescription()
+    {
+        return $this->template ? $this->template->description : null;
+    }
+
+    /**
+     * Get level through template relationship
+     */
+    public function getLevel()
+    {
+        return $this->template ? $this->template->level : 0;
+    }
+
+    /**
+     * Get all permissions available through this role's template.
+     */
+    public function getPermissions()
+    {
+        return $this->template ? $this->template->permissions : collect([]);
+    }
+
+    /**
+     * Check if role has a specific permission through its template.
+     */
+    public function hasPermission(string $permission): bool
+    {
+        return $this->template ? $this->template->hasPermission($permission) : false;
+    }
+
+    /**
+     * Get system role by template name.
+     */
+    public static function getSystemRole(string $templateName): Role
+    {
+        return self::whereNull('organisation_id')
+            ->whereHas('template', function($query) use ($templateName) {
+                $query->where('name', $templateName)
+                    ->where('is_system', true);
+            })
+            ->first();
+    }
+
+    /**
+     * Get effective role for an organization (custom override or system).
+     */
+    public static function getEffectiveRole(string $templateName, int $organisationId): Role
+    {
+        // First check for org-specific override
+        $role = self::where('organisation_id', $organisationId)
+            ->whereHas('template', function($query) use ($templateName) {
+                $query->where('name', $templateName);
+            })
             ->first();
 
-        if ($existingRole) {
-            return $existingRole;
+        if ($role) {
+            return $role;
         }
 
-        // Create new role
-        $role = self::create([
-            'name' => $roleName,
-            'display_name' => $template->display_name,
-            'description' => $template->description,
-            'level' => $template->level,
-            'organisation_id' => $organisationId,
-            'template_id' => $template->id
-        ]);
-
-        // Attach all template permissions to this role
-        $permissions = $template->permissions()->pluck('permissions.id')->toArray();
-        $role->permissions()->attach($permissions);
-
-        return $role;
-    }
-
-    /**
-     * Check if this role has a specific permission.
-     */
-    public function hasPermission($permission): bool
-    {
-        if (is_string($permission)) {
-            return $this->permissions()->where('permissions.name', $permission)->exists();
-        }
-
-        if (is_int($permission)) {
-            return $this->permissions()->where('permissions.id', $permission)->exists();
-        }
-
-        if ($permission instanceof Permission) {
-            return $this->permissions()->where('permissions.id', $permission->id)->exists();
-        }
-
-        return false;
-    }
-
-    /**
-     * Get all roles available to an organization
-     * (custom roles + non-overridden system roles)
-     */
-    public static function getOrganisationRoles(int $organisationId)
-    {
-        // Get custom org roles
-        $orgRoleNames = self::where('organisation_id', $organisationId)
-            ->pluck('name')
-            ->toArray();
-
-        // Get system roles that aren't overridden
-        $systemRoles = self::where('is_system', true)
-            ->whereNotIn('name', $orgRoleNames)
-            ->get();
-
-        // Get org-specific roles
-        $orgRoles = self::where('organisation_id', $organisationId)->get();
-
-        // Combine collections
-        return $systemRoles->concat($orgRoles);
-    }
-
-    /**
-     * Create an organization-specific version of a system role
-     * @throws \Exception
-     */
-    public static function overrideSystemRole(string $roleName, int $organisationId, int $templateId): self
-    {
-        // Find system role
-        $systemRole = self::where('name', $roleName)
-            ->where('is_system', true)
-            ->first();
-
-        if (!$systemRole) {
-            throw new \Exception("System role '{$roleName}' not found");
-        }
-
-        // Create the overriding role
-        return self::create([
-            'name' => $systemRole->name,
-            'display_name' => $systemRole->display_name,
-            'description' => $systemRole->description,
-            'level' => $systemRole->level,
-            'organisation_id' => $organisationId,
-            'template_id' => $templateId,
-            'is_system' => false,
-            'overrides_system' => true,
-            'system_role_id' => $systemRole->id
-        ]);
+        // Fall back to system role
+        return self::getSystemRole($templateName);
     }
 }

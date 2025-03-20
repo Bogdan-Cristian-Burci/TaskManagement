@@ -18,6 +18,8 @@ return new class extends Migration
             $table->string('name')->unique();
             $table->string('display_name')->nullable();
             $table->text('description')->nullable();
+            $table->string('category')->nullable();
+            $table->string('guard_name')->nullable();
             $table->timestamps();
         });
     }

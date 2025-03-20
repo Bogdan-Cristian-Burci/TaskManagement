@@ -2,8 +2,8 @@
 
 namespace App\Models;
 
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -17,74 +17,127 @@ class RoleTemplate extends Model
         'display_name',
         'description',
         'level',
+        'is_system',
         'organisation_id',
-        'is_system'
     ];
+
+    protected $casts = [
+        'is_system' => 'boolean',
+        'level' => 'integer',
+    ];
+
+    /**
+     * Get the organization this template belongs to (null for system templates).
+     */
+    public function organisation(): BelongsTo
+    {
+        return $this->belongsTo(Organisation::class, 'organisation_id');
+    }
+
+    /**
+     * Get the roles that use this template.
+     */
+    public function roles(): HasMany
+    {
+        return $this->hasMany(Role::class, 'template_id');
+    }
 
     /**
      * Get the permissions associated with this template.
      */
     public function permissions(): BelongsToMany
     {
-        return $this->belongsToMany(Permission::class, 'template_permissions', 'template_id', 'permission_id');
-    }
-
-    public function organisation(): BelongsTo
-    {
-        return $this->belongsTo(Organisation::class);
+        return $this->belongsToMany(Permission::class, 'template_has_permissions')
+            ->withTimestamps();
     }
 
     /**
-     * Get the roles based on this template.
+     * Check if template has specific permission.
      */
-    public function roles(): HasMany|RoleTemplate
+    public function hasPermission(string $permission): bool
     {
-        return $this->hasMany(Role::class, 'template_id');
+        return $this->permissions()->where('name', $permission)->exists();
     }
 
     /**
-     * Check if this template has a specific permission.
+     * Scope to get system templates.
      */
-    public function hasPermission($permission): bool
+    public function scopeSystem($query)
     {
-        if (is_string($permission)) {
-            return $this->permissions()->where('permissions.name', $permission)->exists();
-        }
-
-        if (is_int($permission)) {
-            return $this->permissions()->where('permissions.id', $permission)->exists();
-        }
-
-        if ($permission instanceof Permission) {
-            return $this->permissions()->where('permissions.id', $permission->id)->exists();
-        }
-
-        return false;
+        return $query->where('is_system', true)->whereNull('organisation_id');
     }
 
     /**
-     * Create org roles from this template for all organizations or a specific one.
+     * Scope to get organization-specific templates.
      */
-    public function createOrganisationRoles($organisationId = null): array
+    public function scopeForOrganisation($query, $organisationId)
     {
-        $roles = [];
+        return $query->where('organisation_id', $organisationId);
+    }
 
+    /**
+     * Get template by name prioritizing org-specific over system.
+     */
+    public static function getTemplateByName(string $name, ?int $organisationId = null)
+    {
+        // First try organization-specific template if org ID provided
         if ($organisationId) {
-            // Create for specific organization
-            $roles[] = Role::createFromTemplate($this, $organisationId);
-        } else {
-            // Create for all organizations
-            $organisations = Organisation::all();
-            foreach ($organisations as $org) {
-                $roles[] = Role::createFromTemplate($this, $org->id);
+            $template = self::where('name', $name)
+                ->where('organisation_id', $organisationId)
+                ->first();
+
+            if ($template) {
+                return $template;
             }
         }
 
-        return $roles;
+        // Fall back to system template
+        return self::where('name', $name)
+            ->where('is_system', true)
+            ->whereNull('organisation_id')
+            ->first();
     }
 
-    public function isSystemTemplate(): bool
+    /**
+     * Create role in organization from this template.
+     */
+    public function createRoleInOrganisation(Organisation $organisation, array $attributes = []): Role
     {
-        return $this->is_system === true;
+        $isSystemOverride = false;
+        $systemRoleId = null;
+
+        // Check if this is overriding a system role
+        if (!$this->is_system && $this->organisation_id === $organisation->id) {
+            $systemTemplate = self::where('name', $this->name)
+                ->where('is_system', true)
+                ->first();
+
+            if ($systemTemplate) {
+                $isSystemOverride = true;
+                // Find the system role ID
+                $systemRole = Role::where('template_id', $systemTemplate->id)
+                    ->whereNull('organisation_id')
+                    ->first();
+
+                if ($systemRole) {
+                    $systemRoleId = $systemRole->id;
+                }
+            }
+        }
+
+        // Merge our attributes with defaults
+        $roleData = array_merge([
+            'name' => $this->name,
+            'display_name' => $this->display_name,
+            'description' => $this->description,
+            'level' => $this->level,
+            'organisation_id' => $organisation->id,
+            'template_id' => $this->id,
+            'overrides_system' => $isSystemOverride,
+            'system_role_id' => $systemRoleId,
+            'guard_name' => 'api',
+        ], $attributes);
+
+        return Role::create($roleData);
     }
 }

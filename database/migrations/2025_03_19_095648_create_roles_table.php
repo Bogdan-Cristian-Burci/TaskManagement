@@ -8,25 +8,16 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     *
-     * @return void
      */
     public function up(): void
     {
         Schema::create('roles', function (Blueprint $table) {
             $table->id();
-            $table->string('name');
-            $table->string('display_name');
-            $table->text('description')->nullable();
-            $table->integer('level')->default(1);
-            $table->unsignedBigInteger('organisation_id');
-            $table->unsignedBigInteger('template_id')->nullable();
-            $table->boolean('overrides_system')->default(false);
-            $table->unsignedBigInteger('system_role_id')->nullable();
+            $table->unsignedBigInteger('organisation_id')->nullable(); // Which org this role belongs to
+            $table->unsignedBigInteger('template_id');                // Which template this role uses
+            $table->boolean('overrides_system')->default(false);      // If it overrides a system role
+            $table->unsignedBigInteger('system_role_id')->nullable(); // Which system role is overridden (if applicable)
             $table->timestamps();
-
-            // A role name must be unique within an organization
-            $table->unique(['name', 'organisation_id']);
 
             $table->foreign('organisation_id')
                 ->references('id')
@@ -36,18 +27,20 @@ return new class extends Migration
             $table->foreign('template_id')
                 ->references('id')
                 ->on('role_templates')
-                ->onDelete('set null');
+                ->onDelete('cascade');
 
             $table->foreign('system_role_id')
                 ->references('id')
-                ->on('roles');
+                ->on('roles')
+                ->onDelete('set null');
+
+            // Ensure unique role names within an organization or system scope
+            $table->unique(['name', 'organisation_id']);
         });
     }
 
     /**
      * Reverse the migrations.
-     *
-     * @return void
      */
     public function down(): void
     {

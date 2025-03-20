@@ -8,29 +8,31 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     *
-     * @return void
      */
     public function up(): void
     {
         Schema::create('role_templates', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->unique();
-            $table->string('display_name');
+            $table->string('name');
+            $table->string('display_name')->nullable();
             $table->text('description')->nullable();
-            $table->integer('level')->default(1); // Hierarchy level (higher = more access)
-            $table->boolean('is_system')->default(false); // System templates cannot be deleted
+            $table->integer('level')->default(1);
+            $table->boolean('is_system')->default(false);
             $table->unsignedBigInteger('organisation_id')->nullable();
             $table->timestamps();
 
-            $table->index(['organisation_id', 'is_system']);
+            $table->foreign('organisation_id')
+                ->references('id')
+                ->on('organisations')
+                ->onDelete('cascade');
+
+            // Ensure unique template names within an organization or system scope
+            $table->unique(['name', 'organisation_id']);
         });
     }
 
     /**
      * Reverse the migrations.
-     *
-     * @return void
      */
     public function down(): void
     {

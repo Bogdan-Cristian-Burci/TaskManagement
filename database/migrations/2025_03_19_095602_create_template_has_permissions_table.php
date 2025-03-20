@@ -8,44 +8,34 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     *
-     * @return void
      */
     public function up(): void
     {
-        Schema::create('user_permissions', function (Blueprint $table) {
-            $table->unsignedBigInteger('user_id');
+        Schema::create('template_has_permissions', function (Blueprint $table) {
+            $table->id();
+            $table->unsignedBigInteger('role_template_id');
             $table->unsignedBigInteger('permission_id');
-            $table->unsignedBigInteger('organisation_id');
-            $table->boolean('grant')->default(true);
             $table->timestamps();
 
-            $table->primary(['user_id', 'permission_id', 'organisation_id']);
+            $table->unique(['role_template_id', 'permission_id']);
 
-            $table->foreign('user_id')
+            $table->foreign('role_template_id')
                 ->references('id')
-                ->on('users')
+                ->on('role_templates')
                 ->onDelete('cascade');
 
             $table->foreign('permission_id')
                 ->references('id')
                 ->on('permissions')
                 ->onDelete('cascade');
-
-            $table->foreign('organisation_id')
-                ->references('id')
-                ->on('organisations')
-                ->onDelete('cascade');
         });
     }
 
     /**
      * Reverse the migrations.
-     *
-     * @return void
      */
     public function down(): void
     {
-        Schema::dropIfExists('user_permissions');
+        Schema::dropIfExists('template_has_permissions');
     }
 };

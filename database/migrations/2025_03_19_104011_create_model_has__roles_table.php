@@ -8,37 +8,37 @@ return new class extends Migration
 {
     /**
      * Run the migrations.
-     *
-     * @return void
      */
     public function up(): void
     {
-        Schema::create('user_roles', function (Blueprint $table) {
-            $table->unsignedBigInteger('user_id');
+        Schema::create('model_has_roles', function (Blueprint $table) {
+            $table->id();
             $table->unsignedBigInteger('role_id');
+            $table->unsignedBigInteger('model_id');
+            $table->string('model_type');
+            $table->unsignedBigInteger('organisation_id');
             $table->timestamps();
 
-            $table->primary(['user_id', 'role_id']);
-
-            $table->foreign('user_id')
-                ->references('id')
-                ->on('users')
-                ->onDelete('cascade');
+            $table->index(['model_id', 'model_type']);
+            $table->unique(['role_id', 'model_id', 'model_type', 'organisation_id']);
 
             $table->foreign('role_id')
                 ->references('id')
                 ->on('roles')
+                ->onDelete('cascade');
+
+            $table->foreign('organisation_id')
+                ->references('id')
+                ->on('organisations')
                 ->onDelete('cascade');
         });
     }
 
     /**
      * Reverse the migrations.
-     *
-     * @return void
      */
     public function down(): void
     {
-        Schema::dropIfExists('user_roles');
+        Schema::dropIfExists('model_has_roles');
     }
 };
