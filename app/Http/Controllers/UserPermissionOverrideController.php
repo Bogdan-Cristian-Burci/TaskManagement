@@ -7,23 +7,40 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Auth\Access\AuthorizationException;
 
 class UserPermissionOverrideController extends Controller
 {
     /**
-     * List user's permission overrides
+     * Create a new controller instance.
      */
-    public function index(Request $request, $userId): JsonResponse
+    public function __construct()
     {
-        if (!$request->user()->canWithOrg('permission.view')) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        $this->middleware('auth:api');
+    }
+
+    /**
+     * List user's permission overrides
+     *
+     * @param Request $request
+     * @param int $userId
+     * @return JsonResponse
+     * @throws AuthorizationException
+     */
+    public function index(Request $request, int $userId): JsonResponse
+    {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('permissions.view', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view permission overrides.');
         }
 
         $organisationId = $request->user()->organisation_id;
 
         // Verify user exists and belongs to organization
         $user = User::where('id', $userId)
-            ->where('organisation_id', $organisationId)
+            ->whereHas('organisations', function($query) use ($organisationId) {
+                $query->where('organisations.id', $organisationId);
+            })
             ->first();
 
         if (!$user) {
@@ -31,57 +48,73 @@ class UserPermissionOverrideController extends Controller
         }
 
         // Get user's permission overrides
-        $overrides = DB::table('permissions')
-            ->join('model_has_permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
+        $overrides = DB::table('model_has_permissions')
+            ->join('permissions', 'permissions.id', '=', 'model_has_permissions.permission_id')
             ->where('model_has_permissions.model_id', $userId)
             ->where('model_has_permissions.model_type', get_class($user))
             ->where('model_has_permissions.organisation_id', $organisationId)
-            ->select('permissions.id', 'permissions.name', 'model_has_permissions.type')
+            ->select(
+                'permissions.id',
+                'permissions.name',
+                'model_has_permissions.grant',
+                DB::raw('CASE WHEN model_has_permissions.grant = 1 THEN "grant" ELSE "deny" END as type')
+            )
             ->get();
 
-        // Get user's role(s)
-        $roles = DB::table('roles')
-            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('model_has_roles.model_id', $userId)
-            ->where('model_has_roles.model_type', get_class($user))
-            ->where('model_has_roles.organisation_id', $organisationId)
-            ->select('roles.id', 'roles.name', 'roles.template_id')
-            ->get();
+        // Get user's role templates in this organization
+        $roles = $user->getOrganisationRoles($organisationId);
+
+        // Format roles for response
+        $roleData = $roles->map(function($role) {
+            return [
+                'id' => $role->id,
+                'name' => $role->name,
+                'template_id' => $role->template_id,
+                'template_name' => $role->template->name ?? null,
+                'level' => $role->level
+            ];
+        });
 
         // Get template permissions for these roles
         $templatePermissions = [];
         foreach ($roles as $role) {
-            if ($role->template_id) {
-                $template = DB::table('role_templates')
-                    ->where('id', $role->template_id)
-                    ->first();
-
-                if ($template) {
-                    $templatePermissions[$role->name] = json_decode($template->permissions, true);
-                }
+            if ($role->template) {
+                $templatePermissions[$role->name] = $role->template->getPermissions();
             }
         }
+
+        // Get effective permissions after overrides
+        $effectivePermissions = $user->getAllPermissions($organisationId)
+            ->pluck('name')
+            ->toArray();
 
         return response()->json([
             'user_id' => $userId,
             'user_name' => $user->name,
             'overrides' => $overrides,
-            'roles' => $roles,
-            'template_permissions' => $templatePermissions
+            'roles' => $roleData,
+            'template_permissions' => $templatePermissions,
+            'effective_permissions' => $effectivePermissions
         ]);
     }
 
     /**
      * Add a permission override for a user
+     *
+     * @param Request $request
+     * @param int $userId
+     * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function store(Request $request, $userId): JsonResponse
+    public function store(Request $request, int $userId): JsonResponse
     {
-        if (!$request->user()->canWithOrg('permission.manage')) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('permissions.manage', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to manage permission overrides.');
         }
 
         $validated = $request->validate([
-            'permission' => 'required|string',
+            'permission' => 'required|string|exists:permissions,name',
             'type' => 'required|in:grant,deny'
         ]);
 
@@ -89,7 +122,9 @@ class UserPermissionOverrideController extends Controller
 
         // Verify user exists and belongs to organization
         $user = User::where('id', $userId)
-            ->where('organisation_id', $organisationId)
+            ->whereHas('organisations', function($query) use ($organisationId) {
+                $query->where('organisations.id', $organisationId);
+            })
             ->first();
 
         if (!$user) {
@@ -97,19 +132,42 @@ class UserPermissionOverrideController extends Controller
         }
 
         try {
-            // Add the permission override
-            $user->addPermissionOverride(
-                $validated['permission'],
-                $organisationId,
-                $validated['type']
-            );
+            // Convert type to boolean grant value (grant = true, deny = false)
+            $isGrant = $validated['type'] === 'grant';
+
+            // Get or create permission
+            $permission = DB::table('permissions')
+                ->where('name', $validated['permission'])
+                ->first();
+
+            if (!$permission) {
+                return response()->json(['message' => 'Invalid permission name'], 400);
+            }
+
+            // Add or update the permission override
+            DB::table('model_has_permissions')->updateOrInsert([
+                'permission_id' => $permission->id,
+                'model_id' => $user->id,
+                'model_type' => get_class($user),
+                'organisation_id' => $organisationId
+            ], [
+                'grant' => $isGrant,
+                'created_at' => now(),
+                'updated_at' => now()
+            ]);
 
             return response()->json([
-                'message' => 'Permission override added successfully'
+                'message' => 'Permission override added successfully',
+                'details' => [
+                    'user_id' => $userId,
+                    'permission' => $validated['permission'],
+                    'type' => $validated['type']
+                ]
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to add permission override', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -121,43 +179,53 @@ class UserPermissionOverrideController extends Controller
 
     /**
      * Remove a permission override for a user
+     *
+     * @param Request $request
+     * @param int $userId
+     * @param int $permissionId
+     * @return JsonResponse
+     * @throws AuthorizationException
      */
-    public function destroy(Request $request, $userId, $permissionId): JsonResponse
+    public function destroy(Request $request, int $userId, int $permissionId): JsonResponse
     {
-        if (!$request->user()->canWithOrg('permission.manage')) {
-            return response()->json(['message' => 'Unauthorized'], 403);
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('permissions.manage', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to manage permission overrides.');
         }
 
         $organisationId = $request->user()->organisation_id;
 
         // Verify user exists and belongs to organization
         $user = User::where('id', $userId)
-            ->where('organisation_id', $organisationId)
+            ->whereHas('organisations', function($query) use ($organisationId) {
+                $query->where('organisations.id', $organisationId);
+            })
             ->first();
 
         if (!$user) {
             return response()->json(['message' => 'User not found in this organization'], 404);
         }
 
-        // Get the permission name
-        $permission = DB::table('permissions')
-            ->where('id', $permissionId)
-            ->value('name');
-
-        if (!$permission) {
-            return response()->json(['message' => 'Permission not found'], 404);
-        }
-
         try {
             // Remove the permission override
-            $user->removePermissionOverride($permission, $organisationId);
+            $deleted = DB::table('model_has_permissions')
+                ->where('permission_id', $permissionId)
+                ->where('model_id', $userId)
+                ->where('model_type', get_class($user))
+                ->where('organisation_id', $organisationId)
+                ->delete();
+
+            if (!$deleted) {
+                return response()->json(['message' => 'Permission override not found'], 404);
+            }
 
             return response()->json([
                 'message' => 'Permission override removed successfully'
             ]);
         } catch (\Exception $e) {
             Log::error('Failed to remove permission override', [
-                'error' => $e->getMessage()
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
             ]);
 
             return response()->json([
@@ -165,5 +233,41 @@ class UserPermissionOverrideController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+    }
+
+    /**
+     * List all permissions that can be granted/denied
+     *
+     * @param Request $request
+     * @return JsonResponse
+     * @throws AuthorizationException
+     */
+    public function listAvailablePermissions(Request $request): JsonResponse
+    {
+        // Check permission using hasPermission directly
+        if (!$request->user()->hasPermission('permissions.view', $request->user()->organisation_id)) {
+            throw new AuthorizationException('You do not have permission to view permissions.');
+        }
+
+        // Get all permissions
+        $permissions = DB::table('permissions')
+            ->select('id', 'name', 'guard_name', 'created_at')
+            ->orderBy('name')
+            ->get();
+
+        // Group permissions by area (e.g., users.create, users.edit -> users area)
+        $groupedPermissions = [];
+        foreach ($permissions as $permission) {
+            $area = explode('.', $permission->name)[0] ?? 'other';
+            if (!isset($groupedPermissions[$area])) {
+                $groupedPermissions[$area] = [];
+            }
+            $groupedPermissions[$area][] = $permission;
+        }
+
+        return response()->json([
+            'permissions' => $permissions,
+            'grouped_permissions' => $groupedPermissions
+        ]);
     }
 }

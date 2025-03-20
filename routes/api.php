@@ -3,7 +3,6 @@
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\RoleTemplateController;
 use App\Http\Controllers\UserPermissionOverrideController;
-use App\Http\Controllers\UserRoleController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\BoardColumnController;
 use App\Http\Controllers\BoardController;
@@ -116,10 +115,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::get('/permissions', [PermissionController::class, 'index']);
         Route::get('/permissions/categories', [PermissionController::class, 'categories']);
 
-        // User Roles
-        Route::get('/users/{userId}/roles', [UserRoleController::class, 'getUserRoles']);
-        Route::post('/users/{userId}/roles', [UserRoleController::class, 'assignRoles']);
-        Route::get('/roles/{roleId}/users', [UserRoleController::class, 'getUsersByRole']);
 
         // User permission overrides
         Route::get('users/{user}/permission-overrides', [UserPermissionOverrideController::class, 'index']);
