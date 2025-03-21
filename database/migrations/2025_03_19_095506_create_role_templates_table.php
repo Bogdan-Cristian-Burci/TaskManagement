@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('display_name')->nullable();
             $table->text('description')->nullable();
             $table->integer('level')->default(1);
+            $table->boolean('can_be_deleted')->default(true);
             $table->boolean('is_system')->default(false);
             $table->string('scope')->default('organization');
             $table->unsignedBigInteger('organisation_id')->nullable();

@@ -17,6 +17,7 @@ class RoleTemplate extends Model
         'display_name',
         'description',
         'level',
+        'can_be_deleted',
         'is_system',
         'scope',
         'organisation_id',
