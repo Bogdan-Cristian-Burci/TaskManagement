@@ -33,7 +33,7 @@ class TagPolicy
     public function view(User $user, Tag $tag): Response|bool
     {
         // User can view tag if they can view the project
-        return $user->can('view', $tag->project);
+        return $user->hasPermission('view', $tag->project);
     }
 
     /**
@@ -52,7 +52,7 @@ class TagPolicy
         $project = \App\Models\Project::find($projectId);
 
         // User can create tags if they can update the project
-        return $project && $user->can('update', $project);
+        return $project && $user->hasPermission('update', $project);
     }
 
     /**
@@ -65,7 +65,7 @@ class TagPolicy
     public function update(User $user, Tag $tag): Response|bool
     {
         // User can update tag if they can update the project
-        return $user->can('update', $tag->project);
+        return $user->hasPermission('update', $tag->project);
     }
 
     /**
@@ -83,7 +83,7 @@ class TagPolicy
             return Response::deny('Cannot delete tag that is in use by tasks.');
         }
 
-        return $user->can('update', $tag->project);
+        return $user->hasPermission('update', $tag->project);
     }
 
     /**
@@ -96,7 +96,7 @@ class TagPolicy
     public function restore(User $user, Tag $tag): Response|bool
     {
         // User can restore tag if they can update the project
-        return $user->can('update', $tag->project);
+        return $user->hasPermission('update', $tag->project);
     }
 
     /**
@@ -109,6 +109,6 @@ class TagPolicy
     public function forceDelete(User $user, Tag $tag): Response|bool
     {
         // Only allow permanent deletion for users with delete project permission
-        return $user->hasPermissionTo('delete project');
+        return $user->hasPermission('delete project');
     }
 }

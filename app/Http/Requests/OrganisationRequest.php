@@ -47,7 +47,7 @@ class OrganisationRequest extends FormRequest
                         }
 
                         // Only allow owner changes if user has permission
-                        if (!$this->user()->can('changeOwner', $this->route('organisation'))) {
+                        if (!$this->user()->hasPermission('changeOwner', $this->route('organisation'))) {
                             $fail('You do not have permission to change the organisation owner.');
                         }
                     }
@@ -110,11 +110,11 @@ class OrganisationRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->isMethod('POST') && !$this->route('organisation')) {
-            return $this->user()->can('create', Organisation::class);
+            return $this->user()->hasPermission('create', Organisation::class);
         }
 
         if ($organisation = $this->route('organisation')) {
-            return $this->user()->can('update', $organisation);
+            return $this->user()->hasPermission('update', $organisation);
         }
 
         return false;

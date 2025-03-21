@@ -39,7 +39,7 @@ class TagRequest extends FormRequest
                 function ($attribute, $value, $fail) {
                     // Check if user has access to this project
                     $project = Project::find($value);
-                    if (!$project || !$this->user()->can('view', $project)) {
+                    if (!$project || !$this->user()->hasPermission('view', $project)) {
                         $fail('You do not have access to this project.');
                     }
                 }
@@ -57,13 +57,13 @@ class TagRequest extends FormRequest
         // For creating a new tag
         if (!$this->route('tag')) {
             $project = Project::find($this->input('project_id'));
-            return $project && $this->user()->can('update', $project);
+            return $project && $this->user()->hasPermission('update', $project);
         }
 
         // For updating an existing tag
         $tag = $this->route('tag');
         $project = $tag->project;
-        return $project && $this->user()->can('update', $project);
+        return $project && $this->user()->hasPermission('update', $project);
     }
 
     /**

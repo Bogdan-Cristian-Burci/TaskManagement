@@ -38,10 +38,10 @@ class OrganisationResource extends JsonResource
 
             // User permissions for this organization
             'can' => [
-                'update' => $request->user() ? $request->user()->can('update', $this->resource) : false,
-                'delete' => $request->user() ? $request->user()->can('delete', $this->resource) : false,
-                'manage_members' => $request->user() ? $request->user()->can('manageMembers', $this->resource) : false,
-                'change_owner' => $request->user() ? $request->user()->can('changeOwner', $this->resource) : false,
+                'update' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
+                'delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
+                'manage_members' => $request->user() ? $request->user()->hasPermission('manageMembers', $this->resource) : false,
+                'change_owner' => $request->user() ? $request->user()->hasPermission('changeOwner', $this->resource) : false,
             ],
 
             // Include counts when requested

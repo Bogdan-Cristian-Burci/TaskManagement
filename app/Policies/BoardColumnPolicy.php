@@ -18,35 +18,35 @@ class BoardColumnPolicy
     public function view(User $user, BoardColumn $boardColumn): bool
     {
         // User can view column if they can view the board
-        return $user->can('view', $boardColumn->board);
+        return $user->hasPermission('view', $boardColumn->board);
     }
 
     public function create(User $user): bool
     {
-        return $user->can('create', \App\Models\Board::class);
+        return $user->hasPermission('create', \App\Models\Board::class);
     }
 
     public function update(User $user, BoardColumn $boardColumn): bool
     {
         // User can update column if they can update the board
-        return $user->can('update', $boardColumn->board);
+        return $user->hasPermission('update', $boardColumn->board);
     }
 
     public function delete(User $user, BoardColumn $boardColumn): bool
     {
         // User can delete column if they can update the board
-        return $user->can('update', $boardColumn->board);
+        return $user->hasPermission('update', $boardColumn->board);
     }
 
     public function restore(User $user, BoardColumn $boardColumn): bool
     {
         // User can delete column if they can update the board
-        return $user->can('update', $boardColumn->board);
+        return $user->hasPermission('update', $boardColumn->board);
     }
 
     public function forceDelete(User $user, BoardColumn $boardColumn): bool
     {
         // User can delete column if they can update the board
-        return $user->can('update', $boardColumn->board);
+        return $user->hasPermission('update', $boardColumn->board);
     }
 }

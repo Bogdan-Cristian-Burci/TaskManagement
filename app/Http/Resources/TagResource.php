@@ -25,7 +25,7 @@ class TagResource extends JsonResource
             'project_id' => $this->project_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            'deleted_at' => $this->when($request->user() && $request->user()->can('delete', $this->resource), $this->deleted_at),
+            'deleted_at' => $this->when($request->user() && $request->user()->hasPermission('delete', $this->resource), $this->deleted_at),
 
             // Relationships
             'project' => new ProjectResource($this->whenLoaded('project')),
@@ -39,8 +39,8 @@ class TagResource extends JsonResource
 
             // Permission flags for the currently authenticated user
             'can' => $this->when($request->user(), [
-                'update' => $request->user() ? $request->user()->can('update', $this->resource) : false,
-                'delete' => $request->user() ? $request->user()->can('delete', $this->resource) : false,
+                'update' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
+                'delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
             ]),
         ];
     }

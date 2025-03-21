@@ -39,12 +39,12 @@ class BoardTypeRequest extends FormRequest
     {
         // For store requests
         if ($this->isMethod('POST')) {
-            return auth()->user()->can('create', BoardType::class);
+            return auth()->user()->hasPermission('create', BoardType::class);
         }
 
         // For update/delete requests
         if ($this->route('boardType')) {
-            return auth()->user()->can('update', $this->route('boardType'));
+            return auth()->user()->hasPermission('update', $this->route('boardType'));
         }
 
         return false;

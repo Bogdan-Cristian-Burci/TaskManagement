@@ -17,18 +17,18 @@ class PriorityRequest extends FormRequest
     {
         // For store requests
         if ($this->isMethod('POST')) {
-            return $this->user()->can('create', Priority::class);
+            return $this->user()->hasPermission('create', Priority::class);
         }
 
         // For update requests
         $priority = $this->route('priority');
         if ($priority && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
-            return $this->user()->can('update', $priority);
+            return $this->user()->hasPermission('update', $priority);
         }
 
         // For delete requests
         if ($priority && $this->isMethod('DELETE')) {
-            return $this->user()->can('delete', $priority);
+            return $this->user()->hasPermission('delete', $priority);
         }
 
         return false;

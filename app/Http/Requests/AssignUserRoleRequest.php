@@ -11,7 +11,7 @@ class AssignUserRoleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('organisation.assignRole');
+        return $this->user()->hasPermission('organisation.assignRole');
     }
 
     /**

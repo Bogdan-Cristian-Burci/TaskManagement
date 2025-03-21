@@ -70,11 +70,11 @@ class ProjectRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->isMethod('POST') && !$this->route('project')) {
-            return $this->user()->can('create', Project::class);
+            return $this->user()->hasPermission('create', Project::class);
         }
 
         if (($this->isMethod('PUT') || $this->isMethod('PATCH')) && $this->route('project')) {
-            return $this->user()->can('update', $this->route('project'));
+            return $this->user()->hasPermission('update', $this->route('project'));
         }
 
         return false;

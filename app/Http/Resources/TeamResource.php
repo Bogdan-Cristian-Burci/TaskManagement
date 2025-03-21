@@ -43,10 +43,10 @@ class TeamResource extends JsonResource
 
             // User permissions for this team
             'can' => [
-                'update' => $request->user() ? $request->user()->can('update', $this->resource) : false,
-                'delete' => $request->user() ? $request->user()->can('delete', $this->resource) : false,
-                'manage_members' => $request->user() ? $request->user()->can('manageMembers', $this->resource) : false,
-                'change_team_lead' => $request->user() ? $request->user()->can('changeTeamLead', $this->resource) : false,
+                'update' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
+                'delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
+                'manage_members' => $request->user() ? $request->user()->hasPermission('manageMembers', $this->resource) : false,
+                'change_team_lead' => $request->user() ? $request->user()->hasPermission('changeTeamLead', $this->resource) : false,
             ],
 
             // Check if current user is a member of this team

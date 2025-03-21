@@ -42,10 +42,10 @@ class BoardResource extends JsonResource
 
             // Include permissions for current user
             'can' => $this->when($request->user(), [
-                'update' => $request->user() ? $request->user()->can('update', $this->resource) : false,
-                'delete' => $request->user() ? $request->user()->can('delete', $this->resource) : false,
-                'archive' => $request->user() ? $request->user()->can('archive', $this->resource) : false,
-                'duplicate' => $request->user() ? $request->user()->can('duplicate', $this->resource) : false,
+                'update' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
+                'delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
+                'archive' => $request->user() ? $request->user()->hasPermission('archive', $this->resource) : false,
+                'duplicate' => $request->user() ? $request->user()->hasPermission('duplicate', $this->resource) : false,
             ]),
 
             // HATEOAS links

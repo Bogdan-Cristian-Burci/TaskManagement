@@ -95,11 +95,11 @@ class TeamRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->isMethod('POST')) {
-            return $this->user()->can('create', Team::class);
+            return $this->user()->hasPermission('create', Team::class);
         }
 
         if ($team = $this->route('team')) {
-            return $this->user()->can('update', $team);
+            return $this->user()->hasPermission('update', $team);
         }
 
         return false;

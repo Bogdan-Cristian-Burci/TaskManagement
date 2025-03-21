@@ -17,18 +17,18 @@ class ChangeTypeRequest extends FormRequest
     {
         // For store requests
         if ($this->isMethod('POST')) {
-            return $this->user()->can('create', ChangeType::class);
+            return $this->user()->hasPermission('create', ChangeType::class);
         }
 
         // For update requests
         $changeType = $this->route('changeType');
         if ($changeType && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
-            return $this->user()->can('update', $changeType);
+            return $this->user()->hasPermission('update', $changeType);
         }
 
         // For delete requests
         if ($changeType && $this->isMethod('DELETE')) {
-            return $this->user()->can('delete', $changeType);
+            return $this->user()->hasPermission('delete', $changeType);
         }
 
         return false;

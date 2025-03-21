@@ -33,7 +33,7 @@ class SprintPolicy
     {
         // User can view sprint if they can view the related board
         $board = $sprint->board;
-        return $user->can('view', $board);
+        return $user->hasPermission('view', $board);
     }
 
     /**

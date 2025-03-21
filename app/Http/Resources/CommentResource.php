@@ -31,8 +31,8 @@ class CommentResource extends JsonResource
             }),
 
             // Add capabilities based on current user's permissions
-            'can_edit' => $request->user() ? $request->user()->can('update', $this->resource) : false,
-            'can_delete' => $request->user() ? $request->user()->can('delete', $this->resource) : false,
+            'can_edit' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
+            'can_delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
 
             // Links for better HATEOAS support
             'links' => [

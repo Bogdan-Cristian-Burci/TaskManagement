@@ -26,7 +26,7 @@ class SprintResource extends JsonResource
             'status' => $this->status,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
-            'deleted_at' => $this->when($this->deleted_at && $request->user() && $request->user()->can('delete', $this->resource), $this->deleted_at),
+            'deleted_at' => $this->when($this->deleted_at && $request->user() && $request->user()->hasPermission('delete', $this->resource), $this->deleted_at),
 
             // Board relationship
             'board_id' => $this->board_id,
@@ -47,11 +47,11 @@ class SprintResource extends JsonResource
 
             // Permission flags for the currently authenticated user
             'can' => $this->when($request->user(), [
-                'update' => $request->user() ? $request->user()->can('update', $this->resource) : false,
-                'delete' => $request->user() ? $request->user()->can('delete', $this->resource) : false,
-                'start' => $request->user() ? $request->user()->can('start', $this->resource) : false,
-                'complete' => $request->user() ? $request->user()->can('complete', $this->resource) : false,
-                'manage_tasks' => $request->user() ? $request->user()->can('manageTasks', $this->resource) : false,
+                'update' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
+                'delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
+                'start' => $request->user() ? $request->user()->hasPermission('start', $this->resource) : false,
+                'complete' => $request->user() ? $request->user()->hasPermission('complete', $this->resource) : false,
+                'manage_tasks' => $request->user() ? $request->user()->hasPermission('manageTasks', $this->resource) : false,
             ]),
 
             // HATEOAS links

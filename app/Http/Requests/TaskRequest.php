@@ -53,11 +53,11 @@ class TaskRequest extends FormRequest
         $task = $this->route('task');
 
         if (!$task) {
-            return $this->user()->can('create', Task::class);
+            return $this->user()->hasPermission('create', Task::class);
         }
 
         // For updates/deletes, use the TaskPolicy
-        return $this->user()->can('update', $task);
+        return $this->user()->hasPermission('update', $task);
     }
 
     public function messages(): array

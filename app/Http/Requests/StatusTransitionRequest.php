@@ -16,7 +16,7 @@ class StatusTransitionRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->can('manage', Status::class);
+        return $this->user()->hasPermission('manage', Status::class);
     }
 
     /**

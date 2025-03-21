@@ -16,7 +16,7 @@ class DetachUserFromProjectRequest extends FormRequest
     public function authorize(): bool
     {
         $project = $this->route('project');
-        return $this->user()->can('manageUsers', $project);
+        return $this->user()->hasPermission('manageUsers', $project);
     }
 
     /**

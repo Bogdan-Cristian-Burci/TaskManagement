@@ -43,12 +43,12 @@ class BoardColumnRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->isMethod('POST')) {
-            return auth()->user()->can('create', BoardColumn::class);
+            return auth()->user()->hasPermission('create', BoardColumn::class);
         }
 
         // For update/delete requests, check if user can update this specific column
         if ($this->route('boardColumn')) {
-            return auth()->user()->can('update', $this->route('boardColumn'));
+            return auth()->user()->hasPermission('update', $this->route('boardColumn'));
         }
 
         return false;

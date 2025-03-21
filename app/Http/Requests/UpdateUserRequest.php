@@ -48,7 +48,7 @@ class UpdateUserRequest extends FormRequest
         }
 
         $user = $this->user ?? $this->route('user');
-        return $this->user()->can('update', $user);
+        return $this->user()->hasPermission('update', $user);
     }
 
     /**

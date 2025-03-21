@@ -41,7 +41,7 @@ class TeamMemberRequest extends FormRequest
     public function authorize(): bool
     {
         if ($team = $this->route('team')) {
-            return $this->user()->can('manageMembers', $team);
+            return $this->user()->hasPermission('manageMembers', $team);
         }
 
         return false;

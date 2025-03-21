@@ -92,11 +92,11 @@ class CommentRequest extends FormRequest
     {
         if ($this->isMethod('POST')) {
             $task = $this->route('task');
-            return $this->user()->can('create', [Comment::class, $task]);
+            return $this->user()->hasPermission('create', [Comment::class, $task]);
         }
 
         if ($comment = $this->route('comment')) {
-            return $this->user()->can('update', $comment);
+            return $this->user()->hasPermission('update', $comment);
         }
 
         return false;

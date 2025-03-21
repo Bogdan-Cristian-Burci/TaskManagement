@@ -519,37 +519,6 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Legacy compatibility method for "can" within org context.
-     *
-     * @param string|array $abilities
-     * @param mixed|array $arguments
-     * @return bool
-     */
-    public function can($abilities, $arguments = []): bool
-    {
-        // Extract organization context if present in arguments
-        $orgContext = null;
-        if (!empty($arguments)) {
-            $lastArg = is_array($arguments) ? end($arguments) : $arguments;
-            if ($lastArg instanceof Organisation || is_numeric($lastArg)) {
-                $orgContext = $lastArg;
-
-                // Now delegate to our permission system
-                if (is_string($abilities)) {
-                    return $this->hasPermission($abilities, $orgContext);
-                }
-
-                if (is_array($abilities)) {
-                    return $this->hasAnyPermission($abilities, $orgContext);
-                }
-            }
-        }
-
-        // Fall back to standard Laravel permission check for non-org permissions
-        return parent::can($abilities, $arguments);
-    }
-
-    /**
      * Temporarily switch organization context for permission checks
      *
      * @param int|Organisation $organisation

@@ -17,18 +17,18 @@ class StatusRequest extends FormRequest
     {
         // For store requests
         if ($this->isMethod('POST')) {
-            return $this->user()->can('create', Status::class);
+            return $this->user()->hasPermission('create', Status::class);
         }
 
         // For update requests
         $status = $this->route('status');
         if ($status && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
-            return $this->user()->can('update', $status);
+            return $this->user()->hasPermission('update', $status);
         }
 
         // For delete requests
         if ($status && $this->isMethod('DELETE')) {
-            return $this->user()->can('delete', $status);
+            return $this->user()->hasPermission('delete', $status);
         }
 
         return false;

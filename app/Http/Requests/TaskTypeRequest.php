@@ -17,18 +17,18 @@ class TaskTypeRequest extends FormRequest
     {
         // For store requests
         if ($this->isMethod('POST')) {
-            return $this->user()->can('create', TaskType::class);
+            return $this->user()->hasPermission('create', TaskType::class);
         }
 
         // For update requests
         $taskType = $this->route('taskType');
         if ($taskType && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
-            return $this->user()->can('update', $taskType);
+            return $this->user()->hasPermission('update', $taskType);
         }
 
         // For delete requests
         if ($taskType && $this->isMethod('DELETE')) {
-            return $this->user()->can('delete', $taskType);
+            return $this->user()->hasPermission('delete', $taskType);
         }
 
         return false;

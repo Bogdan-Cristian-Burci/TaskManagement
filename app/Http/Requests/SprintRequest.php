@@ -53,7 +53,7 @@ class SprintRequest extends FormRequest
                 function ($attribute, $value, $fail) {
                     // Check if user has access to this board
                     $board = Board::find($value);
-                    if (!$board || !$this->user()->can('view', $board)) {
+                    if (!$board || !$this->user()->hasPermission('view', $board)) {
                         $fail('You do not have access to this board.');
                     }
                 }
@@ -97,10 +97,10 @@ class SprintRequest extends FormRequest
     {
         if ($this->route('sprint')) {
             // For updating an existing sprint
-            return $this->user()->can('update', $this->route('sprint'));
+            return $this->user()->hasPermission('update', $this->route('sprint'));
         } else {
             // For creating a new sprint
-            return $this->user()->can('create', ['App\Models\Sprint', $this->input('board_id')]);
+            return $this->user()->hasPermission('create', ['App\Models\Sprint', $this->input('board_id')]);
         }
     }
 

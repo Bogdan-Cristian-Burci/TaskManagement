@@ -20,7 +20,7 @@ class CommentPolicy
      */
     public function viewAny(User $user, Task $task): bool
     {
-        return $user->can('view', $task);
+        return $user->hasPermission('view', $task);
     }
 
     /**
@@ -32,7 +32,7 @@ class CommentPolicy
      */
     public function view(User $user, Comment $comment): bool
     {
-        return $user->can('view', $comment->task);
+        return $user->hasPermission('view', $comment->task);
     }
 
     /**
@@ -44,7 +44,7 @@ class CommentPolicy
      */
     public function create(User $user, Task $task): bool
     {
-        return $user->can('view', $task);
+        return $user->hasPermission('view', $task);
     }
 
     /**
