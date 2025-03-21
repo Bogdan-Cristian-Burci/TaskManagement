@@ -37,7 +37,7 @@ class OrganisationResource extends JsonResource
                 $role = $request->user()->organisationRole($this->resource);
                 return $role ? [
                     'id' => $role->id,
-                    'name' => $role->name,
+                    'name' => $role->getName(),
                     'level' => $role->getLevel(),
                     'template' => $role->template ? $role->template->name : null
                 ] : null;

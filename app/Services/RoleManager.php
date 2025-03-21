@@ -511,17 +511,38 @@ class RoleManager
             return 0;
         }
 
-        // Get all system templates
-        $templates = RoleTemplate::where('is_system', true)
-            ->whereNull('organisation_id')
-            ->get();
+        // Get all organization roles from config
+        $orgRoles = config('roles.organization', []);
 
-        foreach ($templates as $template) {
-            // Check if role exists
+        // Create a role for each organization role in config
+        foreach ($orgRoles as $roleName => $roleData) {
+            // Check if the role template exists
+            $template = RoleTemplate::where('name', $roleName)
+                ->where('is_system', true)
+                ->first();
+
+            // If template doesn't exist, create it
+            if (!$template) {
+                $template = RoleTemplate::create([
+                    'name' => $roleName,
+                    'display_name' => $roleData['display_name'],
+                    'description' => $roleData['description'],
+                    'level' => $roleData['level'],
+                    'is_system' => true,
+                    'can_be_deleted' => $roleData['can_be_deleted'] ?? false,
+                    'scope' => 'organization',
+                ]);
+
+                // Sync template permissions
+                $this->syncTemplatePermissions($template);
+            }
+
+            // Check if organization role exists
             $exists = Role::where('template_id', $template->id)
                 ->where('organisation_id', $organisationId)
                 ->exists();
 
+            // Create the role if it doesn't exist
             if (!$exists) {
                 Role::create([
                     'template_id' => $template->id,

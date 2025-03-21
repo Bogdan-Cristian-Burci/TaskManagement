@@ -9,6 +9,7 @@ use App\Models\Organisation;
 use App\Models\Role;
 use App\Models\RoleTemplate;
 use App\Models\User;
+use App\Services\RoleManager;
 use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -22,6 +23,24 @@ use Symfony\Component\HttpFoundation\Response;
 
 class APIAuthenticationController extends Controller
 {
+
+    /**
+     * The RoleManager instance.
+     *
+     * @var RoleManager
+     */
+    protected RoleManager $roleManager;
+
+    /**
+     * Create a new controller instance.
+     *
+     * @param RoleManager $roleManager
+     */
+    public function __construct(RoleManager $roleManager)
+    {
+        $this->roleManager = $roleManager;
+    }
+
     /**
      * Register a new user.
      *
@@ -74,7 +93,7 @@ class APIAuthenticationController extends Controller
 
             DB::commit();
 
-            event(new Registered($user));
+            $user->sendEmailVerificationNotification();
 
             return response()->json([
                 'message' => 'Registration successful',
@@ -282,34 +301,21 @@ class APIAuthenticationController extends Controller
     private function assignAdminRoleFromTemplate(User $user, int $organisationId): void
     {
         try {
-            // First check if the admin template exists
-            $adminTemplate = RoleTemplate::where('name', 'admin')
-                ->where('is_system', true)
-                ->whereNull('organisation_id')
-                ->first();
+            // Use the role manager service
+            $assigned = $this->roleManager->assignRoleToUser($user, 'admin', $organisationId);
 
-            if (!$adminTemplate) {
-                throw new \Exception("Admin template not found. Please run the seeders first.");
-            }
-
-            // Using the new signature for role assignment
-            try {
-                $user->assignRole('admin', $organisationId);
-
-                Log::info("Admin role assigned to user using new architecture", [
+            if ($assigned) {
+                Log::info("Admin role assigned to user using RoleManager", [
                     'user_id' => $user->id,
                     'template' => 'admin',
                     'organisation_id' => $organisationId
                 ]);
-            } catch (\Exception $e) {
-                Log::error("New assignRole method failed: " . $e->getMessage(), [
-                    'user_id' => $user->id,
-                    'trace' => $e->getTraceAsString()
-                ]);
-
-                // Fallback to legacy method if the new one fails
-                $this->assignAdminRoleLegacyMethod($user, $organisationId, $adminTemplate);
+                return;
             }
+
+            // Fallback to legacy method if RoleManager fails
+            $this->assignAdminRoleLegacyMethod($user, $organisationId);
+
         } catch (\Exception $e) {
             Log::error("Error assigning admin role: " . $e->getMessage(), [
                 'user_id' => $user->id,
