@@ -33,15 +33,22 @@ class OrganisationResource extends JsonResource
 
             // Get the currently authenticated user's role in this organization
             'user_role' => $this->when($request->user(), function() use ($request) {
-                return $this->getUserRole($request->user());
+                // Using the new method to get user's role in organization
+                $role = $request->user()->organisationRole($this->resource);
+                return $role ? [
+                    'id' => $role->id,
+                    'name' => $role->name,
+                    'level' => $role->getLevel(),
+                    'template' => $role->template ? $role->template->name : null
+                ] : null;
             }),
 
             // User permissions for this organization
             'can' => [
-                'update' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
-                'delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
-                'manage_members' => $request->user() ? $request->user()->hasPermission('manageMembers', $this->resource) : false,
-                'change_owner' => $request->user() ? $request->user()->hasPermission('changeOwner', $this->resource) : false,
+                'update' => $request->user() ? $request->user()->hasPermission('organisation.update', $this->id) : false,
+                'delete' => $request->user() ? $request->user()->hasPermission('organisation.delete', $this->id) : false,
+                'invite_users' => $request->user() ? $request->user()->hasPermission('organisation.inviteUser', $this->id) : false,
+                'manage_settings' => $request->user() ? $request->user()->hasPermission('organisation.manageSettings', $this->id) : false,
             ],
 
             // Include counts when requested

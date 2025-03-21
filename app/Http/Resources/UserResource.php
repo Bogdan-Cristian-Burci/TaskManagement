@@ -5,15 +5,11 @@ namespace App\Http\Resources;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\DB;
 
 class UserResource extends JsonResource
 {
     /**
      * Transform the resource into an array.
-     *
-     * Current Date: 2025-03-20 16:04:10
-     * Developer: Bogdan-Cristian-Burci
      *
      * @param Request $request
      * @return array<string, mixed>
@@ -24,10 +20,10 @@ class UserResource extends JsonResource
         $user = $this->resource;
         $organisationId = $user->organisation_id;
 
-        // Check if user has admin role - using template names
+        // Check if user has admin role - using template names in the right organization context
         $isAdmin = false;
         if ($organisationId) {
-            $isAdmin = $user->hasRole('admin', $organisationId);
+            $isAdmin = $user->hasRoleInOrganisation('admin', $organisationId);
         }
 
         // Check if authenticated user is the same as current user
@@ -36,10 +32,11 @@ class UserResource extends JsonResource
         // Get role template names for current organization
         $roleTemplateNames = [];
         if ($organisationId) {
-            $roleTemplateNames = $user->getRolesInOrganisation($organisationId)
+            $roleTemplateNames = $user->getOrganisationRoles($organisationId)
                 ->map(function($role) {
-                    return $role->template->name;
+                    return $role->template ? $role->template->name : $role->name;
                 })
+                ->filter() // Remove nulls
                 ->toArray();
         }
 
@@ -56,13 +53,19 @@ class UserResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
-            // Add roles and permissions using the new structure
+            // Add roles using the new structure
             'roles' => $roleTemplateNames,
-            'permissions' => $user->organisation_permissions,
+
+            // Get permissions using getAllPermissions method
+            'permissions' => $this->when($organisationId, function() use ($user, $organisationId) {
+                return $user->getAllPermissions($organisationId)
+                    ->pluck('name')
+                    ->toArray();
+            }),
 
             // Add permission overrides if any
             'permission_overrides' => $this->when($organisationId, function() use ($user) {
-                return $user->permission_overrides;
+                return $user->getPermissionOverridesAttribute();
             }),
 
             'organisation_id' => $this->when($this->organisation_id, $this->organisation_id),

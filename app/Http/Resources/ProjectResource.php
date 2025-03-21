@@ -9,6 +9,12 @@ use Illuminate\Http\Resources\Json\JsonResource;
 /** @mixin Project */
 class ProjectResource extends JsonResource
 {
+    /**
+     * Transform the resource into an array.
+     *
+     * @param Request $request
+     * @return array<string, mixed>
+     */
     public function toArray(Request $request): array
     {
         return [

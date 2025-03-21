@@ -22,12 +22,12 @@ use Symfony\Component\HttpFoundation\Response;
 
 class APIAuthenticationController extends Controller
 {
-
     /**
      * Register a new user.
      *
      * @param CreateUserRequest $request
      * @return JsonResponse
+     * @throws \Throwable
      */
     public function register(CreateUserRequest $request): JsonResponse
     {
@@ -66,7 +66,6 @@ class APIAuthenticationController extends Controller
             // Create admin template if it doesn't exist
             $this->assignAdminRoleFromTemplate($user, $organisation->id);
 
-
             // Create token
             $token = $user->createToken('Registration Token', ['read-user'])->accessToken;
 
@@ -96,6 +95,7 @@ class APIAuthenticationController extends Controller
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
+
     /**
      * Log in a user with enhanced security.
      *
@@ -170,8 +170,8 @@ class APIAuthenticationController extends Controller
         // Create new token with appropriate scopes
         $token = $user->createToken('Login Token', ['read-user'])->accessToken;
 
-        // Load necessary relationships
-        $user->load(['roles', 'permissions', 'organisation']);
+        // Load necessary relationships - FIXED: removed 'permissions' that doesn't exist as a relationship
+        $user->load(['roles', 'organisation']);
 
         // Log successful login
         Log::info('User logged in', [
@@ -220,8 +220,8 @@ class APIAuthenticationController extends Controller
      */
     public function user(Request $request): JsonResponse
     {
-        // Load necessary relationships
-        $user = $request->user()->load(['roles', 'permissions', 'organisation', 'teams', 'projects']);
+        // Load necessary relationships - FIXED: removed 'permissions' that doesn't exist as a relationship
+        $user = $request->user()->load(['roles', 'organisation', 'teams', 'projects']);
 
         return response()->json(new UserResource($user), Response::HTTP_OK);
     }
@@ -272,8 +272,6 @@ class APIAuthenticationController extends Controller
         return $name;
     }
 
-    // When creating an admin role for new organization:
-
     /**
      * Assign admin role to a user using the standard admin template
      *
@@ -294,40 +292,24 @@ class APIAuthenticationController extends Controller
                 throw new \Exception("Admin template not found. Please run the seeders first.");
             }
 
-            // Find or create the admin role for this organization
-            $adminRole = Role::where('template_id', $adminTemplate->id)
-                ->where('organisation_id', $organisationId)
-                ->first();
+            // Using the new signature for role assignment
+            try {
+                $user->assignRole('admin', $organisationId);
 
-            // If admin role doesn't exist for this org, create it
-            if (!$adminRole) {
-                $adminRole = Role::create([
-                    'template_id' => $adminTemplate->id,
-                    'organisation_id' => $organisationId,
-                    'overrides_system' => false,
-                    'system_role_id' => null
+                Log::info("Admin role assigned to user using new architecture", [
+                    'user_id' => $user->id,
+                    'template' => 'admin',
+                    'organisation_id' => $organisationId
+                ]);
+            } catch (\Exception $e) {
+                Log::error("New assignRole method failed: " . $e->getMessage(), [
+                    'user_id' => $user->id,
+                    'trace' => $e->getTraceAsString()
                 ]);
 
-                Log::info("Admin role created for organization", [
-                    'organisation_id' => $organisationId,
-                    'role_id' => $adminRole->id
-                ]);
+                // Fallback to legacy method if the new one fails
+                $this->assignAdminRoleLegacyMethod($user, $organisationId, $adminTemplate);
             }
-            // Assign the role to the user using model_has_roles table
-            DB::table('model_has_roles')->insert([
-                'role_id' => $adminRole->id,
-                'model_id' => $user->id,
-                'model_type' => User::class,
-                'organisation_id' => $organisationId,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-
-            Log::info("Admin role assigned to user", [
-                'user_id' => $user->id,
-                'role_id' => $adminRole->id,
-                'organisation_id' => $organisationId
-            ]);
         } catch (\Exception $e) {
             Log::error("Error assigning admin role: " . $e->getMessage(), [
                 'user_id' => $user->id,
@@ -335,5 +317,68 @@ class APIAuthenticationController extends Controller
             ]);
             throw $e;
         }
+    }
+
+    /**
+     * Legacy method to assign admin role directly through DB
+     *
+     * @param User $user
+     * @param int $organisationId
+     * @param RoleTemplate|null $adminTemplate
+     * @return void
+     * @throws \Exception
+     */
+    private function assignAdminRoleLegacyMethod(User $user, int $organisationId, ?RoleTemplate $adminTemplate = null): void
+    {
+        if (!$adminTemplate) {
+            $adminTemplate = RoleTemplate::where('name', 'admin')
+                ->where('is_system', true)
+                ->whereNull('organisation_id')
+                ->first();
+
+            if (!$adminTemplate) {
+                throw new \Exception("Admin template not found. Please run the seeders first.");
+            }
+        }
+
+        // Find or create the admin role for this organization
+        $adminRole = Role::where('template_id', $adminTemplate->id)
+            ->where('organisation_id', $organisationId)
+            ->first();
+
+        // If admin role doesn't exist for this org, create it
+        if (!$adminRole) {
+            $adminRole = Role::create([
+                'name' => 'admin',
+                'guard_name' => 'api',
+                'template_id' => $adminTemplate->id,
+                'organisation_id' => $organisationId,
+                'level' => $adminTemplate->level ?? 100,
+                'overrides_system' => false,
+                'system_role_id' => null
+            ]);
+
+            Log::info("Admin role created for organization", [
+                'organisation_id' => $organisationId,
+                'role_id' => $adminRole->id
+            ]);
+        }
+
+        // Assign the role to the user using model_has_roles table
+        DB::table('model_has_roles')->updateOrInsert([
+            'role_id' => $adminRole->id,
+            'model_id' => $user->id,
+            'model_type' => get_class($user),
+            'organisation_id' => $organisationId
+        ], [
+            'created_at' => now(),
+            'updated_at' => now()
+        ]);
+
+        Log::info("Admin role assigned to user using legacy method", [
+            'user_id' => $user->id,
+            'role_id' => $adminRole->id,
+            'organisation_id' => $organisationId
+        ]);
     }
 }
