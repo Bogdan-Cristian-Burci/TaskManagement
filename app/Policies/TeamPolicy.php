@@ -33,7 +33,7 @@ class TeamPolicy
     {
         // Users can view teams they belong to
         return $team->hasMember($user) ||
-            $user->canWithOrg('team.view');
+            $user->hasPermission('team.view');
     }
 
     /**
@@ -46,7 +46,7 @@ class TeamPolicy
     {
         // Only users with proper permissions can create teams
         return $user->organisations()->exists() &&
-            $user->canWithOrg('team.create');
+            $user->hasPermission('team.create');
     }
 
     /**
@@ -60,7 +60,7 @@ class TeamPolicy
     {
         // Only team leads or admins can update teams
         return $team->isTeamLead($user) ||
-            $user->canWithOrg('team.update');
+            $user->hasPermission('team.update');
     }
 
     /**
@@ -74,7 +74,7 @@ class TeamPolicy
     {
         // Only team leads or admins can delete teams
         return $team->isTeamLead($user) ||
-            $user->canWithOrg('team.delete');
+            $user->hasPermission('team.delete');
     }
 
     /**
@@ -86,7 +86,7 @@ class TeamPolicy
      */
     public function restore(User $user, Team $team): bool
     {
-        return $user->canWithOrg('team.restore');
+        return $user->hasPermission('team.restore');
     }
 
     /**
@@ -98,7 +98,7 @@ class TeamPolicy
      */
     public function forceDelete(User $user, Team $team): bool
     {
-        return $user->canWithOrg('team.forceDelete');
+        return $user->hasPermission('team.forceDelete');
     }
 
     /**
@@ -111,7 +111,7 @@ class TeamPolicy
     public function manageMembers(User $user, Team $team): bool
     {
         return $team->isTeamLead($user) ||
-            $user->canWithOrg('manage teams');
+            $user->hasPermission('manage teams');
     }
 
     /**
@@ -124,6 +124,6 @@ class TeamPolicy
     public function changeTeamLead(User $user, Team $team): bool
     {
         return $team->isTeamLead($user) ||
-            $user->canWithOrg('team.changeLead');
+            $user->hasPermission('team.changeLead');
     }
 }

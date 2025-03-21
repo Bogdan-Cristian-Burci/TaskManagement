@@ -18,7 +18,7 @@ class RolePermissionController extends Controller
      */
     public function getPermissions()
     {
-        if (!auth()->user()->canWithOrg('permission.view')) {
+        if (!auth()->user()->hasPermission('permission.view')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -33,7 +33,7 @@ class RolePermissionController extends Controller
      */
     public function assignRole(Request $request)
     {
-        if (!auth()->user()->canWithOrg('organisation.assignRole')) {
+        if (!auth()->user()->hasPermission('organisation.assignRole')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -72,7 +72,7 @@ class RolePermissionController extends Controller
      */
     public function removeRole(Request $request)
     {
-        if (!auth()->user()->canWithOrg('organisation.assignRole')) {
+        if (!auth()->user()->hasPermission('organisation.assignRole')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -102,7 +102,7 @@ class RolePermissionController extends Controller
      */
     public function assignPermission(Request $request)
     {
-        if (!auth()->user()->canWithOrg('permission.assign')) {
+        if (!auth()->user()->hasPermission('permission.assign')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -132,7 +132,7 @@ class RolePermissionController extends Controller
      */
     public function removePermission(Request $request)
     {
-        if (!auth()->user()->canWithOrg('permission.assign')) {
+        if (!auth()->user()->hasPermission('permission.assign')) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 

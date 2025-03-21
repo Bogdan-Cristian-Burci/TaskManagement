@@ -9,6 +9,7 @@ use App\Models\Organisation;
 use App\Models\Role;
 use App\Models\RoleTemplate;
 use App\Models\User;
+use Illuminate\Auth\Events\Registered;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -73,6 +74,8 @@ class APIAuthenticationController extends Controller
             $freshUser = User::find($user->id);
 
             DB::commit();
+
+            event(new Registered($user));
 
             return response()->json([
                 'message' => 'Registration successful',

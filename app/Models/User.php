@@ -519,32 +519,6 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
-     * Check permission with organization context
-     *
-     * @param string $permission
-     * @param int|Organisation|null $organization
-     * @return bool
-     */
-    public function canWithOrg(string $permission, int|Organisation $organization = null): bool
-    {
-        // Use provided organization or try to get from user
-        if ($organization === null) {
-            $organization = $this->organisation_id;
-            if (!$organization) {
-                return false;
-            }
-        }
-
-        try {
-            // Use our hasPermission method
-            return $this->hasPermission($permission, $organization);
-        } catch (\Exception $e) {
-            \Log::error("Permission check error: " . $e->getMessage());
-            return false;
-        }
-    }
-
-    /**
      * Legacy compatibility method for "can" within org context.
      *
      * @param string|array $abilities

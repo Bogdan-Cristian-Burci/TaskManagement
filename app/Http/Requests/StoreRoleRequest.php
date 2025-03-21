@@ -11,7 +11,7 @@ class StoreRoleRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        return $this->user()->canWithOrg('role.create');
+        return $this->user()->hasPermission('role.create');
     }
 
     /**
