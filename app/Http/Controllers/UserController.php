@@ -56,7 +56,7 @@ class UserController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('users.view', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('user.view', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to view users.');
         }
 
@@ -182,7 +182,7 @@ class UserController extends Controller
     public function show(Request $request, User $user): UserResource
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('users.view', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('user.view', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to view this user.');
         }
 
@@ -209,18 +209,9 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, User $user): UserResource
     {
-        // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('users.edit', $request->user()->organisation_id)) {
-            throw new AuthorizationException('You do not have permission to update users.');
-        }
-
-        // Additional check for self-updates
-        if ($request->user()->id !== $user->id &&
-            !$request->user()->hasPermission('users.edit.others', $request->user()->organisation_id)) {
-            throw new AuthorizationException('You do not have permission to update other users.');
-        }
-
         $data = $request->validated();
+
+        \Log::info('received data is '.json_encode($data));
 
         // Handle password update if provided
         if (isset($data['password'])) {
@@ -228,38 +219,6 @@ class UserController extends Controller
         }
 
         $user->update($data);
-
-        // Update roles if authorized and specified
-        if ($request->has('role') && $request->user()->hasPermission('roles.assign', $request->user()->organisation_id)) {
-            $organisationId = $request->user()->organisation_id;
-
-            // Using the correct signature for assignRole
-            try {
-                // Remove existing roles in this organization
-                DB::table('model_has_roles')
-                    ->where('model_id', $user->id)
-                    ->where('model_type', get_class($user))
-                    ->where('organisation_id', $organisationId)
-                    ->delete();
-
-                // Assign the new role
-                $user->assignRole($request->role, $organisationId);
-            } catch (\Exception $e) {
-                \Log::error('Failed to update role: ' . $e->getMessage());
-            }
-        }
-
-        // Update primary organization if specified
-        if ($request->has('organisation_id')) {
-            // Ensure user is a member of this organization
-            if (!$user->organisations()->where('organisations.id', $request->organisation_id)->exists()) {
-                $orgRole = $request->input('organisation_role', 'member');
-                $user->organisations()->attach($request->organisation_id, ['role' => $orgRole]);
-            }
-
-            // Set as primary organization
-            $user->update(['organisation_id' => $request->organisation_id]);
-        }
 
         return new UserResource($user->load(['roles', 'organisation', 'organisations']));
     }

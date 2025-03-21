@@ -23,16 +23,13 @@ class UpdateUserRequest extends FormRequest
                 'string',
                 'email',
                 'max:255',
-                Rule::unique('users')->ignore($this->user)
+                Rule::unique('users')->ignore($this->route('user'))
             ],
             'password' => ['sometimes', 'string', 'confirmed', Password::defaults()],
             'avatar' => 'nullable|string|max:1024',
             'phone' => 'nullable|string|max:20',
             'bio' => 'nullable|string|max:1000',
             'job_title' => 'nullable|string|max:100',
-            'role' => 'nullable|string|exists:roles,name',
-            'organisation_id' => 'nullable|exists:organisations,id',
-            'organisation_role' => 'nullable|string|in:owner,admin,member',
         ];
     }
 
@@ -43,12 +40,15 @@ class UpdateUserRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        if (!$this->user && !$this->route('user')) {
+        // Get the user that is the target of the update
+        $targetUser = $this->route('user');
+
+        if (!$targetUser) {
             return false;
         }
 
-        $user = $this->user ?? $this->route('user');
-        return $this->user()->hasPermission('update', $user);
+        // Only allow users to update their own data
+        return $this->user()->id === $targetUser->id;
     }
 
     /**
