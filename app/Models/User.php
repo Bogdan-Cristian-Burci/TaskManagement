@@ -550,41 +550,8 @@ class User extends Authenticatable implements MustVerifyEmail
      * @param int $organisationId Organization context
      * @throws \Exception
      */
-    public function assignRole(string $templateName, int $organisationId): void
+    public function assignRole(string $templateName, int $organisationId): bool
     {
-        // Find the template
-        $template = RoleTemplate::getTemplateByName($templateName, $organisationId);
-
-        if (!$template) {
-            throw new \Exception("Role template '{$templateName}' not found");
-        }
-
-        // Find or create the role for this template in this organization
-        $role = Role::where('template_id', $template->id)
-            ->where('organisation_id', $organisationId)
-            ->first();
-
-        if (!$role) {
-            // Create the role using the template
-            $org = Organisation::find($organisationId);
-            if (!$org) {
-                throw new \Exception("Organization with ID {$organisationId} not found");
-            }
-            $role = $template->createRoleInOrganisation($org);
-        }
-
-        // Assign the role using model_has_roles table
-        DB::table('model_has_roles')->updateOrInsert(
-            [
-                'model_id' => $this->id,
-                'model_type' => get_class($this),
-                'role_id' => $role->id,
-                'organisation_id' => $organisationId
-            ],
-            [
-                'created_at' => now(),
-                'updated_at' => now()
-            ]
-        );
+        return role_manager()->assignRoleToUser($this, $templateName, $organisationId);
     }
 }

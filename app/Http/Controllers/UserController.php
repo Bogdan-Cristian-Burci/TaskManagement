@@ -132,11 +132,6 @@ class UserController extends Controller
      */
     public function store(StoreUserRequest $request): UserResource
     {
-        // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('users.create', $request->user()->organisation_id)) {
-            throw new AuthorizationException('You do not have permission to create users.');
-        }
-
         $data = $request->validated();
         $data['password'] = Hash::make($data['password']);
 
@@ -165,11 +160,11 @@ class UserController extends Controller
                 } catch (\Exception $e) {
                     \Log::error('Failed to assign role: ' . $e->getMessage());
                     // Fallback to default role if custom role assignment fails
-                    $user->assignRole('guest', $data['organisation_id']);
+                    $user->assignRole(get_default_role(), $data['organisation_id']);
                 }
             } else {
                 // Assign default role using correct signature
-                $user->assignRole('guest', $data['organisation_id']);
+                $user->assignRole(get_default_role(), $data['organisation_id']);
             }
         }
 

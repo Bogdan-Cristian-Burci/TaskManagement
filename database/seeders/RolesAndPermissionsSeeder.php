@@ -2,15 +2,14 @@
 
 namespace Database\Seeders;
 
+use App\Models\Organisation;
+use App\Models\User;
+use App\Services\RoleManager;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
-use App\Models\Permission;
-use App\Models\Role;
-use App\Models\RoleTemplate;
-use App\Models\User;
-use App\Models\Organisation;
 
 class RolesAndPermissionsSeeder extends Seeder
 {
@@ -23,165 +22,18 @@ class RolesAndPermissionsSeeder extends Seeder
     {
         $this->command->info('Starting permission and role seeding...');
 
-        // Define models that need permissions
-        $models = [
-            'project',
-            'task',
-            'user',
-            'organisation',
-            'board',
-            'status',
-            'priority',
-            'taskType',
-            'comment',
-            'attachment',
-            'notification',
-            'team',
-            'role',
-            'permission',
-        ];
+        // Use the RoleManager service
+        $roleManager = new RoleManager();
 
-        // Define standard actions for each model
-        $standardActions = [
-            'viewAny',   // index method
-            'view',      // show method
-            'create',    // create/store methods
-            'update',    // edit/update methods
-            'delete',    // destroy method
-            'forceDelete', // forceDelete method
-            'restore',   // restore method
-        ];
+        // 1. Sync all permissions from config
+        $permCount = $roleManager->syncAllPermissions();
+        $this->command->info("Synced {$permCount} permissions from configuration");
 
-        // Extended actions for specific models
-        $extendedActions = [
-            'project' => [
-                'addMember',
-                'removeMember',
-                'changeOwner',
-            ],
-            'task' => [
-                'assign',
-                'changeStatus',
-                'changePriority',
-                'addLabel',
-                'removeLabel',
-                'moveTask',
-                'attachFile',
-                'detachFile',
-            ],
-            'organisation' => [
-                'inviteUser',
-                'removeUser',
-                'assignRole',
-                'viewMetrics',
-                'manageSettings',
-                'exportData',
-            ],
-            'board' => [
-                'reorderColumns',
-                'addColumn',
-                'removeColumn',
-                'changeColumnSettings',
-            ],
-            'role' => [
-                'assign',
-                'revoke',
-                'manage',
-            ],
-            'permission' => [
-                'assign',
-                'revoke',
-                'manage',
-            ],
-            'team' => [
-                'addMember',
-                'removeMember',
-                'changeLead',
-            ],
-        ];
+        // 2. Sync all role templates from config
+        $templateCount = $roleManager->syncAllRoleTemplates();
+        $this->command->info("Synced {$templateCount} role templates from configuration");
 
-        // Define custom permissions that don't follow the model.action pattern
-        $customPermissions = [
-            'manage-roles',
-            'manage-permissions',
-            'manage-users',
-            'manage-organisations',
-            'manage-teams',
-            'manage-projects',
-            'manage-settings',
-        ];
-
-        // 1. Create all the permissions
-        $allPermissions = [];
-        $permissionIds = [];
-
-        // Create standard permissions for all models
-        foreach ($models as $model) {
-            foreach ($standardActions as $action) {
-                $permissionName = "{$model}.{$action}";
-                $displayName = ucfirst($action) . ' ' . ucfirst($model);
-                $category = ucfirst($model);
-
-                $permission = Permission::firstOrCreate(
-                    ['name' => $permissionName],
-                    [
-                        'name' => $permissionName,
-                        'display_name' => $displayName,
-                        'description' => "Allows user to {$action} {$model}s",
-                        'category' => $category,
-                        'guard_name' => 'api'
-                    ]
-                );
-
-                $allPermissions[] = $permissionName;
-                $permissionIds[] = $permission->id;
-            }
-
-            // Add model-specific extended actions
-            if (isset($extendedActions[$model])) {
-                foreach ($extendedActions[$model] as $extendedAction) {
-                    $permissionName = "{$model}.{$extendedAction}";
-                    $displayName = ucfirst($extendedAction) . ' ' . ucfirst($model);
-                    $category = ucfirst($model);
-
-                    $permission = Permission::firstOrCreate(
-                        ['name' => $permissionName],
-                        [
-                            'name' => $permissionName,
-                            'display_name' => $displayName,
-                            'description' => "Allows user to {$extendedAction} {$model}s",
-                            'category' => $category,
-                            'guard_name' => 'api'
-                        ]
-                    );
-
-                    $allPermissions[] = $permissionName;
-                    $permissionIds[] = $permission->id;
-                }
-            }
-        }
-
-        // Create custom permissions
-        foreach ($customPermissions as $permissionName) {
-            $displayName = ucwords(str_replace('-', ' ', $permissionName));
-            $category = 'General';
-
-            $permission = Permission::firstOrCreate(
-                ['name' => $permissionName],
-                [
-                    'name' => $permissionName,
-                    'display_name' => $displayName,
-                    'description' => "Allows user to {$displayName}",
-                    'category' => $category,
-                    'guard_name' => 'api'
-                ]
-            );
-
-            $allPermissions[] = $permissionName;
-            $permissionIds[] = $permission->id;
-        }
-
-        // 2. Create or get the Demo User
+        // 3. Create or get the Demo User
         $demoUser = User::firstOrCreate(
             ['email' => 'demo@example.com'],
             [
@@ -192,7 +44,7 @@ class RolesAndPermissionsSeeder extends Seeder
             ]
         );
 
-        // 3. Create or get the Demo Organization with all required fields
+        // 4. Create or get the Demo Organization with all required fields
         $demoOrg = Organisation::firstOrCreate(
             ['name' => 'Demo Organization'],
             [
@@ -206,184 +58,21 @@ class RolesAndPermissionsSeeder extends Seeder
             ]
         );
 
-        // 4. Update the demo user's organization_id
+        // 5. Update the demo user's organization_id
         if ($demoUser->organisation_id !== $demoOrg->id) {
             $demoUser->update(['organisation_id' => $demoOrg->id]);
         }
         $this->command->info('Demo Organization created with ID: ' . $demoOrg->id);
 
-        // 5. Define template permissions for each role type
+        // 6. Create roles for the demo org
+        $roleCount = $roleManager->createOrganizationRoles($demoOrg->id);
+        $this->command->info("Created {$roleCount} roles for demo organization");
 
-        // Admin template - gets ALL permissions
-        $adminPermissions = $allPermissions;
-
-        // Team Leader permissions
-        $teamLeaderPermissions = [
-            // User permissions
-            'user.viewAny', 'user.view',
-
-            // Team permissions
-            'team.viewAny', 'team.view', 'team.create', 'team.update',
-            'team.addMember', 'team.removeMember', 'team.changeLead',
-
-            // Task permissions
-            'task.viewAny', 'task.view', 'task.create', 'task.update',
-            'task.assign', 'task.changeStatus', 'task.changePriority',
-
-            // Project permissions
-            'project.viewAny', 'project.view',
-
-            // Board permissions
-            'board.viewAny', 'board.view',
-
-            // Comment & attachment permissions
-            'comment.viewAny', 'comment.view', 'comment.create', 'comment.update',
-            'attachment.viewAny', 'attachment.view', 'attachment.create', 'attachment.delete',
-        ];
-
-        // Project Manager permissions
-        $projectManagerPermissions = [
-            // User permissions
-            'user.viewAny', 'user.view',
-
-            // Project permissions
-            'project.viewAny', 'project.view', 'project.create', 'project.update',
-            'project.addMember', 'project.removeMember',
-
-            // Task permissions
-            'task.viewAny', 'task.view', 'task.create', 'task.update', 'task.delete',
-            'task.assign', 'task.changeStatus', 'task.changePriority',
-            'task.addLabel', 'task.removeLabel', 'task.moveTask',
-
-            // Team permissions
-            'team.viewAny', 'team.view',
-
-            // Board permissions
-            'board.viewAny', 'board.view', 'board.create', 'board.update',
-            'board.reorderColumns', 'board.addColumn',
-
-            // Status & Priority permissions
-            'status.viewAny', 'status.view', 'status.create', 'status.update',
-            'priority.viewAny', 'priority.view',
-
-            // Comment & attachment permissions
-            'comment.viewAny', 'comment.view', 'comment.create', 'comment.update', 'comment.delete',
-            'attachment.viewAny', 'attachment.view', 'attachment.create', 'attachment.update', 'attachment.delete',
-        ];
-
-        // Member permissions
-        $memberPermissions = [
-            // User permissions
-            'user.viewAny', 'user.view',
-
-            // Project permissions
-            'project.viewAny', 'project.view',
-
-            // Task permissions
-            'task.viewAny', 'task.view', 'task.create',
-            'task.changeStatus',
-
-            // Team permissions
-            'team.viewAny', 'team.view',
-
-            // Board permissions
-            'board.viewAny', 'board.view',
-
-            // Comment & attachment permissions
-            'comment.viewAny', 'comment.view', 'comment.create',
-            'attachment.viewAny', 'attachment.view', 'attachment.create',
-        ];
-
-        // 6. Create the standard templates
-        $adminTemplate = RoleTemplate::firstOrCreate(
-            [
-                'name' => 'admin',
-                'is_system' => true,
-                'organisation_id' => null
-            ],
-            [
-                'name' => 'admin',
-                'display_name' => 'Admin Template',
-                'description' => 'Full administrative access',
-                'level' => 100,
-                'is_system' => true,
-                'organisation_id' => null
-            ]
-        );
-
-        $teamLeaderTemplate = RoleTemplate::firstOrCreate(
-            [
-                'name' => 'team_leader',
-                'is_system' => true,
-                'organisation_id' => null
-            ],
-            [
-                'name' => 'team_leader',
-                'display_name' => 'Team Leader Template',
-                'description' => 'Team leadership responsibilities',
-                'level' => 60,
-                'is_system' => true,
-                'organisation_id' => null
-            ]
-        );
-
-        $projectManagerTemplate = RoleTemplate::firstOrCreate(
-            [
-                'name' => 'project_manager',
-                'is_system' => true,
-                'organisation_id' => null
-            ],
-            [
-                'name' => 'project_manager',
-                'display_name' => 'Project Manager Template',
-                'description' => 'Project management responsibilities',
-                'level' => 80,
-                'is_system' => true,
-                'organisation_id' => null
-            ]
-        );
-
-        $memberTemplate = RoleTemplate::firstOrCreate(
-            [
-                'name' => 'member',
-                'is_system' => true,
-                'organisation_id' => null
-            ],
-            [
-                'name' => 'member',
-                'display_name' => 'Member Template',
-                'description' => 'Standard team member access',
-                'level' => 40,
-                'is_system' => true,
-                'organisation_id' => null
-            ]
-        );
-
-        // Assign permissions to templates
-        $this->assignPermissionsToTemplate($adminTemplate, $adminPermissions);
-        $this->assignPermissionsToTemplate($teamLeaderTemplate, $teamLeaderPermissions);
-        $this->assignPermissionsToTemplate($projectManagerTemplate, $projectManagerPermissions);
-        $this->assignPermissionsToTemplate($memberTemplate, $memberPermissions);
-
-        // 7. Create roles for the demo org based on templates
-        $this->createOrganizationRolesForOrg($demoOrg->id, $demoUser->id);
+        // 7. Assign admin role to demo user
+        $roleManager->assignRoleToUser($demoUser, 'admin', $demoOrg->id);
+        $this->command->info('Admin role assigned to demo user');
 
         $this->command->info('Permissions, templates and roles seeded successfully!');
-    }
-
-    /**
-     * Assign permissions to a role template by name
-     *
-     * @param RoleTemplate $template
-     * @param array $permissionNames
-     */
-    private function assignPermissionsToTemplate(RoleTemplate $template, array $permissionNames): void
-    {
-        // Get permission IDs for the provided permission names
-        $permissionIds = Permission::whereIn('name', $permissionNames)->pluck('id')->toArray();
-
-        // Sync permissions to template
-        $template->permissions()->sync($permissionIds);
     }
 
     /**
@@ -391,184 +80,21 @@ class RolesAndPermissionsSeeder extends Seeder
      */
     public function createOrganizationRoles(): void
     {
-        // Get all organizations
-        $organizations = Organisation::all();
-        $this->command->info("Creating organization-specific roles for " . $organizations->count() . " organizations");
-
-        foreach ($organizations as $organization) {
-            $this->createOrganizationRolesForOrg(
-                $organization->id,
-                $organization->owner_id
-            );
-        }
-    }
-
-    /**
-     * Create roles from templates for a specific organization
-     *
-     * @param int $organisationId
-     * @param int|null $ownerId
-     * @return void
-     */
-    public function createOrganizationRolesForOrg(
-        int $organisationId,
-        ?int $ownerId = null
-    ): void
-    {
-        if (!$organisationId) {
-            return;
-        }
-
-        $organisation = Organisation::find($organisationId);
-        if (!$organisation) {
-            return;
-        }
-
-        // Get all system templates
-        $templates = RoleTemplate::where('is_system', true)->whereNull('organisation_id')->get();
-
-        foreach ($templates as $template) {
-            // Check if a role already exists for this template in this organization
-            $existingRole = Role::where('template_id', $template->id)
-                ->where('organisation_id', $organisationId)
-                ->first();
-
-            if (!$existingRole) {
-                // Create a new role using this template
-                $role = Role::create([
-                    'organisation_id' => $organisationId,
-                    'template_id' => $template->id,
-                    'overrides_system' => false,
-                    'system_role_id' => null
-                ]);
-
-                $this->command->info("Created role for organisation {$organisationId} using template {$template->name}");
-
-                // If this is the admin role, assign it to the owner
-                if ($template->name === 'admin' && $ownerId) {
-                    $this->assignAdminRoleToOwner($ownerId, $organisationId, $role->id);
-                }
-            }
-        }
-    }
-
-    /**
-     * Assign admin role to organization owner
-     */
-    protected function assignAdminRoleToOwner(int $ownerId, int $organisationId, int $roleId): void
-    {
-        $owner = User::find($ownerId);
-        if (!$owner) {
-            return;
-        }
-
-        // Check if role already assigned
-        $exists = DB::table('model_has_roles')
-            ->where('role_id', $roleId)
-            ->where('model_id', $ownerId)
-            ->where('model_type', User::class)
-            ->where('organisation_id', $organisationId)
-            ->exists();
-
-        if (!$exists) {
-            // Insert into model_has_roles with organization context
-            DB::table('model_has_roles')->insert([
-                'role_id' => $roleId,
-                'model_id' => $ownerId,
-                'model_type' => User::class,
-                'organisation_id' => $organisationId,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-
-            $this->command->info("User ID {$ownerId} has been assigned the admin role for organisation {$organisationId}");
-        }
+        $roleManager = new RoleManager();
+        $count = $roleManager->syncOrganizationRoles();
+        $this->command->info("Created roles for {$count} organizations");
     }
 
     /**
      * Ensure an admin user has the required permissions
+     *
+     * @param int $userId
+     * @param int $organisationId
+     * @return bool
      */
-    public static function addMissingPermissionsToAdmin($userId, $organisationId): bool
+    public static function addMissingPermissionsToAdmin(int $userId, int $organisationId): bool
     {
-        // Find the user
-        $user = User::find($userId);
-        if (!$user) {
-            return false;
-        }
-
-        // Find the admin template
-        $adminTemplate = RoleTemplate::where('name', 'admin')
-            ->where('is_system', true)
-            ->whereNull('organisation_id')
-            ->first();
-
-        if (!$adminTemplate) {
-            return false;
-        }
-
-        // Find or create the admin role for this organization
-        $adminRole = Role::where('template_id', $adminTemplate->id)
-            ->where('organisation_id', $organisationId)
-            ->first();
-
-        if (!$adminRole) {
-            // Create the admin role if it doesn't exist
-            $adminRole = Role::create([
-                'template_id' => $adminTemplate->id,
-                'organisation_id' => $organisationId,
-                'overrides_system' => false,
-                'system_role_id' => null
-            ]);
-        }
-
-        // Ensure the user has this role
-        $hasRole = DB::table('model_has_roles')
-            ->where('role_id', $adminRole->id)
-            ->where('model_id', $userId)
-            ->where('model_type', User::class)
-            ->where('organisation_id', $organisationId)
-            ->exists();
-
-        if (!$hasRole) {
-            // Assign role to user
-            DB::table('model_has_roles')->insert([
-                'role_id' => $adminRole->id,
-                'model_id' => $userId,
-                'model_type' => User::class,
-                'organisation_id' => $organisationId,
-                'created_at' => now(),
-                'updated_at' => now()
-            ]);
-        }
-
-        // Critical permissions - make sure they exist and are assigned to admin template
-        $criticalPermissions = [
-            'role.view',
-            'role.viewAny',
-            'permission.view',
-            'permission.viewAny',
-            'manage-roles',
-        ];
-
-        foreach ($criticalPermissions as $permissionName) {
-            // Make sure permission exists
-            $permission = Permission::firstOrCreate(
-                ['name' => $permissionName],
-                [
-                    'name' => $permissionName,
-                    'display_name' => ucwords(str_replace(['.', '-'], ' ', $permissionName)),
-                    'description' => 'Critical admin permission',
-                    'category' => 'Administration',
-                    'guard_name' => 'api'
-                ]
-            );
-
-            // Make sure admin template has this permission
-            if (!$adminTemplate->permissions()->where('permissions.id', $permission->id)->exists()) {
-                $adminTemplate->permissions()->attach($permission->id);
-            }
-        }
-
-        return true;
+        $roleManager = new RoleManager();
+        return $roleManager->assignRoleToUser(User::find($userId), 'admin', $organisationId);
     }
 }

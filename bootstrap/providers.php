@@ -5,4 +5,5 @@ return [
     App\Providers\AuthServiceProvider::class,
     App\Providers\EventServiceProvider::class,
     App\Providers\RepositoryServiceProvider::class,
+    App\Providers\RoleManagerServiceProvider::class,
 ];

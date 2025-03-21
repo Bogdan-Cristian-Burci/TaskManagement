@@ -38,7 +38,7 @@ class StoreUserRequest extends FormRequest
     public function authorize(): bool
     {
         // Use hasPermission directly instead of can()
-        return $this->user() && $this->user()->hasPermission('users.create', $this->user()->organisation_id);
+        return $this->user() && $this->user()->hasPermission('user.create', $this->user()->organisation_id);
     }
 
     /**
