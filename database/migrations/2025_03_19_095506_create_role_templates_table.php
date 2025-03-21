@@ -18,6 +18,7 @@ return new class extends Migration
             $table->text('description')->nullable();
             $table->integer('level')->default(1);
             $table->boolean('is_system')->default(false);
+            $table->string('scope')->default('organization');
             $table->unsignedBigInteger('organisation_id')->nullable();
             $table->timestamps();
 

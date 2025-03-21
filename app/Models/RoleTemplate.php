@@ -18,6 +18,7 @@ class RoleTemplate extends Model
         'description',
         'level',
         'is_system',
+        'scope',
         'organisation_id',
     ];
 
