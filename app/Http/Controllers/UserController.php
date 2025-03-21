@@ -233,7 +233,7 @@ class UserController extends Controller
     public function destroy(Request $request, User $user): JsonResponse
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('users.delete', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('user.delete', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to delete users.');
         }
 
@@ -245,7 +245,7 @@ class UserController extends Controller
         }
 
         // Check if user has active tasks
-        $activeTasksCount = $user->tasksResponsibleFor()->where('status', '!=', 'completed')->count();
+        $activeTasksCount = $user->tasksResponsibleFor()->incomplete()->count();
 
         if ($activeTasksCount > 0) {
             return response()->json([
@@ -293,7 +293,7 @@ class UserController extends Controller
     public function restore(Request $request, int $id): JsonResponse
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('users.restore', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('user.restore', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to restore users.');
         }
 
@@ -317,7 +317,7 @@ class UserController extends Controller
     public function teams(Request $request, User $user): AnonymousResourceCollection
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('teams.view', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('team.view', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to view teams.');
         }
 
@@ -345,7 +345,7 @@ class UserController extends Controller
     public function tasks(Request $request, User $user): AnonymousResourceCollection
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('tasks.view', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('task.view', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to view tasks.');
         }
 
@@ -403,7 +403,7 @@ class UserController extends Controller
     public function projects(Request $request, User $user): AnonymousResourceCollection
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('projects.view', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('project.view', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to view projects.');
         }
 

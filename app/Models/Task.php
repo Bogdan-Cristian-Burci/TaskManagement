@@ -191,4 +191,19 @@ class Task extends Model
         return $this->belongsToMany(Sprint::class, 'sprint_task', 'task_id', 'sprint_id');
     }
 
+    public function scopeIncomplete($query)
+    {
+        static $doneStatusId = null;
+        static $canceledStatusId = null;
+
+        if ($doneStatusId === null) {
+            $doneStatusId = Status::where('name', 'Done')->first()->id ?? 0;
+        }
+
+        if ($canceledStatusId === null) {
+            $canceledStatusId = Status::where('name', 'Canceled')->first()->id ?? 0;
+        }
+
+        return $query->whereNotIn('status_id', [$doneStatusId, $canceledStatusId]);
+    }
 }
