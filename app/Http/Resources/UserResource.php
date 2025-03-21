@@ -58,9 +58,7 @@ class UserResource extends JsonResource
 
             // Get permissions using getAllPermissions method
             'permissions' => $this->when($organisationId, function() use ($user, $organisationId) {
-                return $user->getAllPermissions($organisationId)
-                    ->pluck('name')
-                    ->toArray();
+                return $user->$this->getOrganisationPermissionsAttribute();
             }),
 
             // Add permission overrides if any

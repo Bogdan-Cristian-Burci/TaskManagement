@@ -41,7 +41,7 @@ class UserController extends Controller
     public function profile(Request $request): UserResource
     {
         $user = $request->user();
-        $user->load(['roles', 'permissions', 'organisation']);
+        $user->load(['roles', 'organisation']);
 
         return new UserResource($user);
     }
@@ -168,7 +168,7 @@ class UserController extends Controller
             }
         }
 
-        return new UserResource($user->load(['roles', 'permissions', 'organisations']));
+        return new UserResource($user->load(['roles', 'organisations']));
     }
 
     /**
@@ -261,7 +261,7 @@ class UserController extends Controller
             $user->update(['organisation_id' => $request->organisation_id]);
         }
 
-        return new UserResource($user->load(['roles', 'permissions', 'organisation', 'organisations']));
+        return new UserResource($user->load(['roles', 'organisation', 'organisations']));
     }
 
     /**
@@ -737,7 +737,7 @@ class UserController extends Controller
         return response()->json([
             'message' => 'Active organization switched successfully',
             'organisation_id' => $organisationId,
-            'user' => new UserResource($user->load(['roles', 'permissions', 'organisation']))
+            'user' => new UserResource($user->load(['roles', 'organisation']))
         ]);
     }
 }
