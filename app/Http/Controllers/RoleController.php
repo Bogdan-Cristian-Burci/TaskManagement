@@ -20,7 +20,7 @@ class RoleController extends Controller
      */
     public function index(Request $request): JsonResponse
     {
-        if (!$request->user()->hasPermission('roles.view', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('role.view', $request->user()->organisation_id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -62,9 +62,6 @@ class RoleController extends Controller
      */
     public function store(StoreRoleRequest $request): JsonResponse
     {
-        if (!$request->user()->hasPermission('roles.create', $request->user()->organisation_id)) {
-            return response()->json(['message' => 'Unauthorized'], 403);
-        }
 
         $validated = $request->validated();
         $organisationId = $request->user()->organisation_id;

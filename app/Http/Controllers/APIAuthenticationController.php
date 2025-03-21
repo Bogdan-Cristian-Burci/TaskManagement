@@ -239,7 +239,7 @@ class APIAuthenticationController extends Controller
      */
     public function user(Request $request): JsonResponse
     {
-        // Load necessary relationships - FIXED: removed 'permissions' that doesn't exist as a relationship
+        // Load necessary relationships
         $user = $request->user()->load(['roles', 'organisation', 'teams', 'projects']);
 
         return response()->json(new UserResource($user), Response::HTTP_OK);

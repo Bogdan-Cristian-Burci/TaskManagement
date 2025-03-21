@@ -35,8 +35,6 @@ Route::post('/login', [APIAuthenticationController::class, 'login'])
     ->middleware('throttle-login:5,1'); // 5 attempts per minute;
 Route::post('/logout', [APIAuthenticationController::class, 'logout'])
     ->middleware('auth:api');
-Route::get('/user', [APIAuthenticationController::class, 'user'])
-    ->middleware(['auth:api', 'two-factor:enabled']);
 Route::post('/refresh-token', [APIAuthenticationController::class, 'refreshToken'])
     ->middleware('auth:api');
 
@@ -69,7 +67,6 @@ Route::get('auth/providers', [OAuthSocialController::class, 'providers'])->name(
 Route::middleware(['auth:api','org.context'])->group(function () {
 
     // User routes
-    Route::get('profile', [UserController::class, 'profile'])->name('users.profile');
     Route::apiResource('users', UserController::class);
     Route::post('users/{id}/restore', [UserController::class, 'restore'])->name('users.restore');
 
@@ -88,7 +85,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::put('users/{user}/roles', [UserController::class, 'updateRoles'])->name('users.roles.update');
     Route::get('roles', [UserController::class, 'roles'])->name('roles.index');
 
-    Route::get('/role-permissions/roles', [RolePermissionController::class, 'getRoles']);
     Route::get('/role-permissions/permissions', [RolePermissionController::class, 'getPermissions']);
 
     Route::middleware(['permission:manage roles'])->group(function () {

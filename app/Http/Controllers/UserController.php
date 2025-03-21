@@ -33,20 +33,6 @@ class UserController extends Controller
     }
 
     /**
-     * Display the authenticated user's profile.
-     *
-     * @param Request $request
-     * @return UserResource
-     */
-    public function profile(Request $request): UserResource
-    {
-        $user = $request->user();
-        $user->load(['roles', 'organisation']);
-
-        return new UserResource($user);
-    }
-
-    /**
      * Display a listing of users.
      *
      * @param Request $request
@@ -677,6 +663,12 @@ class UserController extends Controller
 
         $organisationId = $request->organisation_id;
         $user = $request->user();
+
+        if($user->organisation_id == $organisationId) {
+            return response()->json([
+                'message' => 'User has already this organization active'
+            ], Response::HTTP_OK);
+        }
 
         // Check if user belongs to this organization
         $isMember = $user->organisations()
