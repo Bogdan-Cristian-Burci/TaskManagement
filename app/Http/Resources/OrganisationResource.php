@@ -31,25 +31,72 @@ class OrganisationResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
-            // Get the currently authenticated user's role in this organization
-            'user_role' => $this->when($request->user(), function() use ($request) {
-                // Using the new method to get user's role in organization
-                $role = $request->user()->organisationRole($this->resource);
-                return $role ? [
-                    'id' => $role->id,
-                    'name' => $role->getName(),
-                    'level' => $role->getLevel(),
-                    'template' => $role->template ? $role->template->name : null
-                ] : null;
+            // TO THIS:
+            'user_role' => $this->when(true, function() use ($request) {
+                // Detect if we're in a UserResource context by checking the pivot
+                if ($this->pivot) {
+                    // If we have pivot data, this organization belongs to a specific user
+                    $userId = $this->pivot->user_id;
+                    $user = \App\Models\User::find($userId);
+
+                    if ($user) {
+                        $role = $user->organisationRole($this->resource);
+                        return $role ? [
+                            'id' => $role->id,
+                            'name' => $role->getName(),
+                            'level' => $role->getLevel(),
+                            'template' => $role->template ? $role->template->name : null
+                        ] : null;
+                    }
+                }
+
+                // Fall back to current authenticated user if not in a pivot context
+                if ($request->user()) {
+                    $role = $request->user()->organisationRole($this->resource);
+                    return $role ? [
+                        'id' => $role->id,
+                        'name' => $role->getName(),
+                        'level' => $role->getLevel(),
+                        'template' => $role->template ? $role->template->name : null
+                    ] : null;
+                }
+
+                return null;
             }),
 
             // User permissions for this organization
-            'can' => [
-                'update' => $request->user() ? $request->user()->hasPermission('organisation.update', $this->id) : false,
-                'delete' => $request->user() ? $request->user()->hasPermission('organisation.delete', $this->id) : false,
-                'invite_users' => $request->user() ? $request->user()->hasPermission('organisation.inviteUser', $this->id) : false,
-                'manage_settings' => $request->user() ? $request->user()->hasPermission('organisation.manageSettings', $this->id) : false,
-            ],
+            'can' => $this->when(true, function() use ($request) {
+                // Get the appropriate user based on context
+                $contextUser = null;
+
+                // If we have pivot data, this organization belongs to a specific user
+                if ($this->pivot && isset($this->pivot->user_id)) {
+                    $contextUser = \App\Models\User::find($this->pivot->user_id);
+                }
+
+                // Fall back to authenticated user if needed
+                if (!$contextUser && $request->user()) {
+                    $contextUser = $request->user();
+                }
+
+                // If we have a user context, return their permissions
+                if ($contextUser) {
+                    return [
+                        'update' => $contextUser->hasPermission('organisation.update', $this->id),
+                        'delete' => $contextUser->hasPermission('organisation.delete', $this->id),
+                        'invite_users' => $contextUser->hasPermission('organisation.inviteUser', $this->id),
+                        'manage_settings' => $contextUser->hasPermission('organisation.manageSettings', $this->id),
+                    ];
+                }
+
+                // Default to no permissions if no user context available
+                return [
+                    'update' => false,
+                    'delete' => false,
+                    'invite_users' => false,
+                    'manage_settings' => false,
+                ];
+            }),
 
             // Include counts when requested
             'members_count' => $this->when($request->has('with_counts'), function() {
