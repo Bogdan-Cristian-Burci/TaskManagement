@@ -209,9 +209,8 @@ class UserController extends Controller
      */
     public function update(UpdateUserRequest $request, User $user): UserResource
     {
-        $data = $request->validated();
 
-        \Log::info('received data is '.json_encode($data));
+        $data = $request->validated();
 
         // Handle password update if provided
         if (isset($data['password'])) {

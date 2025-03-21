@@ -74,6 +74,7 @@ class UpdateUserRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
+        \Log::info('Initial request data: ' . json_encode($this->all()));
         if ($this->has('name')) {
             $this->merge([
                 'name' => trim($this->name)
