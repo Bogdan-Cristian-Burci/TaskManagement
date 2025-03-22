@@ -1,7 +1,6 @@
 <?php
 
 use App\Http\Controllers\PermissionController;
-use App\Http\Controllers\RoleTemplateController;
 use App\Http\Controllers\UserPermissionOverrideController;
 use App\Http\Controllers\AttachmentController;
 use App\Http\Controllers\BoardColumnController;

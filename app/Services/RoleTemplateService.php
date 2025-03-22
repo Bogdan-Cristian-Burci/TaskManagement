@@ -145,7 +145,7 @@ class RoleTemplateService
 
         // If no permission IDs provided, copy from system template
         if ($permissionIds === null) {
-            $permissionIds = $systemTemplate->permissions()->pluck('id')->toArray();
+            $permissionIds = $systemTemplate->permissions()->pluck('permissions.id')->toArray();
         }
 
         // Create the override template
