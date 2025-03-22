@@ -258,4 +258,106 @@ class RoleTemplateService
             return ['migrated' => 0, 'error' => $e->getMessage()];
         }
     }
+
+    /**
+     * Revert from override template to system template and migrate users
+     *
+     * @param RoleTemplate $overrideTemplate The organization-specific template to revert
+     * @param int $organisationId The organization ID
+     * @return array Information about the migration
+     * @throws \Throwable
+     */
+    public function revertToSystemTemplate(RoleTemplate $overrideTemplate, int $organisationId): array
+    {
+        // Validate that this is actually an override template
+        if ($overrideTemplate->is_system || $overrideTemplate->organisation_id !== $organisationId) {
+            return ['migrated' => 0, 'error' => 'Template is not an organization override'];
+        }
+
+        // Find the corresponding system template
+        $systemTemplate = RoleTemplate::where('name', $overrideTemplate->name)
+            ->where('is_system', true)
+            ->whereNull('organisation_id')
+            ->first();
+
+        if (!$systemTemplate) {
+            return ['migrated' => 0, 'error' => 'Corresponding system template not found'];
+        }
+
+        // Find the roles based on these templates
+        $orgRole = Role::where('template_id', $overrideTemplate->id)
+            ->where('organisation_id', $organisationId)
+            ->first();
+
+        if (!$orgRole) {
+            // Nothing to migrate, just delete the template
+            $this->deleteTemplate($overrideTemplate);
+            return ['migrated' => 0, 'template_deleted' => true];
+        }
+
+        // Find or create the system role
+        $systemRole = Role::whereNull('organisation_id')
+            ->where('template_id', $systemTemplate->id)
+            ->first();
+
+        if (!$systemRole) {
+            // System role doesn't exist, create it (this is unlikely but handled for safety)
+            $systemRole = Role::create([
+                'template_id' => $systemTemplate->id,
+                'organisation_id' => null,
+                'overrides_system' => false,
+                'system_role_id' => null,
+                'guard_name' => 'api'
+            ]);
+        }
+
+        // Find users with the organization-specific role
+        $usersWithOrgRole = DB::table('model_has_roles')
+            ->where('role_id', $orgRole->id)
+            ->where('organisation_id', $organisationId)
+            ->get();
+
+        $count = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($usersWithOrgRole as $assignment) {
+                // Remove organization role assignment
+                DB::table('model_has_roles')
+                    ->where('role_id', $orgRole->id)
+                    ->where('model_id', $assignment->model_id)
+                    ->where('model_type', $assignment->model_type)
+                    ->where('organisation_id', $organisationId)
+                    ->delete();
+
+                // Add system role assignment
+                DB::table('model_has_roles')->insert([
+                    'role_id' => $systemRole->id,
+                    'model_id' => $assignment->model_id,
+                    'model_type' => $assignment->model_type,
+                    'organisation_id' => $organisationId,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+
+                $count++;
+            }
+
+            // Delete the organization-specific role
+            $orgRole->delete();
+
+            // Delete the override template
+            $this->deleteTemplate($overrideTemplate);
+
+            DB::commit();
+            return [
+                'migrated' => $count,
+                'template_deleted' => true,
+                'system_template_id' => $systemTemplate->id
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
+    }
 }

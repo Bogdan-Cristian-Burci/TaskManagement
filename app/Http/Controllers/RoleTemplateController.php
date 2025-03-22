@@ -352,6 +352,10 @@ class RoleTemplateController extends Controller
             ->where('organisation_id', $organisationId)
             ->firstOrFail();
 
+        if (!$template) {
+            return response()->json(['message' => 'Template not found'], 404);
+        }
+
         // Don't allow deleting system templates
         if ($template->is_system) {
             return response()->json([
@@ -359,20 +363,51 @@ class RoleTemplateController extends Controller
             ], 403);
         }
 
-        // Check if any roles are using this template
-        $rolesUsingTemplate = Role::where('template_id', $template->id)->count();
+        // Check if this is an override of a system template
+        $isOverride = false;
+        $systemTemplate = null;
 
-        if ($rolesUsingTemplate > 0) {
-            return response()->json([
-                'message' => 'Cannot delete template that is in use by roles',
-                'roles_count' => $rolesUsingTemplate
-            ], 422);
+        if (!$template->is_system) {
+            $systemTemplate = RoleTemplate::where('name', $template->name)
+                ->where('is_system', true)
+                ->whereNull('organisation_id')
+                ->first();
+
+            $isOverride = ($systemTemplate !== null);
         }
 
+        // Check if any roles are using this template
+        if (!$isOverride) {
+            $rolesUsingTemplate = Role::where('template_id', $template->id)->count();
+
+            if ($rolesUsingTemplate > 0) {
+                return response()->json([
+                    'message' => 'Cannot delete template that is in use by roles',
+                    'roles_count' => $rolesUsingTemplate
+                ], 422);
+            }
+        }
         DB::beginTransaction();
 
         try {
-            // Use the service to delete the template
+            // If it's an override, use revertToSystemTemplate to ensure users aren't left without permissions
+            if ($isOverride) {
+                $result = $this->templateService->revertToSystemTemplate($template, $organisationId);
+
+                if (isset($result['error'])) {
+                    throw new \Exception($result['error']);
+                }
+
+                DB::commit();
+
+                return response()->json([
+                    'message' => 'Template deleted and users migrated to system template',
+                    'users_migrated' => $result['migrated'],
+                    'system_template_id' => $result['system_template_id'] ?? null
+                ]);
+            }
+
+            // Otherwise use regular deleteTemplate for non-override templates
             $result = $this->templateService->deleteTemplate($template);
 
             if (!$result) {
