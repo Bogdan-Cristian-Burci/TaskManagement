@@ -35,14 +35,22 @@ class RoleTemplateController extends Controller
 
         $organisationId = $request->user()->organisation_id;
 
-        // Get both organization-specific templates AND system templates
+        // Get names of system templates that have been overridden
+        $overriddenTemplateNames = RoleTemplate::where('organisation_id', $organisationId)
+            ->pluck('name')
+            ->toArray();
+
+        // Get templates that are either:
+        // 1. Organization-specific templates, OR
+        // 2. System templates that haven't been overridden
         $templates = RoleTemplate::where(function($query) use ($organisationId) {
-            $query->where('organisation_id', $organisationId)
-                ->orWhere(function($q) {
-                    $q->where('is_system', true)
-                        ->whereNull('organisation_id');
-                });
+            $query->where('organisation_id', $organisationId);
         })
+            ->orWhere(function($query) use ($overriddenTemplateNames) {
+                $query->where('is_system', true)
+                    ->whereNull('organisation_id')
+                    ->whereNotIn('name', $overriddenTemplateNames);
+            })
             ->with('permissions')
             ->get()
             ->map(function($template) {
@@ -393,7 +401,7 @@ class RoleTemplateController extends Controller
      */
     public function addPermissions(Request $request, $id): JsonResponse
     {
-        if (!$request->user()->hasPermission('permissions.manage', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('permission.assign', $request->user()->organisation_id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -468,7 +476,7 @@ class RoleTemplateController extends Controller
      */
     public function removePermissions(Request $request, $id): JsonResponse
     {
-        if (!$request->user()->hasPermission('permissions.manage', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('permission.revoke', $request->user()->organisation_id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -579,7 +587,7 @@ class RoleTemplateController extends Controller
      */
     public function getSystemTemplates(Request $request): JsonResponse
     {
-        if (!$request->user()->hasPermission('role.view', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('manage-roles', $request->user()->organisation_id)) {
             return response()->json(['message' => 'Unauthorized'], 403);
         }
 
@@ -676,6 +684,13 @@ class RoleTemplateController extends Controller
             // Create the template using service
             $override = $this->templateService->createTemplate($templateData, $permissionIds);
 
+            // Migrate existing users to the new template
+            $migrationResult = $this->templateService->migrateUsersToTemplateOverride(
+                $systemTemplate,
+                $override,
+                $organisationId
+            );
+
             // Load permissions for response
             $override->load('permissions');
 
@@ -683,6 +698,10 @@ class RoleTemplateController extends Controller
             $overrideData = $override->toArray();
             $overrideData['permission_names'] = collect($overrideData['permissions'])->pluck('name')->toArray();
             $overrideData['overrides_system_template'] = $systemTemplate->id;
+            $overrideData['users_migrated'] = $migrationResult['migrated'];
+            if (isset($migrationResult['error'])) {
+                $overrideData['migration_error'] = $migrationResult['error'];
+            }
 
             DB::commit();
 

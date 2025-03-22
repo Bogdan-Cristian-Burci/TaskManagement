@@ -6,6 +6,7 @@ use App\Models\Organisation;
 use App\Models\Permission;
 use App\Models\Role;
 use App\Models\RoleTemplate;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Service class for role templates.
@@ -60,7 +61,7 @@ class RoleTemplateService
     {
         if (!empty($permissionIds)) {
             // Get current permissions to avoid duplicates
-            $existingPermissionIds = $template->permissions()->pluck('id')->toArray();
+            $existingPermissionIds = $template->permissions()->select('permissions.id')->pluck('id')->toArray();
 
             // Filter out permissions that already exist
             $newPermissionIds = array_diff($permissionIds, $existingPermissionIds);
@@ -182,5 +183,79 @@ class RoleTemplateService
         }
 
         return $updated;
+    }
+
+    /**
+     * Migrate users from a system template to an organization override
+     *
+     * @param RoleTemplate $systemTemplate
+     * @param RoleTemplate $overrideTemplate
+     * @param int $organisationId
+     * @return array Information about the migration
+     * @throws \Throwable
+     */
+    public function migrateUsersToTemplateOverride(
+        RoleTemplate $systemTemplate,
+        RoleTemplate $overrideTemplate,
+        int $organisationId
+    ): array {
+        // Find or create the roles
+        $systemRole = Role::whereNull('organisation_id')
+            ->where('template_id', $systemTemplate->id)
+            ->first();
+
+        if (!$systemRole) {
+            return ['migrated' => 0, 'error' => 'System role not found'];
+        }
+
+        $orgRole = Role::firstOrCreate(
+            [
+                'template_id' => $overrideTemplate->id,
+                'organisation_id' => $organisationId,
+            ],
+            [
+                'overrides_system' => true,
+                'system_role_id' => $systemRole->id
+            ]
+        );
+
+        // Find users with the system role in this organization
+        $usersWithSystemRole = DB::table('model_has_roles')
+            ->where('role_id', $systemRole->id)
+            ->where('organisation_id', $organisationId)
+            ->get();
+
+        $count = 0;
+
+        DB::beginTransaction();
+        try {
+            foreach ($usersWithSystemRole as $assignment) {
+                // Remove system role assignment
+                DB::table('model_has_roles')
+                    ->where('role_id', $systemRole->id)
+                    ->where('model_id', $assignment->model_id)
+                    ->where('model_type', $assignment->model_type)
+                    ->where('organisation_id', $organisationId)
+                    ->delete();
+
+                // Add organization role assignment
+                DB::table('model_has_roles')->insert([
+                    'role_id' => $orgRole->id,
+                    'model_id' => $assignment->model_id,
+                    'model_type' => $assignment->model_type,
+                    'organisation_id' => $organisationId,
+                    'created_at' => now(),
+                    'updated_at' => now()
+                ]);
+
+                $count++;
+            }
+
+            DB::commit();
+            return ['migrated' => $count];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return ['migrated' => 0, 'error' => $e->getMessage()];
+        }
     }
 }
