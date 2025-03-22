@@ -50,6 +50,47 @@ class RoleTemplateService
     }
 
     /**
+     * Add permissions to an existing role template without removing existing ones.
+     *
+     * @param RoleTemplate $template
+     * @param array $permissionIds Array of permission IDs to add
+     * @return RoleTemplate
+     */
+    public function addPermissionsToTemplate(RoleTemplate $template, array $permissionIds): RoleTemplate
+    {
+        if (!empty($permissionIds)) {
+            // Get current permissions to avoid duplicates
+            $existingPermissionIds = $template->permissions()->pluck('id')->toArray();
+
+            // Filter out permissions that already exist
+            $newPermissionIds = array_diff($permissionIds, $existingPermissionIds);
+
+            // Attach only new permissions
+            if (!empty($newPermissionIds)) {
+                $template->permissions()->attach($newPermissionIds);
+            }
+        }
+
+        return $template->fresh(['permissions']);
+    }
+
+    /**
+     * Remove specific permissions from a template.
+     *
+     * @param RoleTemplate $template
+     * @param array $permissionIds Array of permission IDs to remove
+     * @return RoleTemplate
+     */
+    public function removePermissionsFromTemplate(RoleTemplate $template, array $permissionIds): RoleTemplate
+    {
+        if (!empty($permissionIds)) {
+            $template->permissions()->detach($permissionIds);
+        }
+
+        return $template->fresh(['permissions']);
+    }
+
+    /**
      * Delete a role template.
      */
     public function deleteTemplate(RoleTemplate $template): bool
@@ -59,8 +100,55 @@ class RoleTemplateService
             return false;
         }
 
+        // First detach all permissions
+        $template->permissions()->detach();
+
+        // Then delete the template
         $template->delete();
         return true;
+    }
+
+    /**
+     * Create an organization-specific override of a system template
+     *
+     * @param RoleTemplate $systemTemplate The system template to override
+     * @param int $organisationId The organization ID
+     * @param array $data Overriding data (display_name, description, etc)
+     * @param array|null $permissionIds Specific permissions to use (null to copy from system template)
+     * @return RoleTemplate
+     * @throws \Exception If the template is not a system template
+     */
+    public function createSystemTemplateOverride(
+        RoleTemplate $systemTemplate,
+        int $organisationId,
+        array $data,
+        ?array $permissionIds = null
+    ): RoleTemplate
+    {
+        // Ensure this is a system template
+        if (!$systemTemplate->is_system) {
+            throw new \Exception("Cannot override a non-system template");
+        }
+
+        // Create template data
+        $templateData = [
+            'name' => $systemTemplate->name,
+            'display_name' => $data['display_name'] ?? $systemTemplate->display_name,
+            'description' => $data['description'] ?? $systemTemplate->description,
+            'level' => $systemTemplate->level,
+            'organisation_id' => $organisationId,
+            'is_system' => false,
+            'can_be_deleted' => true,
+            'scope' => 'organization'
+        ];
+
+        // If no permission IDs provided, copy from system template
+        if ($permissionIds === null) {
+            $permissionIds = $systemTemplate->permissions()->pluck('id')->toArray();
+        }
+
+        // Create the override template
+        return $this->createTemplate($templateData, $permissionIds);
     }
 
     /**

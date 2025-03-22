@@ -138,4 +138,55 @@ class RoleTemplate extends Model
 
         return Role::create($roleData);
     }
+
+    /**
+     * Create roles in all organizations based on this template.
+     * This is used for system templates to be applied across all organizations.
+     *
+     * @return array Array of created role IDs indexed by organization ID
+     */
+    public function createOrganisationRoles(): array
+    {
+        // Only system templates should be used to create organization roles
+        if (!$this->is_system) {
+            return [];
+        }
+
+        $createdRoles = [];
+        $organizations = Organisation::all();
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($organizations as $organisation) {
+                // Check if role already exists for this org and template
+                $existingRole = Role::where('organisation_id', $organisation->id)
+                    ->where('template_id', $this->id)
+                    ->first();
+
+                if (!$existingRole) {
+                    // Create role for organization using this template
+                    $role = Role::create([
+                        'organisation_id' => $organisation->id,
+                        'template_id' => $this->id,
+                        'overrides_system' => false,
+                        'system_role_id' => null
+                    ]);
+
+                    $createdRoles[$organisation->id] = $role->id;
+                }
+            }
+
+            DB::commit();
+            return $createdRoles;
+        } catch (\Exception $e) {
+            DB::rollBack();
+            \Log::error('Failed to create organization roles from template', [
+                'template_id' => $this->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            return [];
+        }
+    }
 }

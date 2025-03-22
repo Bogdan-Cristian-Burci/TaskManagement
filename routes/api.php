@@ -100,6 +100,17 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // Role and Permission Management API Routes
 
+        // Role templates
+        Route::apiResource('role-templates', RoleTemplateController::class);
+
+        // New permission management endpoints
+        Route::post('role-templates/{id}/permissions', [RoleTemplateController::class, 'addPermissions']);
+        Route::delete('role-templates/{id}/permissions', [RoleTemplateController::class, 'removePermissions']);
+
+        // System template operations
+        Route::get('system-templates', [RoleTemplateController::class, 'getSystemTemplates']);
+        Route::post('system-templates/override', [RoleTemplateController::class, 'overrideSystemTemplate']);
+
         // Roles
         Route::get('/roles', [RoleController::class, 'index']);
         Route::post('/roles', [RoleController::class, 'store']);
@@ -117,8 +128,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::post('users/{user}/permission-overrides', [UserPermissionOverrideController::class, 'store']);
         Route::delete('users/{user}/permission-overrides/{permission}', [UserPermissionOverrideController::class, 'destroy']);
 
-        // Role templates
-        Route::apiResource('role-templates', RoleTemplateController::class);
+
 
     // Organisation routes
     Route::apiResource('organisations', OrganisationController::class);
