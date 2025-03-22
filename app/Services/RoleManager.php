@@ -455,9 +455,9 @@ class RoleManager
      * @param string $name
      * @param array $data
      * @param string $scope
-     * @return void
+     * @return RoleTemplate
      */
-    private function createOrUpdateTemplate(string $name, array $data, string $scope): void
+    private function createOrUpdateTemplate(string $name, array $data, string $scope): RoleTemplate
     {
         $template = RoleTemplate::updateOrCreate(
             [
@@ -476,6 +476,19 @@ class RoleManager
         // Sync permissions
         $this->syncTemplatePermissions($template);
 
+        // Also create a NULL organization system role
+        $systemRole = Role::firstOrCreate(
+            [
+                'template_id' => $template->id,
+                'organisation_id' => null, // NULL for global system role
+            ],
+            [
+                'overrides_system' => false,
+                'system_role_id' => null
+            ]
+        );
+
+        return $template;
     }
 
     /**
@@ -535,23 +548,43 @@ class RoleManager
 
                 // Sync template permissions
                 $this->syncTemplatePermissions($template);
+
+                // Create NULL organization system role
+                Role::firstOrCreate(
+                    [
+                        'template_id' => $template->id,
+                        'organisation_id' => null, // NULL for global system role
+                    ],
+                    [
+                        'overrides_system' => false,
+                        'system_role_id' => null
+                    ]
+                );
             }
+
+            // Find system role for this template
+            $systemRole = Role::whereNull('organisation_id')
+                ->where('template_id', $template->id)
+                ->first();
 
             // Check if organization role exists
             $exists = Role::where('template_id', $template->id)
                 ->where('organisation_id', $organisationId)
                 ->exists();
 
-            // Create the role if it doesn't exist
-            if (!$exists) {
-                Role::create([
+            // Create organization-specific role
+            $orgRole = Role::firstOrCreate(
+                [
                     'template_id' => $template->id,
                     'organisation_id' => $organisationId,
+                ],
+                [
                     'overrides_system' => false,
-                    'system_role_id' => null,
-                ]);
-                $count++;
-            }
+                    'system_role_id' => $systemRole?->id,
+                ]
+            );
+
+            $count++;
         }
 
         return $count;

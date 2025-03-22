@@ -199,12 +199,19 @@ class RoleTemplateService
         RoleTemplate $overrideTemplate,
         int $organisationId
     ): array {
-        // Find or create the roles
-        $systemRole = Role::whereNull('organisation_id')
-            ->where('template_id', $systemTemplate->id)
-            ->first();
+        // Find both possible system roles - NULL org_id or organization's non-override role
+        $systemRoles = Role::where(function($query) use ($systemTemplate) {
+            $query->whereNull('organisation_id')
+                ->where('template_id', $systemTemplate->id);
+        })
+            ->orWhere(function($query) use ($systemTemplate, $organisationId) {
+                $query->where('organisation_id', $organisationId)
+                    ->where('template_id', $systemTemplate->id)
+                    ->where('overrides_system', false);
+            })
+            ->get();
 
-        if (!$systemRole) {
+        if ($systemRoles->isEmpty()) {
             return ['migrated' => 0, 'error' => 'System role not found'];
         }
 
@@ -215,13 +222,13 @@ class RoleTemplateService
             ],
             [
                 'overrides_system' => true,
-                'system_role_id' => $systemRole->id
+                'system_role_id' => $systemRoles->first()->id
             ]
         );
 
         // Find users with the system role in this organization
         $usersWithSystemRole = DB::table('model_has_roles')
-            ->where('role_id', $systemRole->id)
+            ->where('role_id', $systemRoles->pluck('id')->toArray())
             ->where('organisation_id', $organisationId)
             ->get();
 
@@ -359,5 +366,29 @@ class RoleTemplateService
             DB::rollBack();
             throw $e;
         }
+    }
+
+    /**
+     * Find or create role based on template
+     *
+     * @param RoleTemplate $template
+     * @param int $organisationId
+     * @param bool $overridesSystem
+     * @param int|null $systemRoleId
+     * @return Role
+     */
+    public function createRoleFromTemplate(
+        RoleTemplate $template,
+        int $organisationId,
+        bool $overridesSystem = false,
+        ?int $systemRoleId = null
+    ): Role
+    {
+        return Role::create([
+            'template_id' => $template->id,
+            'organisation_id' => $organisationId,
+            'overrides_system' => $overridesSystem,
+            'system_role_id' => $systemRoleId
+        ]);
     }
 }

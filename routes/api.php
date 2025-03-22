@@ -100,23 +100,11 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // Role and Permission Management API Routes
 
-        // Role templates
-        Route::apiResource('role-templates', RoleTemplateController::class);
-
-        // New permission management endpoints
-        Route::post('role-templates/{id}/permissions', [RoleTemplateController::class, 'addPermissions']);
-        Route::delete('role-templates/{id}/permissions', [RoleTemplateController::class, 'removePermissions']);
-
-        // System template operations
-        Route::get('system-templates', [RoleTemplateController::class, 'getSystemTemplates']);
-        Route::post('system-templates/override', [RoleTemplateController::class, 'overrideSystemTemplate']);
-
-        // Roles
-        Route::get('/roles', [RoleController::class, 'index']);
-        Route::post('/roles', [RoleController::class, 'store']);
-        Route::get('/roles/{id}', [RoleController::class, 'show']);
-        Route::put('/roles/{id}', [RoleController::class, 'update']);
-        Route::delete('/roles/{id}', [RoleController::class, 'destroy']);
+        // Role routes
+        Route::apiResource('roles', RoleController::class);
+        Route::post('roles/{id}/permissions', [RoleController::class, 'addPermissions']);
+        Route::delete('roles/{id}/permissions', [RoleController::class, 'removePermissions']);
+        Route::post('roles/{id}/revert', [RoleController::class, 'revertToSystem']);
 
         // Permissions
         Route::get('/permissions', [PermissionController::class, 'index']);
