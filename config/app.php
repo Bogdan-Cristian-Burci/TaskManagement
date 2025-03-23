@@ -124,4 +124,6 @@ return [
     ],
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost'),
+
+    'max_organisations_per_user'=>5
 ];

@@ -33,8 +33,7 @@ class OrganisationPolicy
     {
         // User can view if they are a member, or they have special permissions
         return $organisation->hasMember($user) ||
-            $user->hasRole(['admin', 'super-admin']) ||
-            $user->hasPermissionTo('view-organisations');
+            $user->hasPermission('organisation.view');
     }
 
     /**
@@ -51,8 +50,7 @@ class OrganisationPolicy
 
         // Allow creation if under limit or if user has admin/super-admin role
         return $currentCount < $maxOrganisations ||
-            $user->hasRole(['admin', 'super-admin']) ||
-            $user->hasPermissionTo('create-organisations');
+            $user->hasPermission('organisation.create');
     }
 
     /**
@@ -66,10 +64,9 @@ class OrganisationPolicy
     {
         // User can update if they are the owner or creator, or have admin role in the org,
         // or have global admin roles
-        return $organisation->isOwner($user) ||
+        return
             $user->id === $organisation->created_by ||
-            $organisation->isAdmin($user) ||
-            $user->hasRole(['admin', 'super-admin']);
+            $user->hasPermission('organisation.update');
     }
 
     /**
@@ -82,8 +79,7 @@ class OrganisationPolicy
     public function delete(User $user, Organisation $organisation): bool
     {
         // Only the owner or global admins can delete an organisation
-        return $organisation->isOwner($user) ||
-            $user->hasRole(['admin', 'super-admin']);
+        return $user->hasPermission('organisation.delete');
     }
 
     /**
@@ -96,7 +92,7 @@ class OrganisationPolicy
     public function restore(User $user, Organisation $organisation): bool
     {
         // Only global admins can restore organisations
-        return $user->hasRole(['admin', 'super-admin']);
+        return $user->hasPermission('organisation.restore');
     }
 
     /**
@@ -108,7 +104,7 @@ class OrganisationPolicy
      */
     public function forceDelete(User $user, Organisation $organisation): bool
     {
-        return $user->hasRole(['admin', 'super-admin']);
+        return $user->hasPermission('organisation.forceDelete');
     }
 
     /**
@@ -120,9 +116,7 @@ class OrganisationPolicy
      */
     public function manageMembers(User $user, Organisation $organisation): bool
     {
-        return $organisation->isOwner($user) ||
-            $organisation->isAdmin($user) ||
-            $user->hasRole(['admin', 'super-admin']);
+        return $user->hasPermission('manage-organisations');
     }
 
     /**
@@ -134,7 +128,6 @@ class OrganisationPolicy
      */
     public function changeOwner(User $user, Organisation $organisation): bool
     {
-        return $organisation->isOwner($user) ||
-            $user->hasRole(['admin', 'super-admin']);
+        return $user->hasPermission('organisation.update');
     }
 }

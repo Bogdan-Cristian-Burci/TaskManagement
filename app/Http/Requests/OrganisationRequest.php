@@ -110,11 +110,11 @@ class OrganisationRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->isMethod('POST') && !$this->route('organisation')) {
-            return $this->user()->hasPermission('create', Organisation::class);
+            return $this->user()->hasPermission('organisation.create');
         }
 
         if ($organisation = $this->route('organisation')) {
-            return $this->user()->hasPermission('update', $organisation);
+            return $this->user()->hasPermission('organisation.update');
         }
 
         return false;
