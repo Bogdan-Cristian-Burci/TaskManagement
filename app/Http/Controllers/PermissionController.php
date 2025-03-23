@@ -79,30 +79,53 @@ class PermissionController extends Controller
         $cacheKey = 'permission_categories' . ($checkExistence ? '_with_existence' : '');
 
         $result = Cache::remember($cacheKey, 3600, function () use ($checkExistence) {
-            // Get config values
+            // Get config values - convert indexed arrays to associative if needed
             $standardActions = config('permissions.standard_actions');
-            $specialPermissions = config('permissions.extended_actions');
-            $categories = config('permissions.models');
+            $extendedActions = config('permissions.extended_actions');
+            $models = config('permissions.models');
+
+            // Create display names for models (capitalize first letter)
+            $modelDisplayNames = [];
+            foreach ($models as $model) {
+                $modelDisplayNames[$model] = ucfirst($model);
+            }
+
+            // Create display names for standard actions (capitalize first letter)
+            $standardActionDisplayNames = [];
+            foreach ($standardActions as $action) {
+                // Convert camelCase to Title Case with spaces
+                $displayName = ucfirst(preg_replace('/(?<!^)[A-Z]/', ' $0', $action));
+                $standardActionDisplayNames[$action] = $displayName;
+            }
 
             $result = [];
 
             // Build the complete permissions structure
-            foreach ($categories as $category => $displayName) {
-                $permissionActions = $standardActions;
+            foreach ($models as $modelIndex => $model) {
+                $permissionActions = [];
 
-                // Add special permissions if they exist for this category
-                if (isset($specialPermissions[$category])) {
-                    $permissionActions = array_merge($permissionActions, $specialPermissions[$category]);
+                // Add standard actions with proper display names
+                foreach ($standardActions as $actionIndex => $action) {
+                    $permissionActions[$action] = $standardActionDisplayNames[$action];
+                }
+
+                // Add extended actions if they exist for this model
+                if (isset($extendedActions[$model])) {
+                    foreach ($extendedActions[$model] as $action) {
+                        // Convert camelCase to Title Case with spaces
+                        $displayName = ucfirst(preg_replace('/(?<!^)[A-Z]/', ' $0', $action));
+                        $permissionActions[$action] = $displayName;
+                    }
                 }
 
                 $categoryPermissions = [];
-                foreach ($permissionActions as $action => $actionName) {
-                    $permissionName = $category . '.' . $action;
+                foreach ($permissionActions as $action => $displayName) {
+                    $permissionName = $model . '.' . $action;
 
                     $permissionData = [
                         'name' => $permissionName,
                         'action' => $action,
-                        'display_name' => $actionName,
+                        'display_name' => $displayName,
                     ];
 
                     // Only check existence if requested
@@ -116,8 +139,8 @@ class PermissionController extends Controller
                 }
 
                 $result[] = [
-                    'category' => $category,
-                    'display_name' => $displayName,
+                    'category' => $model,
+                    'display_name' => $modelDisplayNames[$model],
                     'permissions' => $categoryPermissions
                 ];
             }
@@ -129,7 +152,6 @@ class PermissionController extends Controller
             'permission_categories' => $result
         ]);
     }
-
     /**
      * Get all available permissions categorized without checking existence
      * Alias for categories method with checkExistence = false
