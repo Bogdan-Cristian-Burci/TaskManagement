@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -189,5 +190,15 @@ class RoleTemplate extends Model
             ]);
             return [];
         }
+    }
+
+    /**
+     * Get all permissions associated with this template
+     *
+     * @return Collection
+     */
+    public function getPermissions(): Collection
+    {
+        return $this->permissions()->get();
     }
 }

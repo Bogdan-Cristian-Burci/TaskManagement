@@ -30,7 +30,7 @@ class UserPermissionOverrideController extends Controller
     public function index(Request $request, int $userId): JsonResponse
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('permissions.view', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('permission.view', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to view permission overrides.');
         }
 
@@ -109,7 +109,7 @@ class UserPermissionOverrideController extends Controller
     public function store(Request $request, int $userId): JsonResponse
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('permissions.manage', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('permission.manage', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to manage permission overrides.');
         }
 
@@ -189,7 +189,7 @@ class UserPermissionOverrideController extends Controller
     public function destroy(Request $request, int $userId, int $permissionId): JsonResponse
     {
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('permissions.manage', $request->user()->organisation_id)) {
+        if (!$request->user()->hasPermission('permission.manage', $request->user()->organisation_id)) {
             throw new AuthorizationException('You do not have permission to manage permission overrides.');
         }
 
