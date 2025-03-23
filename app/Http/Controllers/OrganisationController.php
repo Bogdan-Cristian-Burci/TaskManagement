@@ -9,10 +9,13 @@ use App\Http\Resources\TeamResource;
 use App\Http\Resources\UserResource;
 use App\Models\Organisation;
 use App\Models\User;
+use App\Services\RoleService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\App;
+use Illuminate\Support\Facades\Log;
 use Symfony\Component\HttpFoundation\Response;
 
 class OrganisationController extends Controller
@@ -316,9 +319,28 @@ class OrganisationController extends Controller
     {
         $this->authorize('manageMembers', $organisation);
 
+        // Get available roles for this organization
+        $roleService = App::make(RoleService::class);
+        $availableRoles = $roleService->getAvailableRoles($organisation->id);
+
+        // Extract role names for validation
+        $roleNames = $availableRoles->map(function ($role) {
+            return $role->template ? $role->template->name : null;
+        })->filter()->unique()->values()->toArray();
+
+        if (empty($roleNames)) {
+            Log::warning('No roles found for organization', [
+                'organisation_id' => $organisation->id
+            ]);
+
+            return response()->json([
+                'message' => 'No roles available for this organization.'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $request->validate([
             'user_id' => 'required|exists:users,id',
-            'role' => 'required|in:admin,member'
+            'role' => 'required|in:' . implode(',', $roleNames)
         ]);
 
         $user = User::findOrFail($request->input('user_id'));
