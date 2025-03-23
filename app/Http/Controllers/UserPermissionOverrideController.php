@@ -234,40 +234,4 @@ class UserPermissionOverrideController extends Controller
             ], 500);
         }
     }
-
-    /**
-     * List all permissions that can be granted/denied
-     *
-     * @param Request $request
-     * @return JsonResponse
-     * @throws AuthorizationException
-     */
-    public function listAvailablePermissions(Request $request): JsonResponse
-    {
-        // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('permissions.view', $request->user()->organisation_id)) {
-            throw new AuthorizationException('You do not have permission to view permissions.');
-        }
-
-        // Get all permissions
-        $permissions = DB::table('permissions')
-            ->select('id', 'name', 'guard_name', 'created_at')
-            ->orderBy('name')
-            ->get();
-
-        // Group permissions by area (e.g., users.create, users.edit -> users area)
-        $groupedPermissions = [];
-        foreach ($permissions as $permission) {
-            $area = explode('.', $permission->name)[0] ?? 'other';
-            if (!isset($groupedPermissions[$area])) {
-                $groupedPermissions[$area] = [];
-            }
-            $groupedPermissions[$area][] = $permission;
-        }
-
-        return response()->json([
-            'permissions' => $permissions,
-            'grouped_permissions' => $groupedPermissions
-        ]);
-    }
 }
