@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Support\Str;
 
@@ -20,7 +21,7 @@ class Organisation extends Model
         'created_by'
     ];
 
-    protected static function boot()
+    protected static function boot(): void
     {
         parent::boot();
 
@@ -40,6 +41,40 @@ class Organisation extends Model
     }
 
     /**
+     * Get the user who created the organization.
+     */
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /**
+     * Get users belonging to this organisation.
+     */
+    public function users(): BelongsToMany
+    {
+        return $this->belongsToMany(User::class, 'organisation_user')
+            ->withPivot('role')
+            ->withTimestamps();
+    }
+
+    /**
+     * Get projects belonging to this organisation.
+     */
+    public function projects(): HasMany
+    {
+        return $this->hasMany(Project::class);
+    }
+
+    /**
+     * Get teams belonging to this organisation.
+     */
+    public function teams(): HasMany
+    {
+        return $this->hasMany(Team::class);
+    }
+
+    /**
      * Get all roles specific to this organization.
      */
     public function roles(): HasMany
@@ -53,6 +88,54 @@ class Organisation extends Model
     public function roleTemplates(): HasMany
     {
         return $this->hasMany(RoleTemplate::class, 'organisation_id');
+    }
+
+    /**
+     * Check if a user is a member of this organisation.
+     *
+     * @param int|User $user
+     * @return bool
+     */
+    public function hasMember(User|int $user): bool
+    {
+        $userId = $user instanceof User ? $user->id : (int) $user;
+
+        return $this->users()
+            ->where('users.id', $userId)
+            ->exists();
+    }
+
+    /**
+     * Check if a user is the owner of this organisation.
+     *
+     * @param int|User $user
+     * @return bool
+     */
+    public function isOwner(User|int $user): bool
+    {
+        $userId = $user instanceof User ? $user->id : (int) $user;
+
+        return $this->owner_id === $userId;
+    }
+
+    /**
+     * Check if a user is an admin in this organisation.
+     *
+     * @param int|User $user
+     * @return bool
+     */
+    public function isAdmin(User|int $user): bool
+    {
+        $userId = $user instanceof User ? $user->id : (int) $user;
+
+        if ($this->isOwner($userId)) {
+            return true;
+        }
+
+        return $this->users()
+            ->where('users.id', $userId)
+            ->wherePivot('role', 'admin')
+            ->exists();
     }
 
     /**
@@ -85,100 +168,5 @@ class Organisation extends Model
 
         // Combine collections
         return $systemRoles->concat($orgRoles);
-    }
-
-    /**
-     * Create standard roles from system templates for this organization.
-     */
-    public function createStandardRoles(): array
-    {
-        $created = [];
-
-        // Get all system templates
-        $systemTemplates = RoleTemplate::where('is_system', true)
-            ->whereNull('organisation_id')
-            ->get();
-
-        foreach ($systemTemplates as $template) {
-            // Check if role from this template already exists in this org
-            $exists = $this->roles()
-                ->where('template_id', $template->id)
-                ->exists();
-
-            if (!$exists) {
-                // Create role from template
-                $role = Role::create([
-                    'organisation_id' => $this->id,
-                    'template_id' => $template->id,
-                    'overrides_system' => false,
-                    'system_role_id' => null
-                ]);
-
-                $created[] = $template->name; // Store template name for reporting
-
-                // If this is admin role template and we have an owner, assign them
-                if ($template->name === 'admin' && $this->owner_id) {
-                    $owner = User::find($this->owner_id);
-                    if ($owner) {
-                        \DB::table('model_has_roles')->insert([
-                            'role_id' => $role->id,
-                            'model_id' => $owner->id,
-                            'model_type' => User::class,
-                            'organisation_id' => $this->id,
-                            'created_at' => now(),
-                            'updated_at' => now()
-                        ]);
-                    }
-                }
-            }
-        }
-
-        return [
-            'created_roles' => $created,
-            'organisation_id' => $this->id
-        ];
-    }
-
-    /**
-     * Create a custom role template.
-     */
-    public function createRoleTemplate(array $data, array $permissionIds = []): RoleTemplate
-    {
-        $data['organisation_id'] = $this->id;
-        $data['is_system'] = false;
-
-        $template = RoleTemplate::create($data);
-
-        if (!empty($permissionIds)) {
-            $template->permissions()->attach($permissionIds);
-        }
-
-        return $template;
-    }
-
-    /**
-     * Override a system role with custom template.
-     */
-    public function overrideSystemRole(string $roleName, int $templateId): ?Role
-    {
-        // Find system role
-        $systemRole = Role::getSystemRole($roleName);
-
-        if (!$systemRole) {
-            return null;
-        }
-
-        // Create the overriding role
-        return Role::create([
-            'name' => $systemRole->name,
-            'display_name' => $systemRole->display_name,
-            'description' => $systemRole->description,
-            'level' => $systemRole->level,
-            'organisation_id' => $this->id,
-            'template_id' => $templateId,
-            'overrides_system' => true,
-            'system_role_id' => $systemRole->id,
-            'guard_name' => 'api'
-        ]);
     }
 }

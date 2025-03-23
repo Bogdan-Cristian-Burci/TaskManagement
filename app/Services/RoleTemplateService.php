@@ -161,14 +161,6 @@ class RoleTemplateService
     }
 
     /**
-     * Apply all system templates to a new organization.
-     */
-    public function applySystemTemplatesToOrganisation(Organisation $organisation): array
-    {
-        return $organisation->createStandardRoles();
-    }
-
-    /**
      * Sync existing roles with their templates.
      */
     public function syncRolesWithTemplates(): int
