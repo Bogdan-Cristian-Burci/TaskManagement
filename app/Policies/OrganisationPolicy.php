@@ -65,7 +65,9 @@ class OrganisationPolicy
         // User can update if they are the owner or creator, or have admin role in the org,
         // or have global admin roles
         return
+            $organisation->isOwner($user) ||
             $user->id === $organisation->created_by ||
+            $organisation->isAdmin($user) ||
             $user->hasPermission('organisation.update');
     }
 
@@ -79,7 +81,9 @@ class OrganisationPolicy
     public function delete(User $user, Organisation $organisation): bool
     {
         // Only the owner or global admins can delete an organisation
-        return $user->hasPermission('organisation.delete');
+        return $organisation->isOwner($user) ||
+            $user->id === $organisation->created_by ||
+            $user->hasPermission('organisation.delete');
     }
 
     /**
@@ -116,7 +120,9 @@ class OrganisationPolicy
      */
     public function manageMembers(User $user, Organisation $organisation): bool
     {
-        return $user->hasPermission('manage-organisations');
+        return $organisation->isOwner($user) ||
+            $organisation->isAdmin($user) ||
+            $user->hasPermission('manage-organisations');
     }
 
     /**
@@ -128,6 +134,7 @@ class OrganisationPolicy
      */
     public function changeOwner(User $user, Organisation $organisation): bool
     {
-        return $user->hasPermission('organisation.update');
+        return $organisation->isOwner($user) ||
+            $user->hasPermission('organisation.update');
     }
 }

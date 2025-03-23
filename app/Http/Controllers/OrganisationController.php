@@ -175,6 +175,23 @@ class OrganisationController extends Controller
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        // Check for users who would be left with no organization
+        $users = $organisation->users()->withCount(['organisations'])->get();
+        $usersWithOnlyThisOrg = $users->filter(function($user) {
+            return $user->organisations_count <= 1;
+        });
+
+        if ($usersWithOnlyThisOrg->isNotEmpty()) {
+            return response()->json([
+                'message' => 'Cannot delete the organisation because it would leave users without any organization membership.',
+                'affected_users_count' => $usersWithOnlyThisOrg->count(),
+                'affected_users' => $usersWithOnlyThisOrg->pluck('name', 'id')
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        // First detach all users to avoid foreign key constraint error
+        $organisation->users()->detach();
+
         $organisation->delete();
 
         return response()->json([

@@ -29,6 +29,11 @@ class Organisation extends Model
             if (empty($organisation->slug)) {
                 $organisation->slug = Str::slug($organisation->name);
             }
+
+            // Generate unique_id if not provided
+            if (empty($organisation->unique_id)) {
+                $organisation->unique_id = strtoupper(Str::random(8));
+            }
         });
     }
 

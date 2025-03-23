@@ -3,6 +3,7 @@
 namespace App\Http\Resources;
 
 use App\Models\Organisation;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
@@ -31,61 +32,104 @@ class OrganisationResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
-            // TO THIS:
+            // Fix user_role to include pivot roles
             'user_role' => $this->when(true, function() use ($request) {
-                // Detect if we're in a UserResource context by checking the pivot
-                if ($this->pivot) {
-                    // If we have pivot data, this organization belongs to a specific user
-                    $userId = $this->pivot->user_id;
-                    $user = \App\Models\User::find($userId);
+                // Get the appropriate user based on context
+                $contextUser = $request->user();
+                $organisationId = $this->id;
 
-                    if ($user) {
-                        $role = $user->organisationRole($this->resource);
-                        return $role ? [
+                // If we're in a pivot context (within UserResource)
+                if ($this->pivot && isset($this->pivot->user_id)) {
+                    $contextUser = User::find($this->pivot->user_id);
+                }
+
+                if ($contextUser) {
+                    // First check for role in pivot table
+                    $pivotRole = $contextUser->organisations()
+                        ->where('organisations.id', $organisationId)
+                        ->first()?->pivot?->role;
+
+                    if ($pivotRole) {
+                        // If this is the owner in the pivot, return owner role info
+                        if ($pivotRole === 'owner') {
+                            return [
+                                'id' => null, // No formal role ID for pivot roles
+                                'name' => 'owner',
+                                'level' => 100, // Highest level
+                                'pivot_role' => true,
+                                'template' => null
+                            ];
+                        } elseif ($pivotRole === 'admin') {
+                            return [
+                                'id' => null,
+                                'name' => 'admin',
+                                'level' => 75, // High level
+                                'pivot_role' => true,
+                                'template' => null
+                            ];
+                        } elseif ($pivotRole === 'member') {
+                            return [
+                                'id' => null,
+                                'name' => 'member',
+                                'level' => 25, // Standard level
+                                'pivot_role' => true,
+                                'template' => null
+                            ];
+                        }
+                    }
+
+                    // Otherwise check for formal role
+                    $role = $contextUser->organisationRole($this->resource);
+                    if ($role) {
+                        return [
                             'id' => $role->id,
                             'name' => $role->getName(),
                             'level' => $role->getLevel(),
+                            'pivot_role' => false,
                             'template' => $role->template ? $role->template->name : null
-                        ] : null;
+                        ];
                     }
-                }
-
-                // Fall back to current authenticated user if not in a pivot context
-                if ($request->user()) {
-                    $role = $request->user()->organisationRole($this->resource);
-                    return $role ? [
-                        'id' => $role->id,
-                        'name' => $role->getName(),
-                        'level' => $role->getLevel(),
-                        'template' => $role->template ? $role->template->name : null
-                    ] : null;
                 }
 
                 return null;
             }),
 
-            // User permissions for this organization
+            // Fix permission checks to account for pivot roles
             'can' => $this->when(true, function() use ($request) {
                 // Get the appropriate user based on context
-                $contextUser = null;
+                $contextUser = $request->user();
+                $organisationId = $this->id;
 
-                // If we have pivot data, this organization belongs to a specific user
+                // If we're in a pivot context
                 if ($this->pivot && isset($this->pivot->user_id)) {
-                    $contextUser = \App\Models\User::find($this->pivot->user_id);
+                    $contextUser = User::find($this->pivot->user_id);
                 }
 
-                // Fall back to authenticated user if needed
-                if (!$contextUser && $request->user()) {
-                    $contextUser = $request->user();
-                }
-
-                // If we have a user context, return their permissions
+                // If we have a user context, check permissions
                 if ($contextUser) {
+                    // Check if user is owner or admin in this organization via pivot
+                    $pivotRole = $contextUser->organisations()
+                        ->where('organisations.id', $organisationId)
+                        ->first()?->pivot?->role;
+
+                    $isOwnerOrAdmin = in_array($pivotRole, ['owner', 'admin']);
+
+                    // For newly created orgs, owner should have all permissions
+                    if ($isOwnerOrAdmin || $contextUser->id === $this->owner_id || $contextUser->id === $this->created_by) {
+                        return [
+                            'update' => true,
+                            'delete' => true,
+                            'invite_users' => true,
+                            'manage_settings' => true,
+                        ];
+                    }
+
+                    // Fall back to permission checks
                     return [
-                        'update' => $contextUser->hasPermission('organisation.update', $this->id),
-                        'delete' => $contextUser->hasPermission('organisation.delete', $this->id),
-                        'invite_users' => $contextUser->hasPermission('organisation.inviteUser', $this->id),
-                        'manage_settings' => $contextUser->hasPermission('organisation.manageSettings', $this->id),
+                        'update' => $contextUser->hasPermission('organisation.update', $organisationId),
+                        'delete' => $contextUser->hasPermission('organisation.delete', $organisationId),
+                        'invite_users' => $contextUser->hasPermission('organisation.inviteUser', $organisationId),
+                        'manage_settings' => $contextUser->hasPermission('organisation.manageSettings', $organisationId),
                     ];
                 }
 

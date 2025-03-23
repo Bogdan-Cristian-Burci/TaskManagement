@@ -2,12 +2,22 @@
 
 namespace App\Http\Requests;
 
-use App\Models\Organisation;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
 class OrganisationRequest extends FormRequest
 {
+    /**
+     * Determine if the user is authorized to make this request.
+     *
+     * @return bool
+     */
+    public function authorize(): bool
+    {
+        // Authorization is handled by policies, so always return true here
+        return true;
+    }
+
     /**
      * Get the validation rules that apply to the request.
      *
@@ -15,77 +25,29 @@ class OrganisationRequest extends FormRequest
      */
     public function rules(): array
     {
-        $organisationId = $this->route('organisation') ? $this->route('organisation')->id : null;
-
         $rules = [
-            'name' => ['required', 'string', 'max:255'],
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string|max:1000',
             'slug' => [
-                'sometimes',
+                'nullable',
                 'string',
                 'max:255',
-                'alpha_dash', // Only allow alphanumeric chars, dashes and underscores
-                Rule::unique('organisations', 'slug')->ignore($organisationId),
+                Rule::unique('organisations')->ignore($this->organisation),
             ],
             'unique_id' => [
-                'sometimes',
-                'string',
-                'max:255',
-                Rule::unique('organisations', 'unique_id')->ignore($organisationId),
-            ],
-            'description' => ['nullable', 'string'],
-            'logo' => ['nullable', 'string', 'max:1024'], // Limit URL length
-            'address' => ['nullable', 'string', 'max:255'],
-            'website' => ['nullable', 'url', 'max:255'],
-            'owner_id' => [
                 'nullable',
-                'exists:users,id',
-                function ($attribute, $value, $fail) {
-                    // If changing owner, ensure the new owner is a member of the organisation
-                    if ($this->route('organisation') && $value !== $this->route('organisation')->owner_id) {
-                        if (!$this->route('organisation')->hasMember($value)) {
-                            $fail('The new owner must be a member of the organisation.');
-                        }
-
-                        // Only allow owner changes if user has permission
-                        if (!$this->user()->hasPermission('changeOwner', $this->route('organisation'))) {
-                            $fail('You do not have permission to change the organisation owner.');
-                        }
-                    }
-                }
+                'string',
+                'max:20',
+                Rule::unique('organisations')->ignore($this->organisation),
             ],
         ];
 
-        // For updates, make all fields optional
-        if ($this->isMethod('PATCH') || $this->isMethod('PUT')) {
-            foreach ($rules as $field => $validators) {
-                if ($field !== 'owner_id') { // Keep special validation for owner_id
-                    $rules[$field] = array_merge(['sometimes'], $validators);
-                }
-            }
-
-            // Add unique rule for name
-            if ($this->has('name')) {
-                $rules['name'][] = Rule::unique('organisations')->ignore($this->route('organisation'));
-            }
-        } else if ($this->isMethod('POST')) {
-            // For creation, ensure name is unique
-            $rules['name'][] = 'unique:organisations,name';
+        // Only allow owner_id to be set if user has appropriate permissions
+        if ($this->user()->hasPermission('organisation.changeOwner')) {
+            $rules['owner_id'] = 'nullable|exists:users,id';
         }
 
         return $rules;
-    }
-
-    /**
-     * Get custom attributes for validator errors.
-     *
-     * @return array<string, string>
-     */
-    public function attributes(): array
-    {
-        return [
-            'name' => 'organisation name',
-            'owner_id' => 'organisation owner',
-        ];
     }
 
     /**
@@ -96,28 +58,12 @@ class OrganisationRequest extends FormRequest
     public function messages(): array
     {
         return [
-            'name.required' => 'The organisation name is required.',
-            'name.unique' => 'An organisation with this name already exists.',
-            'website.url' => 'The website must be a valid URL.',
+            'name.required' => 'An organisation name is required',
+            'name.max' => 'Organisation name cannot exceed 255 characters',
+            'slug.unique' => 'This slug is already in use by another organisation',
+            'unique_id.unique' => 'This unique ID is already in use by another organisation',
+            'owner_id.exists' => 'The selected owner does not exist',
         ];
-    }
-
-    /**
-     * Determine if the user is authorized to make this request.
-     *
-     * @return bool
-     */
-    public function authorize(): bool
-    {
-        if ($this->isMethod('POST') && !$this->route('organisation')) {
-            return $this->user()->hasPermission('organisation.create');
-        }
-
-        if ($organisation = $this->route('organisation')) {
-            return $this->user()->hasPermission('organisation.update');
-        }
-
-        return false;
     }
 
     /**
@@ -127,19 +73,12 @@ class OrganisationRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        if ($this->has('name')) {
+        // If slug is not provided but name is, generate slug from name
+        // This is a backup in case the model boot method doesn't handle it
+        if (!$this->has('slug') && $this->has('name')) {
             $this->merge([
-                'name' => trim($this->name)
+                'slug' => \Str::slug($this->name),
             ]);
-        }
-
-        if ($this->has('website') && $this->website) {
-            // Ensure website has proper protocol
-            if (!preg_match('~^(?:f|ht)tps?://~i', $this->website)) {
-                $this->merge([
-                    'website' => 'https://' . $this->website
-                ]);
-            }
         }
     }
 }
