@@ -43,17 +43,17 @@ class TeamResource extends JsonResource
 
             // User permissions for this team - using new permission architecture
             'can' => [
-                'update' => $request->user() ? $request->user()->hasPermission('teams.update', $this->organisation_id) : false,
-                'delete' => $request->user() ? $request->user()->hasPermission('teams.delete', $this->organisation_id) : false,
-                'manage_members' => $request->user() ? $request->user()->hasPermission('teams.manage_members', $this->organisation_id) : false,
-                'change_team_lead' => $request->user() ? $request->user()->hasPermission('teams.change_lead', $this->organisation_id) : false,
+                'update' => $request->user() ? $request->user()->hasPermission('team.update', $this->organisation_id) : false,
+                'delete' => $request->user() ? $request->user()->hasPermission('team.delete', $this->organisation_id) : false,
+                'manage_members' => $request->user() ? $request->user()->hasPermission('team.manage-members', $this->organisation_id) : false,
+                'change_team_lead' => $request->user() ? $request->user()->hasPermission('team.changeLead', $this->organisation_id) : false,
             ],
 
             // Check if current user is a member of this team
             'is_member' => $request->user() ? $this->hasMember($request->user()) : false,
 
             // Check if current user is the team lead
-            'is_team_lead' => $request->user() ? $this->isTeamLead($request->user()) : false,
+            'is_team_lead' => $request->user() && $this->isTeamLead($request->user()),
 
             // Related resources
             'organisation' => new OrganisationResource($this->whenLoaded('organisation')),

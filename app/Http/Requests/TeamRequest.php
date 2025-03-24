@@ -82,9 +82,9 @@ class TeamRequest extends FormRequest
         }
 
         $user = $this->user();
-        $organisation = $user->organisations()->first();
 
-        return $organisation ? $organisation->id : 0;
+
+        return $user->organisation_id;
     }
 
     /**
@@ -95,11 +95,11 @@ class TeamRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->isMethod('POST')) {
-            return $this->user()->hasPermission('create', Team::class);
+            return $this->user()->hasPermission('team.create');
         }
 
         if ($team = $this->route('team')) {
-            return $this->user()->hasPermission('update', $team);
+            return $this->user()->hasPermission('team.update');
         }
 
         return false;

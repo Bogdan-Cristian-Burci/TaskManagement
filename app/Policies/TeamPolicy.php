@@ -42,11 +42,13 @@ class TeamPolicy
      * @param User $user
      * @return bool
      */
-    public function create(User $user): bool
+    public function create(User $user, ?int $organisationId = null): bool
     {
+        $orgId = $organisationId ?? $user->organisation_id;
+
         // Only users with proper permissions can create teams
         return $user->organisations()->exists() &&
-            $user->hasPermission('team.create');
+            $user->hasPermission('team.create', $orgId);
     }
 
     /**
@@ -59,8 +61,7 @@ class TeamPolicy
     public function update(User $user, Team $team): bool
     {
         // Only team leads or admins can update teams
-        return $team->isTeamLead($user) ||
-            $user->hasPermission('team.update');
+        return $user->hasPermission('team.update');
     }
 
     /**
@@ -73,8 +74,7 @@ class TeamPolicy
     public function delete(User $user, Team $team): bool
     {
         // Only team leads or admins can delete teams
-        return $team->isTeamLead($user) ||
-            $user->hasPermission('team.delete');
+        return $user->hasPermission('team.delete');
     }
 
     /**
@@ -110,8 +110,7 @@ class TeamPolicy
      */
     public function manageMembers(User $user, Team $team): bool
     {
-        return $team->isTeamLead($user) ||
-            $user->hasPermission('manage teams');
+        return $user->hasPermission('manage-teams');
     }
 
     /**
@@ -123,7 +122,6 @@ class TeamPolicy
      */
     public function changeTeamLead(User $user, Team $team): bool
     {
-        return $team->isTeamLead($user) ||
-            $user->hasPermission('team.changeLead');
+        return $user->hasPermission('team.changeLead');
     }
 }

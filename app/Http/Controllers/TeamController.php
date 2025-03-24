@@ -94,7 +94,6 @@ class TeamController extends Controller
      */
     public function store(TeamRequest $request): TeamResource
     {
-        $this->authorize('create', Team::class);
 
         // Create the team from validated data
         $team = Team::create($request->validated());
