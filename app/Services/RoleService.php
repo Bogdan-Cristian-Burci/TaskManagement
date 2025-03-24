@@ -351,6 +351,21 @@ class RoleService
     }
 
     /**
+     * Get all available name roles for an organization,
+     * combining organization-specific roles with non-overridden system roles
+     * for validation purposes
+     *
+     * @param int $organisationId Organization ID
+     * @return array
+     */
+
+    public function getAvailableNameRolesArray(int $organisationId): array
+    {
+        return $this->getAvailableRoles($organisationId)->map(function ($role) {
+            return $role->template ? $role->template->name : null;
+        })->filter()->unique()->values()->toArray();
+    }
+    /**
      * Update a role's metadata
      *
      * @param int $roleId Role ID

@@ -21,13 +21,15 @@ use Symfony\Component\HttpFoundation\Response;
 class OrganisationController extends Controller
 {
 
+    protected RoleService $roleService;
     /**
      * Create a new controller instance.
      */
-    public function __construct()
+    public function __construct(RoleService $roleService)
     {
         $this->middleware('auth:api');
         $this->authorizeResource(Organisation::class, 'organisation');
+        $this->roleService = $roleService;
     }
 
     /**
@@ -320,13 +322,7 @@ class OrganisationController extends Controller
         $this->authorize('manageMembers', $organisation);
 
         // Get available roles for this organization
-        $roleService = App::make(RoleService::class);
-        $availableRoles = $roleService->getAvailableRoles($organisation->id);
-
-        // Extract role names for validation
-        $roleNames = $availableRoles->map(function ($role) {
-            return $role->template ? $role->template->name : null;
-        })->filter()->unique()->values()->toArray();
+        $roleNames = $this->roleService->getAvailableNameRolesArray($organisation->id);
 
         if (empty($roleNames)) {
             Log::warning('No roles found for organization', [
@@ -380,8 +376,21 @@ class OrganisationController extends Controller
     {
         $this->authorize('manageMembers', $organisation);
 
+        // Get available roles for this organization
+        $roleNames = $this->roleService->getAvailableNameRolesArray($organisation->id);
+
+        if (empty($roleNames)) {
+            Log::warning('No roles found for organization', [
+                'organisation_id' => $organisation->id
+            ]);
+
+            return response()->json([
+                'message' => 'No roles available for this organization.'
+            ], Response::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $request->validate([
-            'role' => 'required|in:admin,member'
+            'role' => 'required|in:' . implode(',', $roleNames)
         ]);
 
         $user = User::findOrFail($userId);
