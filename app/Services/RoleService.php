@@ -389,14 +389,6 @@ class RoleService
 
         $template = $role->template;
 
-        // DEBUG: Log incoming update data
-        Log::debug('Role update attempt', [
-            'roleId' => $roleId,
-            'template_id' => $template->id ?? null,
-            'data' => $data,
-            'permissions' => $permissions
-        ]);
-
         $updateData = array_intersect_key($data, [
             'display_name' => true,
             'description' => true,

@@ -9,6 +9,7 @@ use App\Http\Resources\TeamResource;
 use App\Http\Resources\UserResource;
 use App\Models\Organisation;
 use App\Models\User;
+use App\Services\RoleManager;
 use App\Services\RoleService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
@@ -20,16 +21,23 @@ use Symfony\Component\HttpFoundation\Response;
 
 class OrganisationController extends Controller
 {
-
+    /**
+     * @var RoleService
+     */
     protected RoleService $roleService;
+    /**
+     * @var RoleManager
+     */
+    protected RoleManager $roleManager;
     /**
      * Create a new controller instance.
      */
-    public function __construct(RoleService $roleService)
+    public function __construct(RoleService $roleService, RoleManager $roleManager)
     {
         $this->middleware('auth:api');
         $this->authorizeResource(Organisation::class, 'organisation');
         $this->roleService = $roleService;
+        $this->roleManager = $roleManager;
     }
 
     /**
@@ -384,6 +392,7 @@ class OrganisationController extends Controller
      * @param int $userId
      * @return JsonResponse
      * @throws AuthorizationException
+     * @throws \Exception
      */
     public function updateUserRole(Request $request, Organisation $organisation, int $userId): JsonResponse
     {
@@ -423,9 +432,8 @@ class OrganisationController extends Controller
         }
 
         // Update the user's role
-        $organisation->users()->updateExistingPivot($userId, [
-            'role' => $request->input('role')
-        ]);
+        $this->roleManager->updateUserRole($user, $request->input('role'), $organisation->id);
+        $user->syncPivotRoleWithFormalRole($organisation->id);
 
         return response()->json([
             'message' => 'User role updated successfully.',

@@ -344,6 +344,27 @@ class RoleManager
     }
 
     /**
+     * Update user's role in an organization (removes existing roles first)
+     *
+     * @param User $user
+     * @param string $templateName
+     * @param int $organisationId
+     * @return bool
+     */
+    public function updateUserRole(User $user, string $templateName, int $organisationId): bool
+    {
+        // Remove all existing roles for this user in this organization
+        DB::table('model_has_roles')
+            ->where('model_id', $user->id)
+            ->where('model_type', get_class($user))
+            ->where('organisation_id', $organisationId)
+            ->delete();
+
+        // Assign the new role
+        return $this->assignRoleToUser($user, $templateName, $organisationId);
+    }
+
+    /**
      * Sync template permissions from configuration
      *
      * @param RoleTemplate $template
