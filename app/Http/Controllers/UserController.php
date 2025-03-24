@@ -19,6 +19,7 @@ use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Session;
 use Symfony\Component\HttpFoundation\Response;
 
 class UserController extends Controller
@@ -665,12 +666,15 @@ class UserController extends Controller
             'organisation_id' => 'required|exists:organisations,id'
         ]);
 
-        $organisationId = $request->organisation_id;
+        $organisationId = (int) $request->organisation_id;
         $user = $request->user();
 
-        if($user->organisation_id == $organisationId) {
+        // Get the actual database value to avoid middleware confusion
+        $databaseOrgId = \DB::table('users')->where('id', $user->id)->value('organisation_id');
+
+        if ($databaseOrgId === $organisationId) {
             return response()->json([
-                'message' => 'User has already this organization active'
+                'message' => 'User already has this organization active'
             ], Response::HTTP_OK);
         }
 
@@ -685,8 +689,26 @@ class UserController extends Controller
             ], Response::HTTP_FORBIDDEN);
         }
 
-        // Update the user's active organization
-        $user->update(['organisation_id' => $organisationId]);
+        // Update the user's active organization in the database
+        $updateResult = \DB::table('users')
+            ->where('id', $user->id)
+            ->update(['organisation_id' => $organisationId]);
+
+        // Also update the session
+        Session::put('active_organisation_id', $organisationId);
+
+        if (!$updateResult) {
+            return response()->json([
+                'message' => 'Failed to switch organization',
+                'debug_info' => [
+                    'old_org_id' => $user->getOriginal('organisation_id'),
+                    'attempted_new_org_id' => $organisationId
+                ]
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
+
+        // Reload the user to ensure we have the latest data
+        $user = $user->fresh();
 
         return response()->json([
             'message' => 'Active organization switched successfully',
