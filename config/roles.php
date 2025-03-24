@@ -51,6 +51,14 @@ return [
     |
     */
     'organization' => [
+        'owner' => [
+            'display_name' => 'Owner',
+            'description' => 'Organization owner with full control',
+            'level' => 110,
+            'permissions' => 'all',
+            'is_system' => true,
+            'can_be_deleted' => false,
+        ],
         'admin' => [
             'display_name' => 'Administrator',
             'description' => 'Full administrative access to the organization',

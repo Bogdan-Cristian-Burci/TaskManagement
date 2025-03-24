@@ -59,7 +59,8 @@ class RolePermissionController extends Controller
             return response()->json(['message' => 'User is not in your organization'], 403);
         }
 
-        $user->assignRole($role);
+        $user->assignRole($role,$organisationId);
+        $user->syncPivotRoleWithFormalRole($organisationId);
 
         return response()->json(['message' => 'Role assigned successfully']);
     }

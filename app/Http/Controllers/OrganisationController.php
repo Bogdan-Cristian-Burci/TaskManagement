@@ -356,6 +356,19 @@ class OrganisationController extends Controller
 
         $organisation->users()->attach($user->id, ['role' => $role]);
 
+        // Also assign the formal role
+        try {
+            $user->assignRole($role, $organisation->id);
+            $user->syncPivotRoleWithFormalRole($organisation->id);
+        } catch (\Exception $e) {
+            // Log error but don't fail the request
+            \Log::error("Failed to assign formal role: " . $e->getMessage(), [
+                'user_id' => $user->id,
+                'organisation_id' => $organisation->id,
+                'role' => $role
+            ]);
+        }
+
         return response()->json([
             'message' => 'User added to organisation successfully.',
             'user' => new UserResource($user),

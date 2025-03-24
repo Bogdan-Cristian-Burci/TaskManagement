@@ -80,7 +80,7 @@ class APIAuthenticationController extends Controller
             $user->update(['organisation_id' => $organisation->id]);
 
             // Associate user with organization
-            $user->organisations()->attach($organisation->id);
+            $user->organisations()->attach($organisation->id,['role' => 'owner']);
 
             // Create admin template if it doesn't exist
             $this->assignAdminRoleFromTemplate($user, $organisation->id);

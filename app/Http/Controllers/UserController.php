@@ -152,6 +152,7 @@ class UserController extends Controller
                 // Assign default role using correct signature
                 $user->assignRole(get_default_role(), $data['organisation_id']);
             }
+            $user->syncPivotRoleWithFormalRole($data['organisation_id']);
         }
 
         return new UserResource($user->load(['roles', 'organisations']));
@@ -450,6 +451,7 @@ class UserController extends Controller
         foreach ($request->roles as $roleName) {
             try {
                 $user->assignRole($roleName, $organisationId);
+                $user->syncPivotRoleWithFormalRole($organisationId);
                 $addedRoles[] = $roleName;
             } catch (\Exception $e) {
                 \Log::error("Failed to assign role {$roleName}: " . $e->getMessage());
@@ -586,6 +588,8 @@ class UserController extends Controller
             } catch (\Exception $innerE) {
                 \Log::error('Failed to assign fallback role: ' . $innerE->getMessage());
             }
+        } finally {
+            $user->syncPivotRoleWithFormalRole($organisationId);
         }
 
         // Send invitation email if requested

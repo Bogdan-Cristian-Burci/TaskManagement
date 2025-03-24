@@ -85,6 +85,7 @@ class OAuthSocialController extends Controller
                     try {
                         // Using the new signature: assignRole(string $templateName, int $organisationId)
                         $user->assignRole('member', $defaultOrganisation->id);
+
                     } catch (\Exception $e) {
                         Log::error('Error assigning role to OAuth user: ' . $e->getMessage());
                         // Fallback to guest role if member doesn't exist
@@ -93,6 +94,8 @@ class OAuthSocialController extends Controller
                         } catch (\Exception $innerE) {
                             Log::error('Error assigning fallback role: ' . $innerE->getMessage());
                         }
+                    } finally {
+                        $user->syncPivotRoleWithFormalRole($defaultOrganisation->id);
                     }
                 } else {
                     Log::warning('No default organization found for OAuth user registration');

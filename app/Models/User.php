@@ -554,4 +554,41 @@ class User extends Authenticatable implements MustVerifyEmail
     {
         return role_manager()->assignRoleToUser($this, $templateName, $organisationId);
     }
+
+    /**
+     * Synchronize the role in the organisation_user pivot table
+     * with the formal role in the role system
+     *
+     * @param int $organisationId
+     * @return bool
+     */
+    public function syncPivotRoleWithFormalRole(int $organisationId): bool
+    {
+        try {
+            // Get the highest formal role from model_has_roles
+            $formalRole = $this->roles()
+                ->where('model_has_roles.organisation_id', $organisationId)
+                ->with('template')
+                ->get()
+                ->sortByDesc(function($role) {
+                    return $role->getLevel();
+                })
+                ->first();
+
+            if ($formalRole && $formalRole->template) {
+                // Update the pivot role to match
+                $this->organisations()
+                    ->updateExistingPivot($organisationId, [
+                        'role' => $formalRole->template->name
+                    ]);
+
+                return true;
+            }
+
+            return false;
+        } catch (\Exception $e) {
+            \Log::error('Failed to sync pivot role: ' . $e->getMessage());
+            return false;
+        }
+    }
 }
