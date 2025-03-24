@@ -514,9 +514,14 @@ class OrganisationController extends Controller
         $organisation->owner_id = $newOwnerId;
         $organisation->save();
 
-        // Update roles in the pivot table
-        $organisation->users()->updateExistingPivot($newOwnerId, ['role' => 'owner']);
-        $organisation->users()->updateExistingPivot($currentOwnerId, ['role' => 'admin']);
+        $newOwnerUser= User::findOrFail($newOwnerId);
+        $currentOwnerUser= User::findOrFail($currentOwnerId);
+
+        // Update the user's role
+        $this->roleManager->updateUserRole($newOwnerUser, 'owner', $organisation->id);
+        $this->roleManager->updateUserRole($currentOwnerUser, 'admin', $organisation->id);
+        $newOwnerUser->syncPivotRoleWithFormalRole($organisation->id);
+        $currentOwnerUser->syncPivotRoleWithFormalRole($organisation->id);
 
         return response()->json([
             'message' => 'Organisation ownership transferred successfully.',
