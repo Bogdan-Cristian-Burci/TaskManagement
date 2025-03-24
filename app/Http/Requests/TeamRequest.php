@@ -62,6 +62,7 @@ class TeamRequest extends FormRequest
      */
     protected function getUniqueRule() : Unique
     {
+
         $rule = Rule::unique('teams', 'name')
             ->where('organisation_id', $this->getOrganisationId());
 
@@ -88,6 +89,7 @@ class TeamRequest extends FormRequest
         }
 
         $user = $this->user();
+        \Log::info('User organisation id is: ' . $user->organisation_id);
         return $user->organisation_id;
     }
 
@@ -105,11 +107,11 @@ class TeamRequest extends FormRequest
                 return false;
             }
 
-            return $this->user()->hasPermission('teams.create', $organisationId);
+            return $this->user()->hasPermission('team.create', $organisationId);
         }
 
         if ($team = $this->route('team')) {
-            return $this->user()->hasPermission('teams.update', $team->organisation_id);
+            return $this->user()->hasPermission('team.update', $team->organisation_id);
         }
 
         return false;

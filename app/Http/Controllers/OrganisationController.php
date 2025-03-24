@@ -425,7 +425,7 @@ class OrganisationController extends Controller
         }
 
         // Prevent changing the role of the owner
-        if ($organisation->owner_id === $userId) {
+        if ($organisation->owner_id === $userId && $request->user()->id !== $organisation->owner_id) {
             return response()->json([
                 'message' => 'Cannot change the role of the organisation owner.'
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
