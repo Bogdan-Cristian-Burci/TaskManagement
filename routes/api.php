@@ -154,6 +154,11 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('teams/{team}/projects', [TeamController::class, 'projects'])->name('teams.projects');
     Route::get('teams/{team}/tasks', [TeamController::class, 'tasks'])->name('teams.tasks');
 
+    // Cross-organization endpoints
+    Route::prefix('admin')->group(function () {
+        Route::get('teams', [TeamController::class, 'indexAll']);
+        Route::get('teams/{team}', [TeamController::class, 'showAll'])->name('admin.teams.show');
+    });
     // Project routes
     Route::prefix('projects')->group(function () {
         Route::get('/', [ProjectController::class, 'index'])->name('projects.index');

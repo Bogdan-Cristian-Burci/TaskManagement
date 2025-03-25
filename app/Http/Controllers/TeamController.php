@@ -8,6 +8,7 @@ use App\Http\Resources\ProjectResource;
 use App\Http\Resources\TaskResource;
 use App\Http\Resources\TeamResource;
 use App\Http\Resources\UserResource;
+use App\Models\Scopes\OrganizationScope;
 use App\Models\Team;
 use App\Models\User;
 use App\Services\OrganizationContext;
@@ -164,14 +165,13 @@ class TeamController extends Controller
      * Display a specific team, ignoring organization scope (admin only).
      *
      * @param Request $request
-     * @param Team $team
+     * @param $id
      * @return TeamResource
      */
-    public function showAll(Request $request, Team $team): TeamResource
+    public function showAll(Request $request, $id): TeamResource
     {
-        // No need for organization check, as this is admin-only
-        // Just make sure to use Team::withoutGlobalScope(OrganizationScope::class)->findOrFail($id)
-        // in your route binding or controller
+        // Manually find the team without the organization scope
+        $team = Team::withoutGlobalScope(OrganizationScope::class)->findOrFail($id);
 
         return new TeamResource($team->load(['organisation', 'teamLead', 'users']));
     }
