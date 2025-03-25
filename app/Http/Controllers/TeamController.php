@@ -420,7 +420,7 @@ class TeamController extends Controller
         if(!$newTeamLead->isMemberOf($team->organisation_id)){
             return response()->json([
                 'message' => 'User does not belong to the team\'s organization.'
-            ], Response::HTTP_BAD_REQUEST);
+            ], Response::HTTP_FORBIDDEN);
         }
 
         // Check if new team lead is a member of the team
