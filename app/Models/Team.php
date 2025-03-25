@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Scopes\OrganizationScope;
+use App\Models\Scopes\OrganizationScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use PhpParser\Builder;
 
 /**
  * @property int $id
@@ -77,9 +78,9 @@ class Team extends Model
     /**
      * Get a query builder without the organization scope applied.
      *
-     * @return Team
+     * @return Builder
      */
-    public static function allOrganizations(): Team
+    public static function allOrganizations(): Builder
     {
         return static::withoutGlobalScope(OrganizationScope::class);
     }
