@@ -409,6 +409,20 @@ class TeamController extends Controller
 
         $newTeamLeadId = $request->input('user_id');
 
+        $newTeamLead = User::find($newTeamLeadId);
+
+        if(!$newTeamLead) {
+            return response()->json([
+                'message' => 'User not found.'
+            ], Response::HTTP_NOT_FOUND);
+        }
+
+        if(!$newTeamLead->isMemberOf($team->organisation_id)){
+            return response()->json([
+                'message' => 'User does not belong to the team\'s organization.'
+            ], Response::HTTP_BAD_REQUEST);
+        }
+
         // Check if new team lead is a member of the team
         if (!$team->hasMember($newTeamLeadId)) {
             // Add the new team lead to the team if they're not already a member

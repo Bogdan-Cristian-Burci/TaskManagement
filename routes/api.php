@@ -144,6 +144,12 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::apiResource('teams', TeamController::class);
     Route::post('teams/{id}/restore', [TeamController::class, 'restore'])->name('teams.restore');
 
+    // Cross-organization endpoints
+    Route::prefix('admin')->group(function () {
+        Route::get('teams', [TeamController::class, 'indexAll']);
+        Route::get('teams/{team}', [TeamController::class, 'showAll'])->name('admin.teams.show');
+    });
+
     // Team members management
     Route::get('teams/{team}/members', [TeamController::class, 'members'])->name('teams.members');
     Route::post('teams/{team}/members', [TeamController::class, 'addMembers'])->name('teams.addMembers');
@@ -154,11 +160,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('teams/{team}/projects', [TeamController::class, 'projects'])->name('teams.projects');
     Route::get('teams/{team}/tasks', [TeamController::class, 'tasks'])->name('teams.tasks');
 
-    // Cross-organization endpoints
-    Route::prefix('admin')->group(function () {
-        Route::get('teams', [TeamController::class, 'indexAll']);
-        Route::get('teams/{team}', [TeamController::class, 'showAll'])->name('admin.teams.show');
-    });
+
     // Project routes
     Route::prefix('projects')->group(function () {
         Route::get('/', [ProjectController::class, 'index'])->name('projects.index');
