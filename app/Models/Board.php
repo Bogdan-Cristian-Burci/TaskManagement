@@ -65,13 +65,21 @@ class Board extends Model
         static::addGlobalScope(new OrganizationScope);
     }
 
-    // Add a method to access boards across organizations
+    /**
+     * Get all boards across organizations (admin function).
+     *
+     * @return Builder
+     */
     public static function allOrganizations(): Builder
     {
         return static::withoutGlobalScope(OrganizationScope::class);
     }
 
-    // Get the organization ID through the project relationship
+    /**
+     * Get the organization ID for this board through its project relationship.
+     *
+     * @return int|null
+     */
     public function getOrganisationIdAttribute(): ?int
     {
         return $this->project->organisation_id ?? null;

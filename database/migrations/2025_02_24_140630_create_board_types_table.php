@@ -11,6 +11,7 @@ return new class extends Migration {
             $table->id();
             $table->string('name');
             $table->string('description')->nullable();
+            $table->foreignId('template_id')->nullable()->constrained('board_templates');
             $table->timestamps();
             $table->softDeletes();
         });
