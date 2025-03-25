@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Scopes\OrganizationScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -53,6 +54,28 @@ class Board extends Model
         'deleted_at' => 'datetime',
         'is_archived' => 'boolean'
     ];
+
+    /**
+     * The "booted" method of the model.
+     *
+     * @return void
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new OrganizationScope);
+    }
+
+    // Add a method to access boards across organizations
+    public static function allOrganizations(): Builder
+    {
+        return static::withoutGlobalScope(OrganizationScope::class);
+    }
+
+    // Get the organization ID through the project relationship
+    public function getOrganisationIdAttribute(): ?int
+    {
+        return $this->project->organisation_id ?? null;
+    }
 
     /**
      * Get the project that owns the board.
