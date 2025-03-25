@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Scopes\OrganizationScope;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -54,6 +55,16 @@ class Team extends Model
     ];
 
     /**
+     * The "booted" method of the model.
+     *
+     * @return void
+     */
+    protected static function booted(): void
+    {
+        static::addGlobalScope(new OrganizationScope);
+    }
+
+    /**
      * Get the organisation that the team belongs to.
      *
      * @return BelongsTo
@@ -61,6 +72,16 @@ class Team extends Model
     public function organisation(): BelongsTo
     {
         return $this->belongsTo(Organisation::class);
+    }
+
+    /**
+     * Get a query builder without the organization scope applied.
+     *
+     * @return Team
+     */
+    public static function allOrganizations(): Team
+    {
+        return static::withoutGlobalScope(OrganizationScope::class);
     }
 
     /**

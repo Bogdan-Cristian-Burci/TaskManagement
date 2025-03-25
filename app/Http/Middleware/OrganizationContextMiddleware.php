@@ -3,6 +3,7 @@
 namespace App\Http\Middleware;
 
 use App\Models\Organisation;
+use App\Services\OrganizationContext;
 use Closure;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -29,6 +30,9 @@ class OrganizationContextMiddleware
             if ($orgId) {
                 // Verify user belongs to this organization before setting it
                 if ($user->organisations()->where('organisations.id', $orgId)->exists()) {
+
+                    // Set in the organization context service
+                    OrganizationContext::setCurrentOrganization($orgId);
                     // Set organization on user object
                     $user->organisation_id = $orgId;
 
@@ -48,24 +52,25 @@ class OrganizationContextMiddleware
                 $firstOrg = $user->organisations()->first();
 
                 if ($firstOrg) {
+                    $orgId = $firstOrg->id;
+                    // Set in context service
+                    OrganizationContext::setCurrentOrganization($orgId);
+
                     $user->organisation_id = $firstOrg->id;
                     Session::put('active_organisation_id', $firstOrg->id);
-                    $orgId = $firstOrg->id;
                 }
+            } else if (!$orgId && $user->organisation_id) {
+                // If no org ID from request but user has a default, use that
+                $orgId = $user->organisation_id;
+                OrganizationContext::setCurrentOrganization($orgId);
             }
         }
 
-        // For API use - set a global organization context if needed
-        if (class_exists('\App\Services\OrganisationContext')) {
-            \App\Services\OrganisationContext::setCurrentOrganisation($orgId);
-        }
 
         $response = $next($request);
 
-        // Clear any static context after request is processed
-        if (class_exists('\App\Services\OrganisationContext')) {
-            \App\Services\OrganisationContext::clear();
-        }
+        // Clear context after request is processed
+        OrganizationContext::clear();
 
         return $response;
     }

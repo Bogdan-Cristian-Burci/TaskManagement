@@ -6,14 +6,14 @@ use App\Models\Attachment;
 use App\Models\Board;
 use App\Models\BoardColumn;
 use App\Models\BoardType;
-use App\Models\Organisation;
 use App\Models\Task;
+use App\Models\Team;
 use App\Observers\AttachmentObserver;
 use App\Observers\BoardColumnObserver;
 use App\Observers\BoardObserver;
 use App\Observers\BoardTypeObserver;
-use App\Observers\OrganisationObserver;
 use App\Observers\TaskObserver;
+use App\Observers\TeamObserver;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -47,5 +47,6 @@ class AppServiceProvider extends ServiceProvider
         Board::observe(BoardObserver::class);
         BoardColumn::observe(BoardColumnObserver::class);
         BoardType::observe(BoardTypeObserver::class);
+        Team::observe(TeamObserver::class);
     }
 }

@@ -10,6 +10,7 @@ use App\Http\Resources\TeamResource;
 use App\Http\Resources\UserResource;
 use App\Models\Team;
 use App\Models\User;
+use App\Services\OrganizationContext;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -36,7 +37,12 @@ class TeamController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $user = $request->user();
-        $query = $user->teams();
+
+        // Get organization context
+        $organizationId = OrganizationContext::getCurrentOrganizationId();
+
+        // Use the team model's query which already has the global scope applied
+        $query = Team::query();
 
         // Include relationships based on request parameters
         if ($request->has('include')) {
@@ -87,6 +93,29 @@ class TeamController extends Controller
     }
 
     /**
+     * Display a listing of all teams across organizations (admin only).
+     *
+     * @param Request $request
+     * @return AnonymousResourceCollection
+     */
+    public function indexAll(Request $request): AnonymousResourceCollection
+    {
+        // Use the model method that ignores the organization scope
+        $query = Team::allOrganizations();
+
+        // Apply additional filters as needed
+        if ($request->has('organisation_id')) {
+            $query->where('organisation_id', $request->input('organisation_id'));
+        }
+
+        // Rest of your filtering logic...
+
+        $teams = $query->paginate($request->get('per_page', 15));
+
+        return TeamResource::collection($teams);
+    }
+
+    /**
      * Store a newly created team.
      *
      * @param TeamRequest $request
@@ -129,6 +158,22 @@ class TeamController extends Controller
         }
 
         return new TeamResource($team->load($includes));
+    }
+
+    /**
+     * Display a specific team, ignoring organization scope (admin only).
+     *
+     * @param Request $request
+     * @param Team $team
+     * @return TeamResource
+     */
+    public function showAll(Request $request, Team $team): TeamResource
+    {
+        // No need for organization check, as this is admin-only
+        // Just make sure to use Team::withoutGlobalScope(OrganizationScope::class)->findOrFail($id)
+        // in your route binding or controller
+
+        return new TeamResource($team->load(['organisation', 'teamLead', 'users']));
     }
 
     /**
