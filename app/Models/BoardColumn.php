@@ -27,11 +27,15 @@ class BoardColumn extends Model
         'position',
         'color',
         'wip_limit',
+        'maps_to_status_id',
+        'allowed_transitions'
     ];
 
     protected $casts = [
         'position' => 'integer',
         'wip_limit' => 'integer',
+        'maps_to_status_id' => 'integer',
+        'allowed_transitions' => 'array',
     ];
 
     public function board(): BelongsTo

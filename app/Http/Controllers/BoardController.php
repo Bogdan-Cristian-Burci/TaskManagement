@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\BoardRequest;
 use App\Http\Resources\BoardResource;
+use App\Http\Resources\SprintResource;
 use App\Http\Resources\TaskResource;
 use App\Http\Resources\BoardColumnResource;
 use App\Models\Board;
 use App\Models\Project;
+use App\Services\BoardService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
@@ -20,11 +22,13 @@ use Symfony\Component\HttpFoundation\Response as HttpResponse;
 class BoardController extends Controller
 {
 
+    protected BoardService $boardService;
     /**
      * Create a new controller instance.
      */
-    public function __construct()
+    public function __construct(BoardService $boardService)
     {
+        $this->boardService = $boardService;
         $this->authorizeResource(Board::class, 'board', [
             'except' => ['index', 'projectBoards', 'store']
         ]);
@@ -218,13 +222,9 @@ class BoardController extends Controller
     /**
      * Update the specified board in storage.
      */
-    public function update(BoardRequest $request, Board $board): BoardResource
+    public function update(BoardRequest $request, Board $board)
     {
-        $board->update($request->validated());
-
-        // Load the relationships needed for the response
-        $board->load(['project', 'boardType', 'columns']);
-
+        $board = $this->boardService->updateBoard($board, $request->validated());
         return new BoardResource($board);
     }
 
@@ -249,16 +249,11 @@ class BoardController extends Controller
     /**
      * Archive the specified board.
      */
-    public function archive(Board $board): JsonResponse
+    public function archive(Board $board)
     {
         $this->authorize('archive', $board);
-
-        $board->archive();
-
-        return response()->json([
-            'message' => 'Board archived successfully',
-            'board' => new BoardResource($board)
-        ]);
+        $board = $this->boardService->archiveBoard($board);
+        return new BoardResource($board);
     }
 
     /**
@@ -413,5 +408,36 @@ class BoardController extends Controller
             'completion_percentage' => $completionPercentage,
             'recent_activity' => $recentActivity
         ]);
+    }
+
+    /**
+     * Get sprints for a board.
+     *
+     * @param Request $request
+     * @param Board $board
+     * @return AnonymousResourceCollection
+     */
+    public function sprints(Request $request, Board $board): AnonymousResourceCollection
+    {
+        $this->authorize('view', $board);
+
+        $query = $board->sprints();
+
+        // Filter by status
+        if ($request->has('status')) {
+            $query->where('status', $request->input('status'));
+        }
+
+        // Include relationships
+        if ($request->has('with_tasks')) {
+            $query->with('tasks');
+        }
+
+        // Sort by field
+        $sortBy = $request->input('sort_by', 'start_date');
+        $sortDirection = $request->input('sort_direction', 'desc');
+        $query->orderBy($sortBy, $sortDirection);
+
+        return SprintResource::collection($query->get());
     }
 }

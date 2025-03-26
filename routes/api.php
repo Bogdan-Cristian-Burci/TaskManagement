@@ -314,12 +314,8 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::post('/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
     });
     // Sprint routes
+    Route::apiResource('sprints', 'SprintController');
     Route::prefix('sprints')->group(function () {
-        Route::get('/', [SprintController::class, 'index'])->name('sprints.index');
-        Route::post('/', [SprintController::class, 'store'])->name('sprints.store');
-        Route::get('/{sprint}', [SprintController::class, 'show'])->name('sprints.show');
-        Route::put('/{sprint}', [SprintController::class, 'update'])->name('sprints.update');
-        Route::delete('/{sprint}', [SprintController::class, 'destroy'])->name('sprints.destroy');
         Route::post('/{id}/restore', [SprintController::class, 'restore'])->name('sprints.restore');
 
         // Sprint actions

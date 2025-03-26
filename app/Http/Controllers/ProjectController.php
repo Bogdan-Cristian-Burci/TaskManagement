@@ -11,6 +11,7 @@ use App\Http\Resources\TaskResource;
 use App\Http\Resources\UserResource;
 use App\Models\Project;
 use App\Models\User;
+use App\Services\BoardService;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\JsonResponse;
@@ -23,15 +24,18 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 class ProjectController extends Controller
 {
 
+    protected BoardService $boardService;
+
     /**
      * Create a new controller instance.
      */
-    public function __construct()
+    public function __construct(BoardService $boardService)
     {
         $this->middleware('auth:api');
         $this->authorizeResource(Project::class, 'project', [
             'except' => ['index', 'store']
         ]);
+        $this->boardService = $boardService;
     }
 
     /**
@@ -131,40 +135,23 @@ class ProjectController extends Controller
      * @return ProjectResource
      * @throws AuthorizationException|\Throwable
      */
-    public function store(ProjectRequest $request): ProjectResource
+    public function store(ProjectRequest $request)
     {
-        $this->authorize('create', Project::class);
+        $project = DB::transaction(function() use ($request) {
+            $project = Project::create($request->validated());
 
-        $validatedData = $request->validated();
-
-        $project = DB::transaction(function () use ($validatedData, $request) {
-            // Create the project
-            $project = Project::create($validatedData);
-
-            // Generate key if not provided
-            if (!$project->key) {
-                $project->key = strtoupper(substr($project->name, 0, 3)) . '-' . $project->id;
-                $project->save();
-            }
-
-            // Add the creator as a project manager
-            $project->users()->attach($request->user()->id, ['role' => 'manager']);
-
-            // Create a default board for the project
-            if (!$request->has('skip_default_board') || !$request->boolean('skip_default_board')) {
-                $project->boards()->create([
-                    'name' => 'Default Board',
-                    'description' => 'Default board for ' . $project->name,
-                    'is_default' => true,
-                ]);
+            // Create default board if board_type_id is provided
+            if ($request->has('board_type_id')) {
+                $this->boardService->createBoard(
+                    $project,
+                    $request->input('board_type_id')
+                );
             }
 
             return $project;
         });
 
-        return new ProjectResource(
-            $project->load(['organisation', 'team', 'users', 'boards'])
-        );
+        return new ProjectResource($project->load(['team', 'boards']));
     }
 
     /**

@@ -37,6 +37,11 @@ class BoardResource extends JsonResource
             'tasks_count' => $this->when(isset($this->tasks_count), $this->tasks_count),
             'columns_count' => $this->when(isset($this->columns_count), $this->columns_count),
 
+            'active_sprint' => new SprintResource($this->whenLoaded('activeSprint')),
+            'sprints_count' => $this->when($request->has('with_counts'), function() {
+                return $this->sprints()->count();
+            }),
+
             // Include computed attributes when requested
             'completion_percentage' => $this->when($request->has('with_stats'), $this->completion_percentage),
 

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Events\TaskMovedEvent;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -206,4 +207,57 @@ class Task extends Model
 
         return $query->whereNotIn('status_id', [$doneStatusId, $canceledStatusId]);
     }
+
+    /**
+     * Move this task to a new board column, respecting workflow rules.
+     *
+     * @param BoardColumn $targetColumn The target column to move the task to
+     * @param bool $force Whether to bypass workflow rules (for admin use)
+     * @return bool Whether the move was successful
+     */
+    public function moveToColumn(BoardColumn $targetColumn, bool $force = false): bool
+    {
+        $currentColumn = $this->boardColumn;
+
+        // Skip validation if forced (admin action) or if there are no transition rules
+        if (!$force && !empty($currentColumn->allowed_transitions)) {
+            $allowedColumnIds = $currentColumn->allowed_transitions;
+
+            if (!in_array($targetColumn->id, $allowedColumnIds)) {
+                // Move not allowed by workflow rules
+                return false;
+            }
+        }
+
+        // Check WIP limit before moving
+        if ($targetColumn->wip_limit && !$force) {
+            $currentCount = $targetColumn->tasks()->count();
+            if ($currentCount >= $targetColumn->wip_limit) {
+                // WIP limit reached
+                return false;
+            }
+        }
+
+        // Store the old column for event data
+        $oldColumn = $this->boardColumn;
+
+        // Update the task's column
+        $this->board_column_id = $targetColumn->id;
+
+        // Update status if column maps to a status
+        if ($targetColumn->maps_to_status_id) {
+            $this->status_id = $targetColumn->maps_to_status_id;
+        }
+
+        // Save the changes
+        $saved = $this->save();
+
+        // Dispatch task moved event if successful
+        if ($saved) {
+            event(new TaskMovedEvent($this, $oldColumn, $targetColumn));
+        }
+
+        return $saved;
+    }
+
 }
