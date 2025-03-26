@@ -7,11 +7,18 @@ use App\Models\BoardColumn;
 use App\Models\BoardType;
 use App\Models\Project;
 use App\Models\Task;
-use Illuminate\Support\Collection;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 class BoardService
 {
+    protected SprintService $sprintService;
+
+    public function __construct(SprintService $sprintService)
+    {
+        $this->sprintService = $sprintService;
+    }
+
     /**
      * Create a board for a project using a specific board type.
      *
@@ -24,13 +31,99 @@ class BoardService
     {
         $boardType = BoardType::findOrFail($boardTypeId);
 
-        $boardData = array_merge([
-            'name' => $project->name . ' Board',
-            'project_id' => $project->id,
-            'description' => 'Default board for ' . $project->name,
-        ], $attributes);
+        return DB::transaction(function() use ($project, $boardType, $attributes) {
+            // Create board with default attributes
+            $boardData = array_merge([
+                'name' => $project->name . ' Board',
+                'project_id' => $project->id,
+                'description' => 'Default board for ' . $project->name,
+            ], $attributes);
 
-        return $boardType->createBoard($boardData);
+            $board = $boardType->createBoard($boardData);
+
+            // Initialize based on board type
+            $this->initializeBoardByType($board, $boardType);
+
+            return $board;
+        });
+    }
+
+    /**
+     * Initialize board with type-specific configuration.
+     */
+    protected function initializeBoardByType(Board $board, BoardType $boardType): void
+    {
+        // Get template settings
+        $settings = $boardType->template->settings ?? [];
+
+        // Initialize Scrum-specific features
+        if (isset($settings['sprint_support']) && $settings['sprint_support'] &&
+            strtolower($boardType->name) === 'scrum') {
+
+            // Create first sprint
+            $this->createInitialSprint($board);
+        }
+    }
+
+    /**
+     * Create initial sprint for Scrum boards.
+     */
+    protected function createInitialSprint(Board $board): void
+    {
+        $startDate = now();
+        $endDate = now()->addWeeks(2); // Default 2-week sprint
+
+        $this->sprintService->createSprint($board, [
+            'name' => 'Sprint 1',
+            'status' => 'planning',
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+            'goal' => 'Initial sprint'
+        ]);
+    }
+
+    /**
+     * Get all boards with optional filtering.
+     *
+     * @param array $filters Array of filter conditions
+     * @param array $with Related models to load
+     * @return Collection
+     */
+    public function getBoards(array $filters = [], array $with = []): Collection
+    {
+        $query = Board::query();
+
+        // Apply filters
+        if (isset($filters['project_id'])) {
+            $query->where('project_id', $filters['project_id']);
+        }
+
+        if (isset($filters['board_type_id'])) {
+            $query->where('board_type_id', $filters['board_type_id']);
+        }
+
+        if (isset($filters['is_archived'])) {
+            $query->where('is_archived', $filters['is_archived']);
+        }
+
+        // Load relationships
+        if (!empty($with)) {
+            $query->with($with);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Get a specific board by ID.
+     *
+     * @param int $boardId
+     * @param array $with Related models to load
+     * @return Board|null
+     */
+    public function getBoard(int $boardId, array $with = []): ?Board
+    {
+        return Board::with($with)->find($boardId);
     }
 
     /**
@@ -163,6 +256,9 @@ class BoardService
      */
     public function getBoardStatistics(Board $board): array
     {
+        // Load relationships for statistics
+        $board->load(['columns.tasks', 'tasks.status', 'tasks.assignee']);
+
         return [
             'total_tasks' => $board->tasks->count(),
             'completed_tasks' => $board->completed_tasks_count,
@@ -178,6 +274,80 @@ class BoardService
                 ->map(function ($tasks) {
                     return $tasks->count();
                 }),
+            'active_sprint' => $board->activeSprint,
+            'columns_count' => $board->columns->count(),
+            'overdue_tasks' => $board->tasks->filter(function($task) {
+                return $task->isOverdue();
+            })->count(),
         ];
+    }
+
+    /**
+     * Delete a board and related entities.
+     *
+     * @param Board $board
+     * @param bool $cascadeDelete Whether to delete related tasks
+     * @return bool
+     */
+    public function deleteBoard(Board $board, bool $cascadeDelete = false): bool
+    {
+        return DB::transaction(function() use ($board, $cascadeDelete) {
+            // Handle related sprints
+            foreach ($board->sprints as $sprint) {
+                $sprint->tasks()->detach();
+                $sprint->delete();
+            }
+
+            if ($cascadeDelete) {
+                // Delete tasks in this board
+                foreach ($board->tasks as $task) {
+                    $task->delete();
+                }
+            } else {
+                // Detach tasks from columns
+                foreach ($board->tasks as $task) {
+                    $task->update(['board_column_id' => null, 'board_id' => null]);
+                }
+            }
+
+            // Delete columns
+            $board->columns()->delete();
+
+            // Delete the board
+            return $board->delete();
+        });
+    }
+
+    /**
+     * Get tasks on a board with optional filtering.
+     *
+     * @param Board $board
+     * @param array $filters
+     * @param array $with Related models to load
+     * @return Collection
+     */
+    public function getBoardTasks(Board $board, array $filters = [], array $with = []): Collection
+    {
+        $query = $board->tasks();
+
+        // Apply filters
+        if (isset($filters['status_id'])) {
+            $query->where('status_id', $filters['status_id']);
+        }
+
+        if (isset($filters['column_id'])) {
+            $query->where('board_column_id', $filters['column_id']);
+        }
+
+        if (isset($filters['assignee_id'])) {
+            $query->where('assignee_id', $filters['assignee_id']);
+        }
+
+        // Load relationships
+        if (!empty($with)) {
+            $query->with($with);
+        }
+
+        return $query->get();
     }
 }

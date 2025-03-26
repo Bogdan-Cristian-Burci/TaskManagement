@@ -9,28 +9,24 @@ use App\Http\Resources\TaskResource;
 use App\Models\Board;
 use App\Models\Sprint;
 use App\Models\Task;
-use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Eloquent\Builder;
+use App\Services\SprintService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
-use Throwable;
 
 class SprintController extends Controller
 {
+    protected SprintService $sprintService;
 
-    /**
-     * Create a new controller instance.
-     */
-    public function __construct()
+    public function __construct(SprintService $sprintService)
     {
         $this->middleware('auth:api');
         $this->authorizeResource(Sprint::class, 'sprint', [
             'except' => ['index', 'boardSprints', 'store']
         ]);
+        $this->sprintService = $sprintService;
     }
 
     /**
@@ -38,80 +34,57 @@ class SprintController extends Controller
      *
      * @param Request $request
      * @return AnonymousResourceCollection
-     * @throws AuthorizationException
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Sprint::class);
 
-        $query = Sprint::query();
+        $filters = [];
+        $with = [];
 
-        // Filter by board if provided
+        // Build filters from request
         if ($request->has('board_id')) {
-            $boardId = $request->input('board_id');
-
-            // Verify user has access to this board
-            $board = Board::findOrFail($boardId);
+            $board = Board::findOrFail($request->input('board_id'));
             $this->authorize('view', $board);
-
-            $query->where('board_id', $boardId);
+            $filters['board_id'] = $board->id;
         }
 
-        // Filter by status if provided
         if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
+            $filters['status'] = $request->input('status');
         }
 
-        // Filter active sprints
         if ($request->boolean('active', false)) {
-            $query->active();
+            $filters['active'] = true;
         }
 
-        // Filter overdue sprints
         if ($request->boolean('overdue', false)) {
-            $query->overdue();
+            $filters['overdue'] = true;
         }
 
-        // Filter by date range
-        if ($request->has('start_after')) {
-            $query->where('start_date', '>=', $request->input('start_after'));
-        }
-
-        if ($request->has('end_before')) {
-            $query->where('end_date', '<=', $request->input('end_before'));
-        }
-
-        // Include relationships
+        // Build relationships to include
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
             $validIncludes = ['board', 'tasks'];
             foreach ($includes as $include) {
                 if (in_array($include, $validIncludes)) {
-                    $query->with($include);
+                    $with[] = $include;
                 }
             }
         }
 
-        // Include counts
-        if ($request->boolean('with_counts', false)) {
-            $query->withCount('tasks');
-            $query->withCount(['tasks as completed_tasks_count' => function (Builder $q) {
-                $q->where('status', 'completed');
-            }]);
-        }
+        // Build sort parameters
+        $filters['sort'] = $request->input('sort', 'start_date');
+        $filters['direction'] = $request->input('direction', 'desc');
 
-        // Sort by field
-        $sortField = $request->input('sort', 'start_date');
-        $sortDirection = $request->input('direction', 'desc');
-        $validSortFields = ['name', 'start_date', 'end_date', 'status', 'created_at'];
-
-        if (in_array($sortField, $validSortFields)) {
-            $query->orderBy($sortField, $sortDirection);
+        // If board ID was provided, use board sprints method
+        if (isset($filters['board_id'])) {
+            $board = Board::findOrFail($filters['board_id']);
+            $sprints = $this->sprintService->getBoardSprints($board, $filters, $with);
         } else {
-            $query->orderBy('start_date', 'desc');
+            // Otherwise query all sprints the user has access to
+            // This would need a more complex implementation in SprintService
+            $sprints = Sprint::with($with)->get();
         }
-
-        $sprints = $query->paginate($request->input('per_page', 15));
 
         return SprintResource::collection($sprints);
     }
@@ -122,43 +95,35 @@ class SprintController extends Controller
      * @param Request $request
      * @param Board $board
      * @return AnonymousResourceCollection
-     * @throws AuthorizationException
      */
     public function boardSprints(Request $request, Board $board): AnonymousResourceCollection
     {
         $this->authorize('view', $board);
 
-        $query = $board->sprints();
+        $filters = [];
+        $with = [];
 
-        // Filter by status if provided
+        // Build filters from request
         if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
+            $filters['status'] = $request->input('status');
         }
 
-        // Include relationships
+        // Build relationships to include
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
             $validIncludes = ['tasks'];
             foreach ($includes as $include) {
                 if (in_array($include, $validIncludes)) {
-                    $query->with($include);
+                    $with[] = $include;
                 }
             }
         }
 
-        // Include counts
-        if ($request->boolean('with_counts', false)) {
-            $query->withCount('tasks');
-            $query->withCount(['tasks as completed_tasks_count' => function (Builder $q) {
-                $q->where('status', 'completed');
-            }]);
-        }
+        // Build sort parameters
+        $filters['sort'] = $request->input('sort', 'start_date');
+        $filters['direction'] = $request->input('direction', 'desc');
 
-        // Sort by field
-        $sortDirection = $request->input('direction', 'desc');
-        $sortField = $request->input('sort', 'start_date');
-
-        $sprints = $query->orderBy($sortField, $sortDirection)->get();
+        $sprints = $this->sprintService->getBoardSprints($board, $filters, $with);
 
         return SprintResource::collection($sprints);
     }
@@ -168,13 +133,33 @@ class SprintController extends Controller
      *
      * @param SprintRequest $request
      * @return SprintResource
-     * @throws AuthorizationException
      */
     public function store(SprintRequest $request): SprintResource
     {
         $this->authorize('create', [Sprint::class, $request->input('board_id')]);
 
-        $sprint = Sprint::create($request->validated());
+        $board = Board::findOrFail($request->input('board_id'));
+        $sprint = $this->sprintService->createSprint($board, $request->validated());
+
+        return new SprintResource($sprint->load('board'));
+    }
+
+    /**
+     * Store a sprint for a specific board.
+     *
+     * @param SprintRequest $request
+     * @param Board $board
+     * @return SprintResource
+     */
+    public function storeForBoard(SprintRequest $request, Board $board): SprintResource
+    {
+        $this->authorize('create', [Sprint::class, $board->id]);
+
+        // Remove board_id from request data since we're using route model binding
+        $data = $request->validated();
+        unset($data['board_id']);
+
+        $sprint = $this->sprintService->createSprint($board, $data);
 
         return new SprintResource($sprint->load('board'));
     }
@@ -188,6 +173,8 @@ class SprintController extends Controller
      */
     public function show(Request $request, Sprint $sprint): SprintResource
     {
+        $with = [];
+
         // Load relationships if requested
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
@@ -195,17 +182,11 @@ class SprintController extends Controller
 
             foreach ($includes as $include) {
                 if (in_array($include, $validIncludes)) {
-                    $sprint->load($include);
+                    $with[] = $include;
                 }
             }
-        }
 
-        // Load task counts if requested
-        if ($request->boolean('with_counts', false)) {
-            $sprint->loadCount('tasks');
-            $sprint->loadCount(['tasks as completed_tasks_count' => function ($query) {
-                $query->where('status', 'completed');
-            }]);
+            $sprint->load($with);
         }
 
         return new SprintResource($sprint);
@@ -220,8 +201,7 @@ class SprintController extends Controller
      */
     public function update(SprintRequest $request, Sprint $sprint): SprintResource
     {
-        $sprint->update($request->validated());
-
+        $sprint = $this->sprintService->updateSprint($sprint, $request->validated());
         return new SprintResource($sprint->load('board'));
     }
 
@@ -229,20 +209,20 @@ class SprintController extends Controller
      * Remove the specified sprint from storage.
      *
      * @param Sprint $sprint
-     * @return Response
+     * @return Response|JsonResponse
      */
-    public function destroy(Sprint $sprint): Response
+    public function destroy(Sprint $sprint): Response|JsonResponse
     {
-        // Check if sprint has tasks
-        if ($sprint->tasks()->count() > 0) {
-            return response([
+        $canDelete = $this->sprintService->canDeleteSprint($sprint);
+
+        if (!$canDelete['can_delete']) {
+            return response()->json([
                 'message' => 'Cannot delete sprint that has associated tasks. Please remove tasks first.',
-                'tasks_count' => $sprint->tasks()->count()
+                'tasks_count' => $canDelete['task_count'] ?? 0
             ], ResponseAlias::HTTP_CONFLICT);
         }
 
-        $sprint->delete();
-
+        $this->sprintService->deleteSprint($sprint);
         return response()->noContent();
     }
 
@@ -251,7 +231,6 @@ class SprintController extends Controller
      *
      * @param int $id
      * @return SprintResource
-     * @throws AuthorizationException
      */
     public function restore(int $id): SprintResource
     {
@@ -259,7 +238,6 @@ class SprintController extends Controller
         $this->authorize('restore', $sprint);
 
         $sprint->restore();
-
         return new SprintResource($sprint->load('board'));
     }
 
@@ -267,23 +245,20 @@ class SprintController extends Controller
      * Start a sprint.
      *
      * @param Sprint $sprint
-     * @return SprintResource | JsonResponse
-     * @throws AuthorizationException
+     * @return SprintResource|JsonResponse
      */
-    public function start(Sprint $sprint): SprintResource | JsonResponse
+    public function start(Sprint $sprint): SprintResource|JsonResponse
     {
         $this->authorize('start', $sprint);
 
-        if ($sprint->status !== 'planning') {
-            return response([
-                'message' => 'Sprint can only be started from planning status.',
-            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY)->json();
+        try {
+            $sprint = $this->sprintService->startSprint($sprint);
+            return new SprintResource($sprint->load('board'));
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
-
-        $sprint->status = 'active';
-        $sprint->save();
-
-        return new SprintResource($sprint->load('board'));
     }
 
     /**
@@ -291,44 +266,34 @@ class SprintController extends Controller
      *
      * @param Request $request
      * @param Sprint $sprint
-     * @return SprintResource | JsonResponse
-     * @throws AuthorizationException|Throwable
+     * @return SprintResource|JsonResponse
      */
-    public function complete(Request $request, Sprint $sprint): SprintResource | JsonResponse
+    public function complete(Request $request, Sprint $sprint): SprintResource|JsonResponse
     {
         $this->authorize('complete', $sprint);
 
-        if ($sprint->status !== 'active') {
-            return response([
-                'message' => 'Only active sprints can be completed.',
-            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY)->json();
-        }
+        try {
+            $moveIncompleteTo = null;
 
-        // If requested, move incomplete tasks to a new or existing sprint
-        if ($request->has('move_incomplete_tasks')) {
-            $targetSprintId = $request->input('target_sprint_id');
+            // If requested, move incomplete tasks to a new or existing sprint
+            if ($request->has('move_incomplete_tasks') && $request->has('target_sprint_id')) {
+                $moveIncompleteTo = Sprint::findOrFail($request->input('target_sprint_id'));
 
-            DB::transaction(function() use ($sprint, $targetSprintId) {
-                $incompleteTasks = $sprint->tasks()
-                    ->where('status', '!=', 'completed')
-                    ->get();
-
-                // Detach tasks from current sprint
-                $taskIds = $incompleteTasks->pluck('id')->toArray();
-                $sprint->tasks()->detach($taskIds);
-
-                // Attach to target sprint
-                if ($targetSprintId) {
-                    $targetSprint = Sprint::findOrFail($targetSprintId);
-                    $targetSprint->tasks()->attach($taskIds);
+                // Check if target sprint is in the same board
+                if ($moveIncompleteTo->board_id !== $sprint->board_id) {
+                    return response()->json([
+                        'message' => 'Target sprint must be in the same board'
+                    ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
                 }
-            });
+            }
+
+            $sprint = $this->sprintService->completeSprint($sprint, $moveIncompleteTo);
+            return new SprintResource($sprint->load('board'));
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
-
-        $sprint->status = 'completed';
-        $sprint->save();
-
-        return new SprintResource($sprint->load('board'));
     }
 
     /**
@@ -340,41 +305,34 @@ class SprintController extends Controller
      */
     public function tasks(Request $request, Sprint $sprint): AnonymousResourceCollection
     {
-        $query = $sprint->tasks();
+        $filters = [];
+        $with = ['status', 'assignee', 'boardColumn'];
 
-        // Filter by status
-        if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
+        // Add filters from request
+        if ($request->has('status_id')) {
+            $filters['status_id'] = $request->input('status_id');
         }
 
-        // Filter by assignee
         if ($request->has('assignee_id')) {
-            $query->where('assignee_id', $request->input('assignee_id'));
+            $filters['assignee_id'] = $request->input('assignee_id');
         }
 
-        // Include relationships
+        // Add sort parameters
+        $filters['sort'] = $request->input('sort', 'created_at');
+        $filters['direction'] = $request->input('direction', 'desc');
+
+        // Add additional relationships
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
-            $validIncludes = ['assignee', 'reporter', 'subtasks', 'tags'];
+            $validIncludes = ['reporter', 'subtasks', 'tags'];
             foreach ($includes as $include) {
                 if (in_array($include, $validIncludes)) {
-                    $query->with($include);
+                    $with[] = $include;
                 }
             }
         }
 
-        // Sort by field
-        $sortField = $request->input('sort', 'created_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $validSortFields = ['title', 'status', 'priority', 'created_at', 'updated_at'];
-
-        if (in_array($sortField, $validSortFields)) {
-            $query->orderBy($sortField, $sortDirection);
-        } else {
-            $query->orderBy('created_at', 'desc');
-        }
-
-        $tasks = $query->paginate($request->input('per_page', 15));
+        $tasks = $this->sprintService->getSprintTasks($sprint, $filters, $with);
 
         return TaskResource::collection($tasks);
     }
@@ -385,53 +343,26 @@ class SprintController extends Controller
      * @param SprintTaskRequest $request
      * @param Sprint $sprint
      * @return JsonResponse
-     * @throws AuthorizationException
      */
     public function addTasks(SprintTaskRequest $request, Sprint $sprint): JsonResponse
     {
         $this->authorize('manageTasks', $sprint);
 
-        $taskIds = $request->input('task_ids');
+        try {
+            $taskIds = $request->input('task_ids');
+            $tasks = $this->sprintService->addTasksToSprint($sprint, $taskIds);
 
-        // Check that all tasks belong to the same project as the sprint's board
-        $boardId = $sprint->board_id;
-        $board = Board::findOrFail($boardId);
-        $projectId = $board->project_id;
-
-        $invalidTasks = Task::whereIn('id', $taskIds)
-            ->where('project_id', '!=', $projectId)
-            ->count();
-
-        if ($invalidTasks > 0) {
             return response()->json([
-                'message' => 'All tasks must belong to the same project as the sprint.',
-                'invalid_tasks_count' => $invalidTasks
+                'message' => count($taskIds) . ' tasks added to sprint',
+                'sprint_id' => $sprint->id,
+                'task_ids' => $taskIds,
+                'tasks' => TaskResource::collection($tasks)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
             ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
-
-        // Ensure tasks aren't already in another active sprint
-        $activeSprints = Sprint::where('status', 'active')
-            ->where('id', '!=', $sprint->id)
-            ->whereHas('tasks', function ($query) use ($taskIds) {
-                $query->whereIn('tasks.id', $taskIds);
-            })
-            ->count();
-
-        if ($activeSprints > 0) {
-            return response()->json([
-                'message' => 'Some tasks are already assigned to other active sprints.',
-                'active_sprints_count' => $activeSprints
-            ], ResponseAlias::HTTP_CONFLICT);
-        }
-
-        // Attach tasks to sprint
-        $sprint->tasks()->syncWithoutDetaching($taskIds);
-
-        return response()->json([
-            'message' => count($taskIds) . ' tasks added to sprint',
-            'sprint_id' => $sprint->id,
-            'task_ids' => $taskIds
-        ]);
     }
 
     /**
@@ -440,16 +371,13 @@ class SprintController extends Controller
      * @param SprintTaskRequest $request
      * @param Sprint $sprint
      * @return JsonResponse
-     * @throws AuthorizationException
      */
     public function removeTasks(SprintTaskRequest $request, Sprint $sprint): JsonResponse
     {
         $this->authorize('manageTasks', $sprint);
 
         $taskIds = $request->input('task_ids');
-
-        // Detach tasks from sprint
-        $sprint->tasks()->detach($taskIds);
+        $this->sprintService->removeTasksFromSprint($sprint, $taskIds);
 
         return response()->json([
             'message' => count($taskIds) . ' tasks removed from sprint',
@@ -466,52 +394,7 @@ class SprintController extends Controller
      */
     public function statistics(Sprint $sprint): JsonResponse
     {
-        // Load task counts by status
-        $tasksByStatus = $sprint->tasks()
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-
-        // Load task counts by assignee
-        $tasksByAssignee = $sprint->tasks()
-            ->select('assignee_id', DB::raw('count(*) as count'))
-            ->groupBy('assignee_id')
-            ->pluck('count', 'assignee_id')
-            ->toArray();
-
-        // Get completion percentage
-        $totalTasks = $sprint->tasks()->count();
-        $completedTasks = $sprint->tasks()->where('status', 'completed')->count();
-        $completionPercentage = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100, 2) : 0;
-
-        // Calculate velocity (story points completed)
-        $velocity = $sprint->tasks()
-            ->where('status', 'completed')
-            ->sum('story_points');
-
-        // Calculate daily completion trend
-        $completedTasksByDay = $sprint->tasks()
-            ->where('status', 'completed')
-            ->whereNotNull('completed_at')
-            ->select(DB::raw('DATE(completed_at) as date'), DB::raw('count(*) as count'))
-            ->groupBy('date')
-            ->pluck('count', 'date')
-            ->toArray();
-
-        return response()->json([
-            'tasks_by_status' => $tasksByStatus,
-            'tasks_by_assignee' => $tasksByAssignee,
-            'completion_percentage' => $completionPercentage,
-            'total_tasks' => $totalTasks,
-            'completed_tasks' => $completedTasks,
-            'velocity' => $velocity,
-            'completion_trend' => $completedTasksByDay,
-            'days_remaining' => $sprint->days_remaining,
-            'progress' => $sprint->progress,
-            'is_active' => $sprint->is_active,
-            'is_completed' => $sprint->is_completed,
-            'is_overdue' => $sprint->is_overdue,
-        ]);
+        $stats = $this->sprintService->getSprintStatistics($sprint);
+        return response()->json($stats);
     }
 }

@@ -11,31 +11,24 @@ use App\Http\Resources\TaskResource;
 use App\Http\Resources\UserResource;
 use App\Models\Project;
 use App\Models\User;
-use App\Services\BoardService;
-use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Eloquent\Builder;
+use App\Services\ProjectService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
-use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class ProjectController extends Controller
 {
+    protected ProjectService $projectService;
 
-    protected BoardService $boardService;
-
-    /**
-     * Create a new controller instance.
-     */
-    public function __construct(BoardService $boardService)
+    public function __construct(ProjectService $projectService)
     {
         $this->middleware('auth:api');
         $this->authorizeResource(Project::class, 'project', [
             'except' => ['index', 'store']
         ]);
-        $this->boardService = $boardService;
+        $this->projectService = $projectService;
     }
 
     /**
@@ -43,87 +36,52 @@ class ProjectController extends Controller
      *
      * @param Request $request
      * @return AnonymousResourceCollection
-     * @throws AuthorizationException
      */
     public function index(Request $request): AnonymousResourceCollection
     {
         $this->authorize('viewAny', Project::class);
 
-        $query = Project::query();
+        $filters = [];
+        $with = ['organisation', 'team'];
 
-        // Filter by organisation if specified
+        // Build filters from request parameters
         if ($request->has('organisation_id')) {
-            $query->where('organisation_id', $request->input('organisation_id'));
+            $filters['organisation_id'] = $request->input('organisation_id');
         } else if ($request->user()->organisation_id) {
             // Default to user's organisation if no filter is specified
-            $query->where('organisation_id', $request->user()->organisation_id);
+            $filters['organisation_id'] = $request->user()->organisation_id;
         }
 
-        // Filter by team if specified
         if ($request->has('team_id')) {
-            $query->where('team_id', $request->input('team_id'));
+            $filters['team_id'] = $request->input('team_id');
         }
 
-        // Filter by status if specified
         if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
+            $filters['status'] = $request->input('status');
         }
 
         // Filter by user involvement
         if ($request->has('my_projects') && $request->boolean('my_projects')) {
-            $query->whereHas('users', function (Builder $q) use ($request) {
-                $q->where('users.id', $request->user()->id);
-            });
+            $filters['user_id'] = $request->user()->id;
         }
 
         // Search by name or key
         if ($request->has('search')) {
-            $search = $request->input('search');
-            $query->where(function (Builder $q) use ($search) {
-                $q->where('name', 'like', "%{$search}%")
-                    ->orWhere('key', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
-            });
+            $filters['search'] = $request->input('search');
         }
 
-        // Include relationships
-        $relationships = ['organisation', 'team'];
-
+        // Add relationships to load
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
             $validIncludes = ['users', 'boards', 'tasks', 'tags'];
             foreach ($includes as $include) {
                 if (in_array($include, $validIncludes)) {
-                    $relationships[] = $include;
+                    $with[] = $include;
                 }
             }
         }
 
-        $query->with($relationships);
-
-        // Add count metrics
-        $counters = ['boards', 'tasks', 'users'];
-        if ($request->has('with_counts')) {
-            $query->withCount($counters);
-
-            // Add open tasks count
-            $query->withCount(['tasks as open_tasks_count' => function (Builder $q) {
-                $q->where('status', '!=', 'completed');
-            }]);
-        }
-
-        // Handle sorting
-        $sortColumn = $request->input('sort', 'created_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $validColumns = ['name', 'key', 'created_at', 'updated_at', 'status', 'start_date', 'end_date'];
-
-        if (in_array($sortColumn, $validColumns)) {
-            $query->orderBy($sortColumn, $sortDirection);
-        } else {
-            $query->orderBy('created_at', 'desc');
-        }
-
-        $projects = $query->paginate($request->input('per_page', 15));
+        $projects = $this->projectService->getProjects($filters, $with);
 
         return ProjectResource::collection($projects);
     }
@@ -133,23 +91,15 @@ class ProjectController extends Controller
      *
      * @param ProjectRequest $request
      * @return ProjectResource
-     * @throws AuthorizationException|\Throwable
      */
-    public function store(ProjectRequest $request)
+    public function store(ProjectRequest $request): ProjectResource
     {
-        $project = DB::transaction(function() use ($request) {
-            $project = Project::create($request->validated());
+        $this->authorize('create', Project::class);
 
-            // Create default board if board_type_id is provided
-            if ($request->has('board_type_id')) {
-                $this->boardService->createBoard(
-                    $project,
-                    $request->input('board_type_id')
-                );
-            }
-
-            return $project;
-        });
+        $project = $this->projectService->createProject(
+            $request->validated(),
+            $request->input('board_type_id')
+        );
 
         return new ProjectResource($project->load(['team', 'boards']));
     }
@@ -163,28 +113,20 @@ class ProjectController extends Controller
      */
     public function show(Request $request, Project $project): ProjectResource
     {
-        $relationships = ['organisation', 'team'];
+        $with = ['organisation', 'team'];
 
+        // Add relationships to load
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
             $validIncludes = ['users', 'boards', 'tasks', 'tags'];
             foreach ($includes as $include) {
                 if (in_array($include, $validIncludes)) {
-                    $relationships[] = $include;
+                    $with[] = $include;
                 }
             }
         }
 
-        $project->load($relationships);
-
-        if ($request->has('with_counts')) {
-            $project->loadCount(['boards', 'tasks', 'users']);
-
-            // Add open tasks count
-            $project->loadCount(['tasks as open_tasks_count' => function ($query) {
-                $query->where('status', '!=', 'completed');
-            }]);
-        }
+        $project->load($with);
 
         return new ProjectResource($project);
     }
@@ -198,36 +140,30 @@ class ProjectController extends Controller
      */
     public function update(ProjectRequest $request, Project $project): ProjectResource
     {
-        $validatedData = $request->validated();
-        $project->update($validatedData);
-
+        $project = $this->projectService->updateProject($project, $request->validated());
         return new ProjectResource($project->load(['organisation', 'team']));
     }
 
     /**
      * Remove the specified project from storage.
      *
+     * @param Request $request
      * @param Project $project
-     * @return Response
+     * @return Response|JsonResponse
      */
-    public function destroy(Project $project): Response
+    public function destroy(Request $request, Project $project): Response|JsonResponse
     {
-        // Check if there are any tasks with dependencies in this project
-        $hasTaskDependencies = $project->tasks()
-            ->whereHas('dependencies')
-            ->orWhereHas('dependents')
-            ->exists();
+        // Check if we should cascade delete related entities
+        $cascadeDelete = $request->boolean('cascade_delete', false);
 
-        if ($hasTaskDependencies) {
-            return response([
-                'message' => 'Cannot delete project with task dependencies. Please remove dependencies first.',
-                'has_task_dependencies' => true
-            ], ResponseAlias::HTTP_CONFLICT);
+        try {
+            $this->projectService->deleteProject($project, $cascadeDelete);
+            return response()->noContent();
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
-
-        $project->delete();
-
-        return response()->noContent();
     }
 
     /**
@@ -235,7 +171,6 @@ class ProjectController extends Controller
      *
      * @param int $id
      * @return ProjectResource
-     * @throws AuthorizationException
      */
     public function restore(int $id): ProjectResource
     {
@@ -243,7 +178,6 @@ class ProjectController extends Controller
         $this->authorize('restore', $project);
 
         $project->restore();
-
         return new ProjectResource($project->load(['organisation', 'team']));
     }
 
@@ -253,7 +187,6 @@ class ProjectController extends Controller
      * @param AttachUserToProjectRequest $request
      * @param Project $project
      * @return ProjectResource
-     * @throws AuthorizationException
      */
     public function attachUsers(AttachUserToProjectRequest $request, Project $project): ProjectResource
     {
@@ -263,16 +196,14 @@ class ProjectController extends Controller
         $userIds = $validated['user_ids'];
         $role = $validated['role'] ?? 'member';
 
-        // Prepare data with pivot values
-        $usersWithRoles = [];
-        foreach ($userIds as $userId) {
-            $usersWithRoles[$userId] = ['role' => $role];
+        try {
+            $this->projectService->addUsersToProject($project, $userIds, $role);
+            return new ProjectResource($project->fresh(['users']));
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
-
-        // Attach users with roles without detaching existing users
-        $project->users()->syncWithoutDetaching($usersWithRoles);
-
-        return new ProjectResource($project->load('users'));
     }
 
     /**
@@ -281,7 +212,6 @@ class ProjectController extends Controller
      * @param DetachUserFromProjectRequest $request
      * @param Project $project
      * @return JsonResponse
-     * @throws AuthorizationException
      */
     public function detachUser(DetachUserFromProjectRequest $request, Project $project): JsonResponse
     {
@@ -289,30 +219,27 @@ class ProjectController extends Controller
 
         $validated = $request->validated();
 
-        // Check that we're not removing the last manager
-        if ($project->users()->wherePivot('role', 'manager')->count() === 1) {
-            $userToRemove = User::find($validated['user_id']);
-            $userIsManager = $project->users()
-                ->where('users.id', $validated['user_id'])
-                ->wherePivot('role', 'manager')
-                ->exists();
+        try {
+            $userId = $validated['user_id'];
+            $reassignTasks = $request->boolean('reassign_tasks', false);
+            $reassignToUserId = $request->input('reassign_to_user_id');
 
-            if ($userIsManager) {
-                return response()->json([
-                    'message' => 'Cannot remove the last project manager. Assign a new manager first.'
-                ], ResponseAlias::HTTP_CONFLICT);
-            }
+            $this->projectService->removeUserFromProject(
+                $project,
+                User::findOrFail($userId),
+                $reassignTasks,
+                $reassignToUserId
+            );
+
+            return response()->json([
+                'message' => 'User successfully removed from project',
+                'project' => new ProjectResource($project->fresh(['users']))
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
+            ], ResponseAlias::HTTP_CONFLICT);
         }
-
-        // Detach the user
-        $project->users()->detach($validated['user_id']);
-
-        // Also remove user from any tasks in this project
-        $project->tasks()
-            ->where('assignee_id', $validated['user_id'])
-            ->update(['assignee_id' => null]);
-
-        return (new ProjectResource($project->load('users')))->response();
     }
 
     /**
@@ -322,7 +249,6 @@ class ProjectController extends Controller
      * @param Project $project
      * @param User $user
      * @return JsonResponse
-     * @throws AuthorizationException
      */
     public function updateUserRole(Request $request, Project $project, User $user): JsonResponse
     {
@@ -332,21 +258,19 @@ class ProjectController extends Controller
             'role' => 'required|string|in:manager,developer,member',
         ]);
 
-        // Check if user is part of the project
-        if (!$project->users->contains($user->id)) {
+        try {
+            $this->projectService->updateUserRole($project, $user, $request->input('role'));
+
             return response()->json([
-                'message' => 'User is not a member of this project.'
+                'message' => 'User role updated successfully',
+                'user_id' => $user->id,
+                'role' => $request->input('role')
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => $e->getMessage()
             ], ResponseAlias::HTTP_BAD_REQUEST);
         }
-
-        // Update the role
-        $project->users()->updateExistingPivot($user->id, ['role' => $request->role]);
-
-        return response()->json([
-            'message' => 'User role updated successfully',
-            'user_id' => $user->id,
-            'role' => $request->role
-        ]);
     }
 
     /**
@@ -358,7 +282,6 @@ class ProjectController extends Controller
     public function users(Project $project): AnonymousResourceCollection
     {
         $users = $project->users()->with('roles')->get();
-
         return UserResource::collection($users);
     }
 
@@ -378,8 +301,12 @@ class ProjectController extends Controller
             $query->with('columns');
         }
 
-        $boards = $query->get();
+        // Include active sprint if requested
+        if ($request->has('with_active_sprint')) {
+            $query->with('activeSprint');
+        }
 
+        $boards = $query->get();
         return BoardResource::collection($boards);
     }
 
@@ -392,51 +319,38 @@ class ProjectController extends Controller
      */
     public function tasks(Request $request, Project $project): AnonymousResourceCollection
     {
-        $query = $project->tasks();
+        $filters = [];
+        $with = ['status', 'assignee', 'board', 'boardColumn'];
 
-        // Filter by status
-        if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
+        // Build filters from request
+        if ($request->has('status_id')) {
+            $filters['status_id'] = $request->input('status_id');
         }
 
-        // Filter by priority
-        if ($request->has('priority')) {
-            $query->where('priority', $request->input('priority'));
+        if ($request->has('priority_id')) {
+            $filters['priority_id'] = $request->input('priority_id');
         }
 
-        // Filter by assignee
         if ($request->has('assignee_id')) {
-            $query->where('assignee_id', $request->input('assignee_id'));
+            $filters['assignee_id'] = $request->input('assignee_id');
         }
 
-        // Include relationships
-        $relationships = [];
-
+        // Add relationships to load
         if ($request->has('include')) {
             $includes = explode(',', $request->input('include'));
-            $validIncludes = ['assignee', 'board', 'column', 'reporter', 'subtasks', 'tags'];
+            $validIncludes = ['reporter', 'subtasks', 'tags'];
             foreach ($includes as $include) {
                 if (in_array($include, $validIncludes)) {
-                    $relationships[] = $include;
+                    $with[] = $include;
                 }
             }
-
-            $query->with($relationships);
         }
 
-        // Sort by specified field
-        $sortField = $request->input('sort', 'created_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $validSortFields = ['created_at', 'updated_at', 'title', 'priority', 'status', 'due_date'];
+        // Add sort parameters
+        $filters['sort'] = $request->input('sort', 'created_at');
+        $filters['direction'] = $request->input('direction', 'desc');
 
-        if (in_array($sortField, $validSortFields)) {
-            $query->orderBy($sortField, $sortDirection);
-        } else {
-            $query->orderBy('created_at', 'desc');
-        }
-
-        $tasks = $query->paginate($request->input('per_page', 15));
-
+        $tasks = $this->projectService->getProjectTasks($project, $filters, $with);
         return TaskResource::collection($tasks);
     }
 
@@ -448,54 +362,35 @@ class ProjectController extends Controller
      */
     public function statistics(Project $project): JsonResponse
     {
-        // Load task counts by status
-        $tasksByStatus = $project->tasks()
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
+        $stats = $this->projectService->getProjectStatistics($project);
+        return response()->json($stats);
+    }
 
-        // Load task counts by priority
-        $tasksByPriority = $project->tasks()
-            ->select('priority', DB::raw('count(*) as count'))
-            ->groupBy('priority')
-            ->pluck('count', 'priority')
-            ->toArray();
+    /**
+     * Add a board to a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return BoardResource
+     */
+    public function addBoard(Request $request, Project $project): BoardResource
+    {
+        $this->authorize('update', $project);
 
-        // Calculate completion percentage
-        $totalTasks = $project->tasks()->count();
-        $completedTasks = $project->tasks()->where('status', 'completed')->count();
-        $completionPercentage = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100, 2) : 0;
-
-        // Get recent activity
-        $recentActivity = $project->tasks()
-            ->orderBy('updated_at', 'desc')
-            ->take(5)
-            ->with('assignee')
-            ->get()
-            ->map(function($task) {
-                return [
-                    'id' => $task->id,
-                    'title' => $task->title,
-                    'status' => $task->status,
-                    'updated_at' => $task->updated_at,
-                    'assignee' => $task->assignee ? [
-                        'id' => $task->assignee->id,
-                        'name' => $task->assignee->name
-                    ] : null
-                ];
-            });
-
-        return response()->json([
-            'tasks_by_status' => $tasksByStatus,
-            'tasks_by_priority' => $tasksByPriority,
-            'completion_percentage' => $completionPercentage,
-            'total_tasks' => $totalTasks,
-            'completed_tasks' => $completedTasks,
-            'recent_activity' => $recentActivity,
-            'users_count' => $project->users()->count(),
-            'days_remaining' => $project->end_date ? now()->diffInDays($project->end_date, false) : null,
-            'is_overdue' => $project->is_overdue,
+        $request->validate([
+            'board_type_id' => 'required|exists:board_types,id',
+            'name' => 'sometimes|string|max:255',
+            'description' => 'sometimes|string',
         ]);
+
+        $attributes = array_filter($request->only(['name', 'description']));
+
+        $board = $this->projectService->addBoard(
+            $project,
+            $request->input('board_type_id'),
+            $attributes
+        );
+
+        return new BoardResource($board->load('columns'));
     }
 }

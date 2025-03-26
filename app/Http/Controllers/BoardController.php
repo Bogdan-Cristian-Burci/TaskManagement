@@ -3,441 +3,215 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\BoardRequest;
-use App\Http\Resources\BoardResource;
-use App\Http\Resources\SprintResource;
-use App\Http\Resources\TaskResource;
 use App\Http\Resources\BoardColumnResource;
+use App\Http\Resources\BoardResource;
+use App\Http\Resources\TaskResource;
 use App\Models\Board;
-use App\Models\Project;
 use App\Services\BoardService;
-use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Foundation\Auth\Access\AuthorizesRequests;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Http\Response;
-use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class BoardController extends Controller
 {
-
     protected BoardService $boardService;
-    /**
-     * Create a new controller instance.
-     */
+
     public function __construct(BoardService $boardService)
     {
         $this->boardService = $boardService;
-        $this->authorizeResource(Board::class, 'board', [
-            'except' => ['index', 'projectBoards', 'store']
-        ]);
+        $this->authorizeResource(Board::class, 'board');
     }
 
     /**
      * Display a listing of the boards.
+     *
+     * @param Request $request
+     * @return AnonymousResourceCollection
      */
     public function index(Request $request): AnonymousResourceCollection
     {
-        $this->authorize('viewAny', Board::class);
+        $filters = [];
+        $with = ['project'];
 
-        $query = Board::query();
-
-        // Filter by project
+        // Add filters from request parameters
         if ($request->has('project_id')) {
-            $projectId = $request->input('project_id');
-
-            // Verify user has access to this project
-            $project = Project::findOrFail($projectId);
-            $this->authorize('view', $project);
-
-            $query->byProject($projectId);
-        } else {
-            // If no project specified, only show boards from projects the user has access to
-            $projectIds = $request->user()->projects()->pluck('projects.id')->toArray();
-            $query->whereIn('project_id', $projectIds);
+            $filters['project_id'] = $request->project_id;
         }
 
-        // Filter by board type
         if ($request->has('board_type_id')) {
-            $query->byType($request->input('board_type_id'));
+            $filters['board_type_id'] = $request->board_type_id;
         }
 
-        // Filter by archive status
-        if ($request->has('archived')) {
-            $query->where('is_archived', $request->boolean('archived'));
+        if ($request->has('is_archived')) {
+            $filters['is_archived'] = $request->boolean('is_archived');
         }
 
-        // Filter by name search
-        if ($request->has('search')) {
-            $search = $request->input('search');
-            $query->where(function ($query) use ($search) {
-                $query->where('name', 'like', "%{$search}%")
-                    ->orWhere('description', 'like', "%{$search}%");
-            });
+        // Add relationships to load
+        if ($request->has('with_columns')) {
+            $with[] = 'columns';
         }
 
-        // Filter by recent activity
-        if ($request->has('with_recent_activity')) {
-            $days = $request->input('days', 7);
-            $query->withRecentActivity($days);
+        if ($request->has('with_active_sprint')) {
+            $with[] = 'activeSprint';
         }
 
-        // Include relationships
-        if ($request->has('include')) {
-            $includes = explode(',', $request->input('include'));
-            $validIncludes = ['project', 'boardType', 'columns'];
-            foreach ($includes as $include) {
-                if (in_array($include, $validIncludes)) {
-                    $query->with($include);
-                }
-            }
-        }
-
-        // Include counts
-        if ($request->boolean('with_counts', false)) {
-            $query->withCount(['tasks', 'columns']);
-        }
-
-        // Sort by field
-        $sortField = $request->input('sort', 'created_at');
-        $sortDirection = $request->input('direction', 'desc');
-        $validSortFields = ['name', 'created_at', 'updated_at'];
-
-        if (in_array($sortField, $validSortFields)) {
-            $query->orderBy($sortField, $sortDirection);
-        } else {
-            $query->orderBy('created_at', 'desc');
-        }
-
-        $boards = $query->paginate($request->input('per_page', 15));
+        $boards = $this->boardService->getBoards($filters, $with);
 
         return BoardResource::collection($boards);
-    }
-
-    /**
-     * Get boards for a specific project.
-     */
-    public function projectBoards(Request $request, Project $project): AnonymousResourceCollection
-    {
-        $this->authorize('view', $project);
-
-        $query = $project->boards();
-
-        // Filter by board type
-        if ($request->has('board_type_id')) {
-            $query->where('board_type_id', $request->input('board_type_id'));
-        }
-
-        // Filter by archive status
-        if ($request->has('archived')) {
-            $query->where('is_archived', $request->boolean('archived'));
-        } else {
-            // Default to non-archived boards
-            $query->where('is_archived', false);
-        }
-
-        // Include relationships
-        if ($request->has('include')) {
-            $includes = explode(',', $request->input('include'));
-            $validIncludes = ['boardType', 'columns'];
-            foreach ($includes as $include) {
-                if (in_array($include, $validIncludes)) {
-                    $query->with($include);
-                }
-            }
-        }
-
-        // Include counts
-        if ($request->boolean('with_counts', false)) {
-            $query->withCount(['tasks', 'columns']);
-        }
-
-        // Sort by field
-        $sortField = $request->input('sort', 'name');
-        $sortDirection = $request->input('direction', 'asc');
-
-        $boards = $query->orderBy($sortField, $sortDirection)->get();
-
-        return BoardResource::collection($boards);
-    }
-
-    /**
-     * Store a newly created board in storage.
-     */
-    public function store(BoardRequest $request): BoardResource
-    {
-        $this->authorize('create', Board::class);
-
-        $board = Board::create($request->validated());
-
-        // Create default columns if board type has predefined columns
-        $boardType = $board->boardType;
-        if ($boardType && $boardType->template) {
-            // Use template's columns_structure
-            $columnsStructure = $boardType->template->columns_structure ?? [];
-
-            foreach ($columnsStructure as $index => $column) {
-                $board->columns()->create([
-                    'name' => $column['name'],
-                    'position' => $index + 1,
-                    'color' => $column['color'] ?? '#6C757D',
-                    'wip_limit' => $column['wip_limit'] ?? null,
-                    'maps_to_status_id' => $column['status_id'] ?? null,
-                ]);
-            }
-        }
-
-        // Load the relationships needed for the response
-        $board->load(['project', 'boardType', 'columns']);
-
-        return new BoardResource($board);
     }
 
     /**
      * Display the specified board.
+     *
+     * @param Request $request
+     * @param Board $board
+     * @return BoardResource
      */
     public function show(Request $request, Board $board): BoardResource
     {
-        // Load relationships if requested
-        if ($request->has('include')) {
-            $includes = explode(',', $request->input('include'));
-            $validIncludes = ['project', 'boardType', 'columns'];
+        $with = ['project', 'boardType'];
 
-            foreach ($includes as $include) {
-                if (in_array($include, $validIncludes)) {
-                    $board->load($include);
-                }
-            }
+        // Add relationships to load
+        if ($request->has('with_columns')) {
+            $with[] = 'columns';
         }
 
-        // Load counts if requested
-        if ($request->boolean('with_counts', false)) {
-            $board->loadCount(['tasks', 'columns']);
+        if ($request->has('with_active_sprint')) {
+            $with[] = 'activeSprint';
         }
+
+        $board->load($with);
 
         return new BoardResource($board);
     }
 
     /**
-     * Update the specified board in storage.
+     * Update the specified board.
+     *
+     * @param BoardRequest $request
+     * @param Board $board
+     * @return BoardResource
      */
-    public function update(BoardRequest $request, Board $board)
+    public function update(BoardRequest $request, Board $board): BoardResource
     {
         $board = $this->boardService->updateBoard($board, $request->validated());
         return new BoardResource($board);
     }
 
     /**
-     * Remove the specified board from storage.
+     * Remove the specified board.
+     *
+     * @param Request $request
+     * @param Board $board
+     * @return JsonResponse
      */
-    public function destroy(Board $board): Response
+    public function destroy(Request $request, Board $board): JsonResponse
     {
-        // Check if board has tasks before deletion
-        if ($board->tasks()->count() > 0) {
-            return response([
-                'message' => 'Cannot delete board that has associated tasks. Please remove tasks first.',
-                'tasks_count' => $board->tasks()->count()
-            ], HttpResponse::HTTP_CONFLICT);
-        }
+        $cascadeDelete = $request->boolean('cascade_delete', false);
 
-        $board->delete();
+        $this->boardService->deleteBoard($board, $cascadeDelete);
 
-        return response()->noContent();
+        return response()->json(['message' => 'Board deleted successfully']);
     }
 
     /**
-     * Archive the specified board.
+     * Archive a board.
+     *
+     * @param Board $board
+     * @return BoardResource
      */
-    public function archive(Board $board)
+    public function archive(Board $board): BoardResource
     {
         $this->authorize('archive', $board);
+
         $board = $this->boardService->archiveBoard($board);
+
         return new BoardResource($board);
     }
 
     /**
-     * Unarchive the specified board.
+     * Unarchive a board.
+     *
+     * @param Board $board
+     * @return BoardResource
      */
-    public function unarchive(Board $board): JsonResponse
+    public function unarchive(Board $board): BoardResource
     {
         $this->authorize('unarchive', $board);
 
-        $board->unarchive();
+        $board = $this->boardService->unarchiveBoard($board);
 
-        return response()->json([
-            'message' => 'Board unarchived successfully',
-            'board' => new BoardResource($board)
-        ]);
+        return new BoardResource($board);
     }
 
     /**
-     * Duplicate the specified board.
+     * Duplicate a board.
+     *
+     * @param Request $request
+     * @param Board $board
+     * @return BoardResource
      */
     public function duplicate(Request $request, Board $board): BoardResource
     {
         $this->authorize('duplicate', $board);
 
         $newName = $request->input('name');
-        $duplicatedBoard = $board->duplicate($newName);
+        $newBoard = $this->boardService->duplicateBoard($board, $newName);
 
-        // Load the relationships needed for the response
-        $duplicatedBoard->load(['project', 'boardType', 'columns']);
-
-        return new BoardResource($duplicatedBoard);
+        return new BoardResource($newBoard);
     }
 
     /**
      * Get columns for a board.
+     *
+     * @param Board $board
+     * @return AnonymousResourceCollection
      */
     public function columns(Board $board): AnonymousResourceCollection
     {
-        return BoardColumnResource::collection($board->columns()->orderBy('position')->get());
+        return BoardColumnResource::collection($board->columns);
     }
 
     /**
      * Get tasks for a board.
-     */
-    public function tasks(Request $request, Board $board): AnonymousResourceCollection
-    {
-        $query = $board->tasks();
-
-        // Filter by status
-        if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
-        }
-
-        // Filter by column
-        if ($request->has('column_id')) {
-            $query->where('board_column_id', $request->input('column_id'));
-        }
-
-        // Filter by assignee
-        if ($request->has('assignee_id')) {
-            $query->where('assignee_id', $request->input('assignee_id'));
-        }
-
-        // Include relationships
-        if ($request->has('include')) {
-            $includes = explode(',', $request->input('include'));
-            $validIncludes = ['assignee', 'reporter', 'subtasks', 'tags'];
-            foreach ($includes as $include) {
-                if (in_array($include, $validIncludes)) {
-                    $query->with($include);
-                }
-            }
-        }
-
-        // Sort by field
-        $sortField = $request->input('sort', 'position');
-        $sortDirection = $request->input('direction', 'asc');
-        $validSortFields = ['title', 'status', 'priority', 'created_at', 'updated_at', 'position'];
-
-        if (in_array($sortField, $validSortFields)) {
-            $query->orderBy($sortField, $sortDirection);
-        } else {
-            $query->orderBy('position', 'asc');
-        }
-
-        $tasks = $query->paginate($request->input('per_page', 15));
-
-        return TaskResource::collection($tasks);
-    }
-
-    /**
-     * Restore a soft-deleted board.
-     */
-    public function restore(int $id): BoardResource
-    {
-        $board = Board::withTrashed()->findOrFail($id);
-        $this->authorize('restore', $board);
-
-        $board->restore();
-
-        return new BoardResource($board->load(['project', 'boardType', 'columns']));
-    }
-
-    /**
-     * Get board statistics.
-     */
-    public function statistics(Board $board): JsonResponse
-    {
-        // Tasks by status
-        $tasksByStatus = $board->tasks()
-            ->select('status', \DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
-            ->toArray();
-
-        // Tasks by assignee
-        $tasksByAssignee = $board->tasks()
-            ->select('assignee_id', \DB::raw('count(*) as count'))
-            ->groupBy('assignee_id')
-            ->pluck('count', 'assignee_id')
-            ->toArray();
-
-        // Tasks by column
-        $tasksByColumn = $board->tasks()
-            ->select('board_column_id', \DB::raw('count(*) as count'))
-            ->groupBy('board_column_id')
-            ->pluck('count', 'board_column_id')
-            ->toArray();
-
-        // Total tasks
-        $totalTasks = array_sum($tasksByStatus);
-
-        // Completed tasks
-        $completedTasks = $tasksByStatus['completed'] ?? 0;
-
-        // Completion percentage
-        $completionPercentage = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100, 2) : 0;
-
-        // Recent activity
-        $recentActivity = $board->tasks()
-            ->orderBy('updated_at', 'desc')
-            ->limit(5)
-            ->get(['id', 'title', 'updated_at', 'assignee_id'])
-            ->toArray();
-
-        return response()->json([
-            'tasks_by_status' => $tasksByStatus,
-            'tasks_by_assignee' => $tasksByAssignee,
-            'tasks_by_column' => $tasksByColumn,
-            'total_tasks' => $totalTasks,
-            'completed_tasks' => $completedTasks,
-            'completion_percentage' => $completionPercentage,
-            'recent_activity' => $recentActivity
-        ]);
-    }
-
-    /**
-     * Get sprints for a board.
      *
      * @param Request $request
      * @param Board $board
      * @return AnonymousResourceCollection
      */
-    public function sprints(Request $request, Board $board): AnonymousResourceCollection
+    public function tasks(Request $request, Board $board): AnonymousResourceCollection
     {
-        $this->authorize('view', $board);
+        $filters = [];
+        $with = ['status', 'assignee', 'priority', 'boardColumn'];
 
-        $query = $board->sprints();
-
-        // Filter by status
-        if ($request->has('status')) {
-            $query->where('status', $request->input('status'));
+        // Add filters from request parameters
+        if ($request->has('status_id')) {
+            $filters['status_id'] = $request->status_id;
         }
 
-        // Include relationships
-        if ($request->has('with_tasks')) {
-            $query->with('tasks');
+        if ($request->has('column_id')) {
+            $filters['column_id'] = $request->column_id;
         }
 
-        // Sort by field
-        $sortBy = $request->input('sort_by', 'start_date');
-        $sortDirection = $request->input('sort_direction', 'desc');
-        $query->orderBy($sortBy, $sortDirection);
+        if ($request->has('assignee_id')) {
+            $filters['assignee_id'] = $request->assignee_id;
+        }
 
-        return SprintResource::collection($query->get());
+        $tasks = $this->boardService->getBoardTasks($board, $filters, $with);
+
+        return TaskResource::collection($tasks);
+    }
+
+    /**
+     * Get statistics for a board.
+     *
+     * @param Board $board
+     * @return JsonResponse
+     */
+    public function statistics(Board $board): JsonResponse
+    {
+        $stats = $this->boardService->getBoardStatistics($board);
+
+        return response()->json($stats);
     }
 }

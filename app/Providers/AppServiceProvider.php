@@ -14,6 +14,10 @@ use App\Observers\BoardObserver;
 use App\Observers\BoardTypeObserver;
 use App\Observers\TaskObserver;
 use App\Observers\TeamObserver;
+use App\Services\BoardService;
+use App\Services\ProjectService;
+use App\Services\SprintService;
+use App\Services\TaskService;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -24,7 +28,31 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // Register services with proper dependency order
+
+        // Register TaskService first as it has no dependencies
+        $this->app->singleton(TaskService::class, function ($app) {
+            return new TaskService();
+        });
+
+        // Register SprintService next
+        $this->app->singleton(SprintService::class, function ($app) {
+            return new SprintService();
+        });
+
+        // Register BoardService with SprintService dependency
+        $this->app->singleton(BoardService::class, function ($app) {
+            return new BoardService(
+                $app->make(SprintService::class)
+            );
+        });
+
+        // Register ProjectService with BoardService dependency
+        $this->app->singleton(ProjectService::class, function ($app) {
+            return new ProjectService(
+                $app->make(BoardService::class)
+            );
+        });
     }
 
     /**

@@ -15,20 +15,12 @@ class TaskMovedEvent implements ShouldBroadcast
 {
     use Dispatchable, InteractsWithSockets, SerializesModels;
 
-    /**
-     * Create a new event instance.
-     */
     public function __construct(
         public Task $task,
         public BoardColumn $fromColumn,
         public BoardColumn $toColumn
     ) {}
 
-    /**
-     * Get the channels the event should broadcast on.
-     *
-     * @return array<int, Channel>
-     */
     public function broadcastOn(): array
     {
         return [
@@ -36,19 +28,11 @@ class TaskMovedEvent implements ShouldBroadcast
         ];
     }
 
-    /**
-     * The event's broadcast name.
-     */
     public function broadcastAs(): string
     {
         return 'task.moved';
     }
 
-    /**
-     * Get the data to broadcast.
-     *
-     * @return array<string, mixed>
-     */
     public function broadcastWith(): array
     {
         return [
