@@ -202,18 +202,29 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::post('/{board}/archive', [BoardController::class, 'archive'])->name('boards.archive');
         Route::post('/{board}/unarchive', [BoardController::class, 'unarchive'])->name('boards.unarchive');
         Route::post('/{board}/duplicate', [BoardController::class, 'duplicate'])->name('boards.duplicate');
-        Route::post('/{id}/restore', [BoardController::class, 'restore'])->name('boards.restore');
-
-        // Board relationships
-        Route::get('/{board}/columns', [BoardController::class, 'columns'])->name('boards.columns.index');
-        Route::get('/{board}/tasks', [BoardController::class, 'tasks'])->name('boards.tasks.index');
-        Route::get('/{board}/statistics', [BoardController::class, 'statistics'])->name('boards.statistics');
+        Route::get('/{board}/columns', [BoardController::class,'columns']);
+        Route::get('/{board}/tasks', [BoardController::class,'tasks']);
+        Route::get('/{board}/statistics', [BoardController::class,'statistics']);
     });
 
-    Route::apiResource('attachments', AttachmentController::class);
+    // Project-specific boards
+    Route::get('projects/{project}/boards', 'BoardController@projectBoards');
 
-    Route::apiResource('board-columns', BoardColumnController::class);
-    Route::post('board-columns/reorder', [BoardColumnController::class, 'reorder']);
+    // Board Types
+    Route::apiResource('board-types', 'BoardTypeController');
+
+    // Board Templates
+    Route::apiResource('board-templates', 'BoardTemplateController');
+    Route::post('board-templates/{boardTemplate}/duplicate', 'BoardTemplateController@duplicate');
+    Route::post('board-templates/{boardTemplate}/toggle-active', 'BoardTemplateController@toggleActive');
+    Route::get('board-templates/system', 'BoardTemplateController@systemTemplates');
+
+    // Board Columns
+    Route::apiResource('board-columns', 'BoardColumnController');
+    Route::post('board-columns/reorder', 'BoardColumnController@reorder');
+    Route::get('board-columns/{boardColumn}/check-wip-limit', 'BoardColumnController@checkWipLimit');
+
+    Route::apiResource('attachments', AttachmentController::class);
 
     Route::apiResource('board-types', BoardTypeController::class);
     Route::apiResource('change-types', ChangeTypeController::class);

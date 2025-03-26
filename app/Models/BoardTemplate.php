@@ -160,10 +160,10 @@ class BoardTemplate extends Model
         $cacheKey = "board_template_key_{$key}";
 
         return Cache::remember($cacheKey, 86400, function () use ($key) {
-            return self::withoutGlobalScope('withoutSystem')
-                ->withoutGlobalScope(OrganizationScope::class)
-                ->where('key', $key)
-                ->first();
+            return self::withoutGlobalScopes([
+                'withoutSystem',
+                OrganizationScope::class
+            ])->where('key', $key)->first();
         });
     }
 

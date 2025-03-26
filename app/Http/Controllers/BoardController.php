@@ -169,15 +169,17 @@ class BoardController extends Controller
 
         // Create default columns if board type has predefined columns
         $boardType = $board->boardType;
-        if ($boardType) {
-            // Assuming there's a method to get default columns from the board type
-            // This would need to be implemented based on your specific requirements
-            $defaultColumns = $boardType->defaultColumns ?? [];
+        if ($boardType && $boardType->template) {
+            // Use template's columns_structure
+            $columnsStructure = $boardType->template->columns_structure ?? [];
 
-            foreach ($defaultColumns as $index => $columnName) {
+            foreach ($columnsStructure as $index => $column) {
                 $board->columns()->create([
-                    'name' => $columnName,
-                    'position' => $index + 1
+                    'name' => $column['name'],
+                    'position' => $index + 1,
+                    'color' => $column['color'] ?? '#6C757D',
+                    'wip_limit' => $column['wip_limit'] ?? null,
+                    'maps_to_status_id' => $column['status_id'] ?? null,
                 ]);
             }
         }

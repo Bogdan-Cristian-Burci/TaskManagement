@@ -55,4 +55,12 @@ class BoardColumn extends Model
 
         return $this->tasks()->count() >= $this->wip_limit;
     }
+
+    /**
+     * Get the status that this column maps to
+     */
+    public function status(): BelongsTo
+    {
+        return $this->belongsTo(Status::class, 'maps_to_status_id');
+    }
 }

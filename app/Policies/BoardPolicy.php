@@ -32,7 +32,7 @@ class BoardPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasPermissionTo('create board');
+        return $user->hasPermission('board.create');
     }
 
     /**
@@ -40,9 +40,8 @@ class BoardPolicy
      */
     public function update(User $user, Board $board): bool
     {
-        return $user->hasRole('admin') ||
-            ($user->projects()->where('projects.id', $board->project_id)->exists() &&
-                $user->hasPermissionTo('update board'));
+        return $user->projects()->where('projects.id', $board->project_id)->exists() &&
+                $user->hasPermission('board.update',$board->getOrganisationIdAttribute());
     }
 
     /**
@@ -50,9 +49,8 @@ class BoardPolicy
      */
     public function delete(User $user, Board $board): bool
     {
-        return $user->hasRole('admin') ||
-            ($user->projects()->where('projects.id', $board->project_id)->exists() &&
-                $user->hasPermissionTo('delete board'));
+        return $user->projects()->where('projects.id', $board->project_id)->exists() &&
+                $user->hasPermission('board.delete',$board->getOrganisationIdAttribute());
     }
 
     /**
@@ -68,7 +66,7 @@ class BoardPolicy
      */
     public function forceDelete(User $user, Board $board): bool
     {
-        return $user->hasRole('admin');
+        return $user->hasPermission('board.forceDelete',$board->getOrganisationIdAttribute());
     }
 
     /**
@@ -92,8 +90,7 @@ class BoardPolicy
      */
     public function duplicate(User $user, Board $board): bool
     {
-        return $user->hasRole('admin') ||
-            ($user->projects()->where('projects.id', $board->project_id)->exists() &&
-                $user->hasPermissionTo('create board'));
+        return $user->projects()->where('projects.id', $board->project_id)->exists() &&
+                $user->hasPermission('board.create', $board->getOrganisationIdAttribute());
     }
 }

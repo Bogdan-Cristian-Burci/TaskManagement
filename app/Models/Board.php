@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Cache;
 
 /**
  * @property integer $id
@@ -82,7 +83,11 @@ class Board extends Model
      */
     public function getOrganisationIdAttribute(): ?int
     {
-        return $this->project->organisation_id ?? null;
+        return Cache::remember(
+            "board_{$this->id}_organisation",
+            3600, // 1 hour
+            fn() => $this->project->organisation_id ?? null
+        );
     }
 
     /**
