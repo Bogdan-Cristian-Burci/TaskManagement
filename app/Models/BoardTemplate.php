@@ -113,19 +113,46 @@ class BoardTemplate extends Model
         // Create the board
         $board = Board::create($boardData);
 
+        // Create columns and store their IDs for transition mapping
+        $columnIds = [];
+        $position = 0;
+
         // Create the columns based on the template
         if (!empty($this->columns_structure)) {
-            $position = 0;
-            foreach ($this->columns_structure as $column) {
+
+            // First pass: Create all columns
+            foreach ($this->columns_structure as $index => $column) {
                 $position++;
-                $board->columns()->create([
+                $newColumn = $board->columns()->create([
                     'name' => $column['name'],
                     'position' => $position,
                     'color' => $column['color'] ?? '#6C757D',
                     'wip_limit' => $column['wip_limit'] ?? null,
                     'maps_to_status_id' => $column['status_id'] ?? null,
-                    'allowed_transitions' => $column['allowed_transitions'] ?? null,
+                    // Don't set allowed_transitions yet
                 ]);
+
+                // Store the column ID with its index
+                $columnIds[$index + 1] = $newColumn->id;
+            }
+
+            // Second pass: Update all columns with proper transition IDs
+            foreach ($this->columns_structure as $index => $column) {
+                if (!empty($column['allowed_transitions'])) {
+                    // Convert template indices to actual column IDs
+                    $transitionIds = array_map(
+                        fn($idx) => $columnIds[$idx] ?? null,
+                        $column['allowed_transitions']
+                    );
+
+                    // Filter out any nulls from invalid references
+                    $transitionIds = array_filter($transitionIds);
+
+                    // Update the column with the resolved IDs
+                    $board->columns()->where('position', $index + 1)->update([
+                        'allowed_transitions' => $transitionIds
+                    ]);
+                }
             }
         }
 
