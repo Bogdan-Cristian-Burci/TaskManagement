@@ -515,6 +515,9 @@ class UserController extends Controller
      */
     public function inviteToOrganisation(Request $request): JsonResponse
     {
+        //TODO - user must be added to organisation only when they accept the invitation sent through email
+        // - or develop a notification boards inside application form where he can manage all required actions
+
         // Get organization ID - use specified or fall back to user's current org
         $organisationId = $request->input('organisation_id', $request->user()->organisation_id);
 
@@ -525,7 +528,7 @@ class UserController extends Controller
         }
 
         // Check permission using hasPermission directly
-        if (!$request->user()->hasPermission('users.invite', $organisationId)) {
+        if (!$request->user()->hasPermission('organisation.inviteUser', $organisationId)) {
             throw new AuthorizationException('You do not have permission to invite users to this organization.');
         }
 
