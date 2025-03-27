@@ -15,6 +15,9 @@ use App\Observers\BoardTypeObserver;
 use App\Observers\TaskObserver;
 use App\Observers\TeamObserver;
 use App\Services\BoardService;
+use App\Services\BoardTemplateService;
+use App\Services\BoardTypeService;
+use App\Services\ChangeTypeService;
 use App\Services\ProjectService;
 use App\Services\SprintService;
 use App\Services\TaskService;
@@ -53,6 +56,10 @@ class AppServiceProvider extends ServiceProvider
                 $app->make(BoardService::class)
             );
         });
+
+        $this->app->singleton(BoardTemplateService::class);
+        $this->app->singleton(ChangeTypeService::class);
+        $this->app->singleton(BoardTypeService::class);
     }
 
     /**

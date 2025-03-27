@@ -5,23 +5,24 @@ namespace App\Http\Controllers;
 use App\Http\Requests\BoardTemplateRequest;
 use App\Http\Resources\BoardTemplateResource;
 use App\Models\BoardTemplate;
-use App\Models\Organisation;
+use App\Services\BoardTemplateService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 
 class BoardTemplateController extends Controller
 {
-    /**
-     * Create a new controller instance.
-     */
-    public function __construct()
+    protected BoardTemplateService $boardTemplateService;
+
+    public function __construct(BoardTemplateService $boardTemplateService)
     {
         $this->middleware('auth:api');
+        $this->boardTemplateService = $boardTemplateService;
     }
 
     /**
-     * Display a listing of the templates.
+     * Display a listing of all templates.
      *
      * @param Request $request
      * @return AnonymousResourceCollection
@@ -30,25 +31,48 @@ class BoardTemplateController extends Controller
     {
         $this->authorize('viewAny', BoardTemplate::class);
 
-        $query = BoardTemplate::query();
+        $templates = collect();
 
         // Include system templates if requested
         if ($request->boolean('include_system', false)) {
-            $query->withoutGlobalScope('withoutSystem');
+            $systemTemplates = $this->boardTemplateService->getSystemTemplates();
+            // Use merge() instead of concat() when combining collections
+            $templates = $templates->merge($systemTemplates);
         }
 
-        // Filter by active state
-        if ($request->has('is_active')) {
-            $query->where('is_active', $request->boolean('is_active'));
+        // Add organization templates
+        if ($request->user()->organisation_id) {
+            $isActive = $request->has('is_active') ? $request->boolean('is_active') : null;
+            $orgTemplates = $this->boardTemplateService->getOrganizationTemplates(
+                $request->user()->organisation_id,
+                $isActive
+            );
+            // Use merge() instead of concat()
+            $templates = $templates->merge($orgTemplates);
         }
 
-        $templates = $query->orderBy('name')->get();
+        // Sort by name
+        $templates = $templates->sortBy('name')->values();
 
         return BoardTemplateResource::collection($templates);
     }
 
     /**
-     * Store a newly created template in storage.
+     * Get all system templates.
+     *
+     * @return AnonymousResourceCollection
+     */
+    public function systemTemplates(): AnonymousResourceCollection
+    {
+        $this->authorize('viewAny', BoardTemplate::class);
+
+        $templates = $this->boardTemplateService->getSystemTemplates();
+
+        return BoardTemplateResource::collection($templates);
+    }
+
+    /**
+     * Store a newly created custom template.
      *
      * @param BoardTemplateRequest $request
      * @return BoardTemplateResource
@@ -59,11 +83,8 @@ class BoardTemplateController extends Controller
 
         $validated = $request->validated();
 
-        // Get organization ID from current user
-        $organisation = Organisation::findOrFail($request->input('organisation_id'));
-
-        $template = BoardTemplate::createCustom(
-            $organisation->id,
+        $template = $this->boardTemplateService->createCustomTemplate(
+            $request->input('organisation_id'),
             $validated['name'],
             $validated['description'] ?? '',
             $validated['columns_structure'],
@@ -88,7 +109,8 @@ class BoardTemplateController extends Controller
     }
 
     /**
-     * Update the specified template in storage.
+     * Update the specified template.
+     * Only custom templates can be updated.
      *
      * @param BoardTemplateRequest $request
      * @param BoardTemplate $boardTemplate
@@ -98,16 +120,19 @@ class BoardTemplateController extends Controller
     {
         $this->authorize('update', $boardTemplate);
 
-        $validated = $request->validated();
-
-        // Update the template
-        $boardTemplate->update($validated);
-
-        return new BoardTemplateResource($boardTemplate);
+        try {
+            $template = $this->boardTemplateService->updateCustomTemplate($boardTemplate, $request->validated());
+            return new BoardTemplateResource($template);
+        } catch (\Exception $e) {
+            return response([
+                'message' => $e->getMessage()
+            ], 403);
+        }
     }
 
     /**
      * Remove the specified template from storage.
+     * Only custom templates can be deleted.
      *
      * @param BoardTemplate $boardTemplate
      * @return Response
@@ -116,23 +141,26 @@ class BoardTemplateController extends Controller
     {
         $this->authorize('delete', $boardTemplate);
 
-        // Prevent deletion of system templates
-        if ($boardTemplate->is_system) {
-            return response(['message' => 'Cannot delete system templates'], 403);
+        try {
+            $this->boardTemplateService->deleteCustomTemplate($boardTemplate);
+            return response()->noContent();
+        } catch (\Exception $e) {
+            if (str_contains($e->getMessage(), 'System templates cannot be deleted')) {
+                return response(['message' => $e->getMessage()], 403);
+            }
+
+            if (str_contains($e->getMessage(), 'Template is in use')) {
+                preg_match('/by (\d+) board types/', $e->getMessage(), $matches);
+                $count = $matches[1] ?? 0;
+
+                return response([
+                    'message' => $e->getMessage(),
+                    'in_use_count' => (int) $count
+                ], 409);
+            }
+
+            return response(['message' => $e->getMessage()], 500);
         }
-
-        // Check if this template is in use
-        $inUseCount = $boardTemplate->boardTypes()->count();
-        if ($inUseCount > 0) {
-            return response([
-                'message' => 'Template is in use by ' . $inUseCount . ' board types and cannot be deleted',
-                'in_use_count' => $inUseCount
-            ], 409);
-        }
-
-        $boardTemplate->delete();
-
-        return response()->noContent();
     }
 
     /**
@@ -151,14 +179,10 @@ class BoardTemplateController extends Controller
             'organisation_id' => 'required|exists:organisations,id'
         ]);
 
-        $newName = $request->input('name');
-        $organisationId = $request->input('organisation_id');
-
-        // Duplicate the template
-        $newTemplate = BoardTemplate::duplicateExisting(
-            $organisationId,
-            $boardTemplate->id,
-            $newName,
+        $newTemplate = $this->boardTemplateService->duplicateTemplate(
+            $boardTemplate,
+            $request->input('organisation_id'),
+            $request->input('name'),
             auth()->id()
         );
 
@@ -175,23 +199,25 @@ class BoardTemplateController extends Controller
     {
         $this->authorize('update', $boardTemplate);
 
-        $boardTemplate->is_active = !$boardTemplate->is_active;
-        $boardTemplate->save();
+        $template = $this->boardTemplateService->toggleActiveState($boardTemplate);
 
-        return new BoardTemplateResource($boardTemplate);
+        return new BoardTemplateResource($template);
     }
 
     /**
-     * Get all system templates.
+     * Force sync system templates from config (admin only).
      *
-     * @return AnonymousResourceCollection
+     * @return JsonResponse
      */
-    public function systemTemplates(): AnonymousResourceCollection
+    public function syncSystem(): JsonResponse
     {
-        $this->authorize('viewAny', BoardTemplate::class);
+        $this->authorize('admin', BoardTemplate::class);
 
-        $templates = BoardTemplate::getSystemTemplates();
+        $count = $this->boardTemplateService->syncSystemTemplates();
 
-        return BoardTemplateResource::collection($templates);
+        return response()->json([
+            'message' => 'System templates synced successfully',
+            'templates_created' => $count
+        ]);
     }
 }

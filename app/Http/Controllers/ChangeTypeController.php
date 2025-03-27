@@ -5,8 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\ChangeTypeRequest;
 use App\Http\Resources\ChangeTypeResource;
 use App\Models\ChangeType;
-use App\Models\TaskHistory;
-use App\Repositories\Interfaces\ChangeTypeRepositoryInterface;
+use App\Services\ChangeTypeService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -15,20 +14,20 @@ use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 class ChangeTypeController extends Controller
 {
     /**
-     * The change type repository instance.
+     * The change type service instance.
      *
-     * @var ChangeTypeRepositoryInterface
+     * @var ChangeTypeService
      */
-    protected ChangeTypeRepositoryInterface $changeTypeRepository;
+    protected ChangeTypeService $changeTypeService;
 
     /**
      * Create a new controller instance.
      *
-     * @param ChangeTypeRepositoryInterface $changeTypeRepository
+     * @param ChangeTypeService $changeTypeService
      */
-    public function __construct(ChangeTypeRepositoryInterface $changeTypeRepository)
+    public function __construct(ChangeTypeService $changeTypeService)
     {
-        $this->changeTypeRepository = $changeTypeRepository;
+        $this->changeTypeService = $changeTypeService;
         $this->authorizeResource(ChangeType::class, 'changeType');
     }
 
@@ -38,23 +37,19 @@ class ChangeTypeController extends Controller
      * @param Request $request
      * @return AnonymousResourceCollection
      */
-    public function index(Request $request) : AnonymousResourceCollection
+    public function index(Request $request): AnonymousResourceCollection
     {
+        $filters = [];
+
         if ($request->boolean('with_task_histories_count')) {
-            $changeTypes = $this->changeTypeRepository->findWithTaskHistoriesCount();
-            return ChangeTypeResource::collection($changeTypes);
+            $filters['with_task_histories_count'] = true;
         }
 
         if ($request->has('name')) {
-            $changeTypes = $this->changeTypeRepository->findAllByPartialName($request->name);
-            return ChangeTypeResource::collection($changeTypes);
+            $filters['name'] = $request->name;
         }
 
-        if ($request->has('per_page')) {
-            $changeTypes = $this->changeTypeRepository->paginate($request->get('per_page', 15));
-        } else {
-            $changeTypes = $this->changeTypeRepository->all();
-        }
+        $changeTypes = $this->changeTypeService->getAllChangeTypes($filters);
 
         return ChangeTypeResource::collection($changeTypes);
     }
@@ -65,9 +60,9 @@ class ChangeTypeController extends Controller
      * @param ChangeTypeRequest $request
      * @return JsonResponse
      */
-    public function store(ChangeTypeRequest $request) : JsonResponse
+    public function store(ChangeTypeRequest $request): JsonResponse
     {
-        $changeType = $this->changeTypeRepository->create($request->validated());
+        $changeType = $this->changeTypeService->createChangeType($request->validated());
 
         return (new ChangeTypeResource($changeType))
             ->response()
@@ -80,13 +75,12 @@ class ChangeTypeController extends Controller
      * @param ChangeType $changeType
      * @return ChangeTypeResource
      */
-    public function show(ChangeType $changeType) : ChangeTypeResource
+    public function show(ChangeType $changeType): ChangeTypeResource
     {
-        if (request()->boolean('with_task_histories_count')) {
-            // Count both direct relationships and name-based relationships
-            $changeType->loadCount(['taskHistories', 'taskHistoriesByName']);
-            $changeType->task_histories_count = $changeType->task_histories_count ?? 0;
-            $changeType->task_histories_count += $changeType->task_histories_by_name_count;
+        $withCount = request()->boolean('with_task_histories_count');
+
+        if ($withCount) {
+            $changeType = $this->changeTypeService->getChangeType($changeType->id, true);
         }
 
         return new ChangeTypeResource($changeType);
@@ -99,21 +93,9 @@ class ChangeTypeController extends Controller
      * @param ChangeType $changeType
      * @return ChangeTypeResource
      */
-    public function update(ChangeTypeRequest $request, ChangeType $changeType)
+    public function update(ChangeTypeRequest $request, ChangeType $changeType): ChangeTypeResource
     {
-        $oldName = $changeType->name;
-        $this->changeTypeRepository->update($changeType, $request->validated());
-
-        // If name changed, update task histories to use the new change type ID
-        if ($oldName !== $changeType->name && $request->has('name')) {
-            // Update the task histories that used the old name
-            TaskHistory::where('field_changed', $oldName)
-                ->update(['field_changed' => $changeType->name]);
-        }
-
-        // Get a fresh instance with updated data
-        $changeType = $this->changeTypeRepository->find($changeType->id);
-
+        $changeType = $this->changeTypeService->updateChangeType($changeType, $request->validated());
         return new ChangeTypeResource($changeType);
     }
 
@@ -125,21 +107,16 @@ class ChangeTypeController extends Controller
      */
     public function destroy(ChangeType $changeType): JsonResponse
     {
-        // Check if the change type is in use in task history
-        $taskHistoryCount = TaskHistory::where('field_changed', $changeType->name)
-            ->orWhere('change_type_id', $changeType->id)
-            ->count();
-
-        if ($taskHistoryCount > 0) {
+        try {
+            $this->changeTypeService->deleteChangeType($changeType);
+            return response()->json([], ResponseAlias::HTTP_NO_CONTENT);
+        } catch (\Exception $e) {
             return response()->json([
-                'message' => 'Cannot delete change type that is in use.',
-                'task_history_count' => $taskHistoryCount
+                'message' => $e->getMessage(),
+                'task_history_count' => strpos($e->getMessage(), 'in use') !== false ?
+                    $this->changeTypeService->getUsageCount($changeType) : 0
             ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
-
-        $this->changeTypeRepository->delete($changeType);
-
-        return response()->json([], ResponseAlias::HTTP_NO_CONTENT);
     }
 
     /**
@@ -154,7 +131,7 @@ class ChangeTypeController extends Controller
             'name' => 'required|string|max:255'
         ]);
 
-        $changeType = $this->changeTypeRepository->findByName($request->name);
+        $changeType = $this->changeTypeService->findByName($request->name);
 
         if (!$changeType) {
             return response()->json([
@@ -167,7 +144,6 @@ class ChangeTypeController extends Controller
 
     /**
      * Sync task histories with change types based on field_changed values.
-     * This is a utility method to fix data inconsistencies after adding the change_type_id field.
      *
      * @return JsonResponse
      */
@@ -175,16 +151,7 @@ class ChangeTypeController extends Controller
     {
         $this->authorize('manage', ChangeType::class);
 
-        $changeTypes = $this->changeTypeRepository->all(['id', 'name']);
-        $updated = 0;
-
-        foreach ($changeTypes as $changeType) {
-            $count = TaskHistory::where('field_changed', $changeType->name)
-                ->whereNull('change_type_id')
-                ->update(['change_type_id' => $changeType->id]);
-
-            $updated += $count;
-        }
+        $updated = $this->changeTypeService->syncTaskHistories();
 
         return response()->json([
             'message' => 'Task histories synced successfully.',
@@ -197,11 +164,11 @@ class ChangeTypeController extends Controller
      *
      * @return JsonResponse
      */
-    public function clearCache()
+    public function clearCache(): JsonResponse
     {
         $this->authorize('manage', ChangeType::class);
 
-        $this->changeTypeRepository->clearCache();
+        $this->changeTypeService->clearCache();
 
         return response()->json([
             'message' => 'Change type cache cleared successfully.'

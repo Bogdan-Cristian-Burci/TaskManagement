@@ -263,4 +263,54 @@ class TaskService
 
         return $query->get();
     }
+
+    /**
+     * Search for tasks based on criteria.
+     *
+     * @param array $filters
+     * @param array $with Related models to load
+     * @return Collection
+     */
+    public function searchTasks(array $filters, array $with = []): Collection
+    {
+        $query = Task::query();
+
+        // Text search
+        if (isset($filters['search'])) {
+            $searchTerm = $filters['search'];
+            $query->where(function($q) use ($searchTerm) {
+                $q->where('name', 'like', "%{$searchTerm}%")
+                    ->orWhere('description', 'like', "%{$searchTerm}%");
+            });
+        }
+
+        // Apply standard filters
+        foreach (['project_id', 'board_id', 'status_id', 'priority_id', 'responsible_id'] as $field) {
+            if (isset($filters[$field])) {
+                $query->where($field, $filters[$field]);
+            }
+        }
+
+        // Special filters
+        if (isset($filters['overdue']) && $filters['overdue']) {
+            $query->overdue();
+        }
+
+        if (isset($filters['due_soon']) && $filters['due_soon']) {
+            $query->where('due_date', '>=', now())
+                ->where('due_date', '<=', now()->addDays(3));
+        }
+
+        // Apply sorting
+        $sortBy = $filters['sort_by'] ?? 'created_at';
+        $sortDirection = $filters['sort_direction'] ?? 'desc';
+        $query->orderBy($sortBy, $sortDirection);
+
+        // Load relationships
+        if (!empty($with)) {
+            $query->with($with);
+        }
+
+        return $query->get();
+    }
 }
