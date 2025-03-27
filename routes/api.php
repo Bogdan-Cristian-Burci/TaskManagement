@@ -207,6 +207,10 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::get('/{board}/statistics', [BoardController::class,'statistics']);
     });
 
+    Route::apiResource('board-columns', 'BoardColumnController');
+    Route::post('board-columns/reorder', 'BoardColumnController@reorder');
+    Route::get('board-columns/{boardColumn}/check-wip-limit', 'BoardColumnController@checkWipLimit');
+
     // Project-specific boards
     Route::get('projects/{project}/boards', 'BoardController@projectBoards');
 
@@ -218,11 +222,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::post('board-templates/{boardTemplate}/duplicate', 'BoardTemplateController@duplicate');
     Route::post('board-templates/{boardTemplate}/toggle-active', 'BoardTemplateController@toggleActive');
     Route::get('board-templates/system', 'BoardTemplateController@systemTemplates');
-
-    // Board Columns
-    Route::apiResource('board-columns', 'BoardColumnController');
-    Route::post('board-columns/reorder', 'BoardColumnController@reorder');
-    Route::get('board-columns/{boardColumn}/check-wip-limit', 'BoardColumnController@checkWipLimit');
 
     Route::apiResource('attachments', AttachmentController::class);
 
