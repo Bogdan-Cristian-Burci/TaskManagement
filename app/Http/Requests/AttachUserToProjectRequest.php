@@ -16,7 +16,7 @@ class AttachUserToProjectRequest extends FormRequest
     public function authorize(): bool
     {
         $project = $this->route('project');
-        return $this->user()->hasPermission('manageUsers', $project);
+        return $this->user()->hasPermission('manage-projects', $project->organisation_id);
     }
 
     /**
@@ -46,12 +46,7 @@ class AttachUserToProjectRequest extends FormRequest
                         $fail('User must be a member of the project\'s organisation.');
                     }
                 },
-            ],
-            'role' => [
-                'sometimes',
-                'string',
-                Rule::in(['manager', 'developer', 'member']),
-            ],
+            ]
         ];
     }
 

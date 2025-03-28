@@ -200,14 +200,12 @@ class ProjectController extends Controller
      */
     public function attachUsers(AttachUserToProjectRequest $request, Project $project): ProjectResource | JsonResponse
     {
-        $this->authorize('manageUsers', $project);
 
         $validated = $request->validated();
         $userIds = $validated['user_ids'];
-        $role = $validated['role'] ?? 'member';
 
         try {
-            $this->projectService->addUsersToProject($project, $userIds, $role);
+            $this->projectService->addUsersToProject($project, $userIds);
             return new ProjectResource($project->fresh(['users']));
         } catch (\Exception $e) {
             return response()->json([
@@ -217,26 +215,23 @@ class ProjectController extends Controller
     }
 
     /**
-     * Detach user from the project.
+     * Detach a user from a project.
      *
-     * @param DetachUserFromProjectRequest $request
      * @param Project $project
+     * @param User $user
+     * @param DetachUserFromProjectRequest $request
      * @return JsonResponse
      */
-    public function detachUser(DetachUserFromProjectRequest $request, Project $project): JsonResponse
+    public function detachUser(Project $project, User $user, DetachUserFromProjectRequest $request): JsonResponse
     {
-        $this->authorize('manageUsers', $project);
-
-        $validated = $request->validated();
 
         try {
-            $userId = $validated['user_id'];
             $reassignTasks = $request->boolean('reassign_tasks', false);
             $reassignToUserId = $request->input('reassign_to_user_id');
 
             $this->projectService->removeUserFromProject(
                 $project,
-                User::findOrFail($userId),
+                $user,
                 $reassignTasks,
                 $reassignToUserId
             );

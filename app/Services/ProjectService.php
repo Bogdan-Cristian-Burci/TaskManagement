@@ -170,31 +170,26 @@ class ProjectService
      *
      * @param Project $project
      * @param array $userIds
-     * @param string $role Default role for the users
      * @return Collection Users attached to the project
      */
-    public function addUsersToProject(Project $project, array $userIds, string $role = 'member'): Collection
+    public function addUsersToProject(Project $project, array $userIds): Collection
     {
-        // Prepare data with pivot values
-        $usersWithRoles = [];
-        foreach ($userIds as $userId) {
-            $usersWithRoles[$userId] = ['role' => $role];
-        }
 
         // Attach users with roles without detaching existing users
-        $project->users()->syncWithoutDetaching($usersWithRoles);
+        $project->users()->syncWithoutDetaching($userIds);
 
         return $project->users()->whereIn('users.id', $userIds)->get();
     }
 
     /**
-     * Remove a user from a project.
+     * Remove a user from a project and optionally reassign their tasks.
      *
-     * @param Project $project
-     * @param User $user
+     * @param Project $project The project from which to remove the user
+     * @param User $user The user to be removed from the project
      * @param bool $reassignTasks Whether to reassign the user's tasks
-     * @param int|null $reassignToUserId User ID to reassign tasks to, null to unassign
-     * @return bool
+     * @param int|null $reassignToUserId The ID of the user to reassign tasks to (required if $reassignTasks is true)
+     * @return bool True if the operation was successful
+     * @throws \Exception|\Throwable If validation fails or the operation cannot be completed
      */
     public function removeUserFromProject(
         Project $project,
@@ -204,28 +199,54 @@ class ProjectService
     ): bool
     {
         return DB::transaction(function() use ($project, $user, $reassignTasks, $reassignToUserId) {
-            // Check if we're removing the last project manager
-            $isLastManager = $project->users()
-                    ->wherePivot('role', 'manager')
-                    ->count() === 1 &&
-                $project->users()
-                    ->where('users.id', $user->id)
-                    ->wherePivot('role', 'manager')
-                    ->exists();
+            // Check if the user is actually in the project
+            if (!$project->users()->where('users.id', $user->id)->exists()) {
+                throw new \Exception('User is not a member of this project.');
+            }
 
-            if ($isLastManager) {
-                throw new \Exception('Cannot remove the last project manager.');
+            // Check if we're removing the responsible user
+            if ($project->responsible_user_id === $user->id) {
+                throw new \Exception('Cannot remove the responsible user. Change the responsible user first.');
             }
 
             // Handle task reassignment
             if ($reassignTasks) {
-                $project->tasks()
-                    ->where('assignee_id', $user->id)
-                    ->update(['assignee_id' => $reassignToUserId]);
+                // Validate reassignToUserId is provided
+                if ($reassignToUserId === null) {
+                    throw new \Exception('A user ID must be provided to reassign tasks.');
+                }
+
+                // Verify the reassign-to user exists and is a member of the project
+                $reassignToUser = User::find($reassignToUserId);
+                if (!$reassignToUser) {
+                    throw new \Exception('The user to reassign tasks to does not exist.');
+                }
+
+                if (!$project->users()->where('users.id', $reassignToUserId)->exists()) {
+                    throw new \Exception('Cannot reassign tasks to a user who is not a project member.');
+                }
+
+                // Perform the reassignment - using responsible_id from Task model
+                $tasksReassigned = $project->tasks()
+                    ->where('responsible_id', $user->id)
+                    ->update(['responsible_id' => $reassignToUserId]);
+
+                \Log::info("Reassigned {$tasksReassigned} tasks from user {$user->id} to user {$reassignToUserId} in project {$project->id}");
+
+
+            } else {
+                // Unassign tasks if not being reassigned
+                $tasksUnassigned = $project->tasks()
+                    ->where('responsible_id', $user->id)
+                    ->update(['responsible_id' => null]);
+
+                \Log::info("Unassigned {$tasksUnassigned} tasks from user {$user->id} in project {$project->id}");
             }
 
             // Remove user from project
             $project->users()->detach($user->id);
+
+            \Log::info("User {$user->id} removed from project {$project->id}");
 
             return true;
         });
