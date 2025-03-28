@@ -90,9 +90,9 @@ class ProjectController extends Controller
      * Store a newly created project in storage.
      *
      * @param ProjectRequest $request
-     * @return ProjectResource
+     * @return ProjectResource | JsonResponse
      */
-    public function store(ProjectRequest $request): ProjectResource
+    public function store(ProjectRequest $request): ProjectResource | JsonResponse
     {
         $this->authorize('create', Project::class);
 
@@ -196,9 +196,9 @@ class ProjectController extends Controller
      *
      * @param AttachUserToProjectRequest $request
      * @param Project $project
-     * @return ProjectResource
+     * @return ProjectResource | JsonResponse
      */
-    public function attachUsers(AttachUserToProjectRequest $request, Project $project): ProjectResource
+    public function attachUsers(AttachUserToProjectRequest $request, Project $project): ProjectResource | JsonResponse
     {
         $this->authorize('manageUsers', $project);
 

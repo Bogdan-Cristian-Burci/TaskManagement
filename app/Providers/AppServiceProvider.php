@@ -54,7 +54,8 @@ class AppServiceProvider extends ServiceProvider
         // Register ProjectService with BoardService dependency
         $this->app->singleton(ProjectService::class, function ($app) {
             return new ProjectService(
-                $app->make(BoardService::class)
+                $app->make(BoardService::class),
+                $app->make(TeamService::class)
             );
         });
 

@@ -13,7 +13,7 @@ return new class extends Migration {
             $table->string('description')->nullable();
             $table->string('key')->nullable()->unique();
             $table->foreignId('organisation_id')->constrained('organisations');
-            $table->foreignId('team_id')->constrained('teams');
+            $table->foreignId('team_id')->nullable()->constrained('teams')->onDelete('set null');
             $table->foreignId('responsible_user_id')->constrained('users');
             $table->string('status')->default('planning');
             $table->date('start_date')->nullable();

@@ -2,7 +2,7 @@
 
 namespace App\Models;
 
-use App\Models\Scopes\OrganizationScope;
+use App\Scopes\BoardOrganizationScope;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -63,17 +63,17 @@ class Board extends Model
      */
     protected static function booted(): void
     {
-        static::addGlobalScope(new OrganizationScope);
+        static::addGlobalScope(new BoardOrganizationScope());
     }
 
     /**
      * Get all boards across organizations (admin function).
      *
-     * @return Builder
+     * @return Board
      */
-    public static function allOrganizations(): Builder
+    public static function allOrganizations(): Board
     {
-        return static::withoutGlobalScope(OrganizationScope::class);
+        return static::withoutGlobalScope(BoardOrganizationScope::class);
     }
 
     /**

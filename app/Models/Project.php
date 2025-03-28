@@ -19,6 +19,7 @@ use Illuminate\Support\Str;
  * @property string|null $description
  * @property int $organisation_id
  * @property int $team_id
+ * @property int|null $responsible_user_id
  * @property string $key
  * @property string|null $status
  * @property Carbon|null $start_date
@@ -50,6 +51,7 @@ class Project extends Model
         'description',
         'organisation_id',
         'team_id',
+        'responsible_user_id',
         'key',
         'status',
         'start_date',
