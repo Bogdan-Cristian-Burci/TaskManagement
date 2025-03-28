@@ -21,6 +21,7 @@ use App\Services\ChangeTypeService;
 use App\Services\ProjectService;
 use App\Services\SprintService;
 use App\Services\TaskService;
+use App\Services\TeamService;
 use Illuminate\Support\ServiceProvider;
 use Laravel\Passport\Passport;
 
@@ -60,6 +61,7 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(BoardTemplateService::class);
         $this->app->singleton(ChangeTypeService::class);
         $this->app->singleton(BoardTypeService::class);
+        $this->app->singleton(TeamService::class);
     }
 
     /**

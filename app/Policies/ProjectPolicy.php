@@ -19,7 +19,7 @@ class ProjectPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasPermissionTo('view projects');
+        return $user->hasPermission('view projects');
     }
 
     /**
@@ -32,7 +32,7 @@ class ProjectPolicy
     public function view(User $user, Project $project): Response|bool
     {
         // Super admins and users with global permissions can view any project
-        if ($user->hasPermissionTo('view project')) {
+        if ($user->hasPermission('view project',$project->organisation_id)) {
             return true;
         }
 
@@ -67,16 +67,7 @@ class ProjectPolicy
     public function create(User $user): Response|bool
     {
         // Check for the specific permission
-        if ($user->hasPermissionTo('create project')) {
-            return true;
-        }
-
-        // Check if the user is part of any team and has a role that allows project creation
-        $teamMemberships = $user->teams()
-            ->wherePivot('role', 'lead')
-            ->count();
-
-        if ($teamMemberships > 0) {
+        if ($user->hasPermission('create project')) {
             return true;
         }
 
@@ -102,25 +93,7 @@ class ProjectPolicy
     public function update(User $user, Project $project): Response|bool
     {
         // Super admins and users with global permissions can update any project
-        if ($user->hasPermissionTo('update project')) {
-            return true;
-        }
-
-        // Project managers can update the project
-        $projectRole = $project->users()
-            ->where('users.id', $user->id)
-            ->first()?->pivot->role;
-
-        if ($projectRole === 'manager') {
-            return true;
-        }
-
-        // Team leads can update the team's projects
-        $teamRole = $user->teams()
-            ->where('teams.id', $project->team_id)
-            ->first()?->pivot->role;
-
-        if ($teamRole === 'lead') {
+        if ($user->hasPermission('update project',$project->organisation_id)) {
             return true;
         }
 
@@ -146,7 +119,7 @@ class ProjectPolicy
     public function delete(User $user, Project $project): Response|bool
     {
         // Higher permission required for deletion
-        if ($user->hasPermissionTo('delete project')) {
+        if ($user->hasPermission('delete project',$project->organisation_id)) {
             return true;
         }
 
@@ -192,10 +165,9 @@ class ProjectPolicy
      */
     public function forceDelete(User $user, Project $project): Response|bool
     {
-        if (!$user->hasPermissionTo('delete project')) {
+        if (!$user->hasPermission('delete project',$project->organisation_id)) {
             return Response::deny('You do not have permission to permanently delete projects.');
         }
-
         return true;
     }
 
@@ -209,25 +181,7 @@ class ProjectPolicy
     public function manageUsers(User $user, Project $project): Response|bool
     {
         // Super admins and users with global permissions can manage users for any project
-        if ($user->hasPermissionTo('update project')) {
-            return true;
-        }
-
-        // Project managers can manage users for the project
-        $projectRole = $project->users()
-            ->where('users.id', $user->id)
-            ->first()?->pivot->role;
-
-        if ($projectRole === 'manager') {
-            return true;
-        }
-
-        // Team leads can manage users for their team's projects
-        $teamRole = $user->teams()
-            ->where('teams.id', $project->team_id)
-            ->first()?->pivot->role;
-
-        if ($teamRole === 'lead') {
+        if ($user->hasPermission('update project',$project->organisation_id)) {
             return true;
         }
 

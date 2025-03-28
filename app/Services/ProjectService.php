@@ -11,28 +11,43 @@ use Illuminate\Support\Facades\DB;
 class ProjectService
 {
     protected BoardService $boardService;
+    protected TeamService $teamService;
 
-    public function __construct(BoardService $boardService)
+    public function __construct(BoardService $boardService, TeamService $teamService)
     {
         $this->boardService = $boardService;
+        $this->teamService = $teamService;
     }
 
+
     /**
-     * Create a project with an optional board.
+     * Create a project with optional team and board.
      *
      * @param array $projectData
      * @param int|null $boardTypeId
+     * @param User|null $creator
      * @return Project
+     * @throws \Throwable
      */
-    public function createProject(array $projectData, ?int $boardTypeId = null): Project
+    public function createProject(array $projectData, ?int $boardTypeId = null, User $creator = null): Project
     {
-        return DB::transaction(function() use ($projectData, $boardTypeId) {
+        return DB::transaction(function() use ($projectData, $boardTypeId, $creator) {
+            // Set the creator as the responsible user if not specified
+            if ($creator && !isset($projectData['responsible_user_id'])) {
+                $projectData['responsible_user_id'] = $creator->id;
+            }
+
             // Create the project
             $project = Project::create($projectData);
 
             // Create a board if a board type ID is provided
             if ($boardTypeId) {
                 $this->boardService->createBoard($project, $boardTypeId);
+            }
+
+            // Add creator as a project member if not already
+            if ($creator) {
+                $project->users()->syncWithoutDetaching([$creator->id]);
             }
 
             return $project;

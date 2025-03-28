@@ -146,6 +146,16 @@ class User extends Authenticatable implements MustVerifyEmail
     }
 
     /**
+     * Get the projects that this user is responsible for.
+     *
+     * @return HasMany
+     */
+    public function responsibleForProjects(): HasMany
+    {
+        return $this->hasMany(Project::class, 'responsible_user_id');
+    }
+
+    /**
      * Get the tasks that the user is responsible for.
      *
      * @return HasMany

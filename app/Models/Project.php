@@ -137,8 +137,7 @@ class Project extends Model
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class, 'project_user', 'project_id', 'user_id')
-            ->withTimestamps()
-            ->withPivot('role');
+            ->withTimestamps();
     }
 
     /**
@@ -162,24 +161,15 @@ class Project extends Model
     }
 
     /**
-     * Get users with manager role for this project.
+     * Get the user responsible for this project.
      *
-     * @return BelongsToMany
+     * @return BelongsTo
      */
-    public function managers(): BelongsToMany
+    public function responsibleUser(): BelongsTo
     {
-        return $this->users()->wherePivot('role', 'manager');
+        return $this->belongsTo(User::class, 'responsible_user_id');
     }
 
-    /**
-     * Get users with developer role for this project.
-     *
-     * @return BelongsToMany
-     */
-    public function developers(): BelongsToMany
-    {
-        return $this->users()->wherePivot('role', 'developer');
-    }
 
     /**
      * Get open tasks for the project.

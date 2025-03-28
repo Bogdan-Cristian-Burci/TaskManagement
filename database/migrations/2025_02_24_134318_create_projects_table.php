@@ -14,6 +14,7 @@ return new class extends Migration {
             $table->string('key')->nullable()->unique();
             $table->foreignId('organisation_id')->constrained('organisations');
             $table->foreignId('team_id')->constrained('teams');
+            $table->foreignId('responsible_user_id')->constrained('users');
             $table->string('status')->default('planning');
             $table->date('start_date')->nullable();
             $table->date('end_date')->nullable();

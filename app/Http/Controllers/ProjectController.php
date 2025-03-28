@@ -96,12 +96,22 @@ class ProjectController extends Controller
     {
         $this->authorize('create', Project::class);
 
-        $project = $this->projectService->createProject(
-            $request->validated(),
-            $request->input('board_type_id')
-        );
+        try {
+            $validated = $request->validated();
 
-        return new ProjectResource($project->load(['team', 'boards']));
+            // Handle the simplified project creation flow
+            $project = $this->projectService->createProject(
+                $validated,
+                $request->input('board_type_id'),
+                $request->user() // Pass the creator user
+            );
+
+            return new ProjectResource($project->load(['team', 'boards', 'responsibleUser']));
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to create project: ' . $e->getMessage()
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
     }
 
     /**
@@ -392,5 +402,45 @@ class ProjectController extends Controller
         );
 
         return new BoardResource($board->load('columns'));
+    }
+
+    /**
+     * Change the responsible user for a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return ProjectResource|JsonResponse
+     */
+    public function changeResponsibleUser(Request $request, Project $project): ProjectResource|JsonResponse
+    {
+        $this->authorize('update', $project);
+
+        $request->validate([
+            'responsible_user_id' => 'required|exists:users,id'
+        ]);
+
+        try {
+            $userId = $request->input('responsible_user_id');
+            $user = User::findOrFail($userId);
+
+            // Check if user is in the same organization
+            if ($user->organisation_id != $project->organisation_id) {
+                return response()->json([
+                    'message' => 'The responsible user must belong to the same organization as the project.'
+                ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+            }
+
+            $project->responsible_user_id = $userId;
+            $project->save();
+
+            // Ensure the user is also a project member
+            $project->users()->syncWithoutDetaching([$userId]);
+
+            return new ProjectResource($project->load(['team', 'responsibleUser']));
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to change responsible user: ' . $e->getMessage()
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
     }
 }
