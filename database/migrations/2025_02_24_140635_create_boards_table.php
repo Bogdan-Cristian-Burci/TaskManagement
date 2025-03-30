@@ -14,7 +14,6 @@ return new class extends Migration {
             $table->string('type')->default('kanban');
             $table->foreignId('project_id')->constrained('projects');
             $table->foreignId('board_type_id')->nullable()->constrained('board_types')->nullOnDelete();
-            $table->boolean('is_archived')->default(false);
             $table->timestamps();
             $table->softDeletes();
         });
