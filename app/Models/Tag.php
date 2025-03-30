@@ -90,7 +90,7 @@ class Tag extends Model
      * @param int $projectId
      * @return Builder
      */
-    public function scopeForProject($query, $projectId)
+    public function scopeForProject(Builder $query, int $projectId)
     {
         return $query->where('project_id', $projectId);
     }

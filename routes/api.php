@@ -185,18 +185,12 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::get('/{project}/statistics', [ProjectController::class, 'statistics'])->name('projects.statistics');
         Route::get('/{project}/tags', [TagController::class, 'forProject'])->name('projects.tags.index');
         Route::post('/{project}/tags/batch', [TagController::class, 'batchCreate'])->name('projects.tags.batch');
-        // Project boards
-        Route::get('/{project}/boards', [BoardController::class, 'projectBoards'])->name('projects.boards.index');
+
     });
 
     // Board routes
+    Route::apiResource('boards', BoardController::class);
     Route::prefix('boards')->group(function () {
-        Route::get('/', [BoardController::class, 'index'])->name('boards.index');
-        Route::post('/', [BoardController::class, 'store'])->name('boards.store');
-        Route::get('/{board}', [BoardController::class, 'show'])->name('boards.show');
-        Route::put('/{board}', [BoardController::class, 'update'])->name('boards.update');
-        Route::delete('/{board}', [BoardController::class, 'destroy'])->name('boards.destroy');
-
         // Board actions
         Route::post('/{board}/archive', [BoardController::class, 'archive'])->name('boards.archive');
         Route::post('/{board}/unarchive', [BoardController::class, 'unarchive'])->name('boards.unarchive');
@@ -209,12 +203,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::apiResource('board-columns', 'BoardColumnController');
     Route::post('board-columns/reorder', 'BoardColumnController@reorder');
     Route::get('board-columns/{boardColumn}/check-wip-limit', 'BoardColumnController@checkWipLimit');
-
-    // Project-specific boards
-    Route::get('projects/{project}/boards', 'BoardController@projectBoards');
-
-    // Board Types
-    Route::apiResource('board-types', 'BoardTypeController');
 
     // Board Templates
     Route::apiResource('board-templates', 'BoardTemplateController');
@@ -303,14 +291,9 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
 
     // Tag routes
-    Route::prefix('tags')->group(function () {
-        Route::get('/', [TagController::class, 'index'])->name('tags.index');
-        Route::post('/', [TagController::class, 'store'])->name('tags.store');
-        Route::get('/{tag}', [TagController::class, 'show'])->name('tags.show');
-        Route::put('/{tag}', [TagController::class, 'update'])->name('tags.update');
-        Route::delete('/{tag}', [TagController::class, 'destroy'])->name('tags.destroy');
-        Route::post('/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
-    });
+    Route::apiResource('tags', TagController::class);
+    Route::post('tags/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
+
     // Sprint routes
     Route::apiResource('sprints', 'SprintController');
     Route::prefix('sprints')->group(function () {

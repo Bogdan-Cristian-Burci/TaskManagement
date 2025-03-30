@@ -331,7 +331,7 @@ class ProjectService
 
         // Load task counts by status and priority
         $tasksByStatus = $project->tasks()
-            ->select('status.name as status', DB::raw('count(*) as count'))
+            ->select('statuses.name as status', DB::raw('count(*) as count'))
             ->join('statuses', 'tasks.status_id', '=', 'statuses.id')
             ->groupBy('status')
             ->pluck('count', 'status')
