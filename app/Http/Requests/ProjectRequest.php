@@ -20,8 +20,8 @@ class ProjectRequest extends FormRequest
     {
         $projectId = $this->route('project.id') ?? $this->route('project') ? $this->route('project')->id : null;
 
-        return [
-            'name' => 'required|string|max:255',
+        // Base rules
+        $rules = [
             'description' => 'nullable|string',
             'organisation_id' => [
                 'sometimes', // Allow it to be submitted but not required
@@ -85,6 +85,17 @@ class ProjectRequest extends FormRequest
             'end_date' => 'nullable|date|after_or_equal:start_date',
             'board_type_id' => 'nullable|exists:board_types,id', // For optional board creation
         ];
+
+        // Adjust rules based on request method
+        if ($this->isMethod('POST')) {
+            // For creation (POST), name is required
+            $rules['name'] = 'required|string|max:255';
+        } else {
+            // For updates (PUT/PATCH), name is optional but validated if present
+            $rules['name'] = 'sometimes|string|max:255';
+        }
+
+        return $rules;
     }
 
     /**
@@ -94,25 +105,27 @@ class ProjectRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        // Auto-populate organisation_id from the authenticated user if not provided
-        if (!$this->has('organisation_id')) {
-            $this->merge([
-                'organisation_id' => Auth::user()->organisation_id
-            ]);
-        }
+        if ($this->isMethod('POST')) {
+            // Auto-populate organisation_id from the authenticated user if not provided
+            if (!$this->has('organisation_id')) {
+                $this->merge([
+                    'organisation_id' => Auth::user()->organisation_id
+                ]);
+            }
 
-        // Set current user as responsible_user if not provided
-        if (!$this->has('responsible_user_id')) {
-            $this->merge([
-                'responsible_user_id' => Auth::user()->id
-            ]);
-        }
+            // Set current user as responsible_user if not provided
+            if (!$this->has('responsible_user_id')) {
+                $this->merge([
+                    'responsible_user_id' => Auth::user()->id
+                ]);
+            }
 
-        // Force key to uppercase if provided
-        if ($this->has('key')) {
-            $this->merge([
-                'key' => strtoupper($this->input('key'))
-            ]);
+            // Force key to uppercase if provided
+            if ($this->has('key')) {
+                $this->merge([
+                    'key' => strtoupper($this->input('key'))
+                ]);
+            }
         }
     }
 

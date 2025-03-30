@@ -163,11 +163,32 @@ class ProjectController extends Controller
      */
     public function destroy(Request $request, Project $project): Response|JsonResponse
     {
-        // Check if we should cascade delete related entities
-        $cascadeDelete = $request->boolean('cascade_delete', false);
-
         try {
-            $this->projectService->deleteProject($project, $cascadeDelete);
+            // Validate request parameters
+            $request->validate([
+                'task_handling' => 'sometimes|string|in:' . implode(',', array_values(Project::TASK_HANDLING)),
+                'target_project_id' => 'required_if:task_handling,' . Project::TASK_HANDLING['MOVE'] . '|exists:projects,id',
+            ]);
+
+            // For backward compatibility, map cascade_delete to appropriate task handling option
+            if ($request->has('cascade_delete')) {
+                $taskHandlingOption = $request->boolean('cascade_delete') ?
+                    Project::TASK_HANDLING['DELETE'] :
+                    Project::TASK_HANDLING['KEEP'];
+            } else {
+                // Get task handling option (default to DELETE)
+                $taskHandlingOption = $request->input('task_handling', Project::TASK_HANDLING['DELETE']);
+            }
+
+            // Prepare options
+            $options = [];
+            if ($taskHandlingOption === Project::TASK_HANDLING['MOVE'] && $request->has('target_project_id')) {
+                $options['target_project_id'] = $request->input('target_project_id');
+            }
+
+            // Delete project
+            $this->projectService->deleteProject($project, $taskHandlingOption, $options);
+
             return response()->noContent();
         } catch (\Exception $e) {
             return response()->json([
@@ -248,37 +269,6 @@ class ProjectController extends Controller
             return response()->json([
                 'message' => $e->getMessage()
             ], ResponseAlias::HTTP_CONFLICT);
-        }
-    }
-
-    /**
-     * Update user role in the project.
-     *
-     * @param Request $request
-     * @param Project $project
-     * @param User $user
-     * @return JsonResponse
-     */
-    public function updateUserRole(Request $request, Project $project, User $user): JsonResponse
-    {
-        $this->authorize('manageUsers', $project);
-
-        $request->validate([
-            'role' => 'required|string|in:manager,developer,member',
-        ]);
-
-        try {
-            $this->projectService->updateUserRole($project, $user, $request->input('role'));
-
-            return response()->json([
-                'message' => 'User role updated successfully',
-                'user_id' => $user->id,
-                'role' => $request->input('role')
-            ]);
-        } catch (\Exception $e) {
-            return response()->json([
-                'message' => $e->getMessage()
-            ], ResponseAlias::HTTP_BAD_REQUEST);
         }
     }
 

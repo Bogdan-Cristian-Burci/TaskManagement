@@ -55,7 +55,8 @@ class AppServiceProvider extends ServiceProvider
         $this->app->singleton(ProjectService::class, function ($app) {
             return new ProjectService(
                 $app->make(BoardService::class),
-                $app->make(TeamService::class)
+                $app->make(TeamService::class),
+                $app->make(TaskService::class)
             );
         });
 

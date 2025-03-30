@@ -166,14 +166,13 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::get('/', [ProjectController::class, 'index'])->name('projects.index');
         Route::post('/', [ProjectController::class, 'store'])->name('projects.store');
         Route::get('/{project}', [ProjectController::class, 'show'])->name('projects.show');
-        Route::put('/{project}', [ProjectController::class, 'update'])->name('projects.update');
+        Route::patch('/{project}', [ProjectController::class, 'update'])->name('projects.update');
         Route::delete('/{project}', [ProjectController::class, 'destroy'])->name('projects.destroy');
         Route::post('/{project}/restore', [ProjectController::class, 'restore'])->name('projects.restore');
 
         // Project user management
         Route::post('/{project}/users', [ProjectController::class, 'attachUsers'])->name('projects.users.attach');
         Route::delete('/{project}/users/{user}', [ProjectController::class, 'detachUser'])->name('projects.users.detach');
-        Route::put('/{project}/users/{user}/role', [ProjectController::class, 'updateUserRole'])->name('projects.users.updateRole');
         Route::get('/{project}/users', [ProjectController::class, 'users'])->name('projects.users.index');
 
         // Project boards

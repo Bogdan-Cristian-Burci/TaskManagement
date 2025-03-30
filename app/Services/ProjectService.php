@@ -319,27 +319,6 @@ class ProjectService
     }
 
     /**
-     * Update user's role in a project.
-     *
-     * @param Project $project
-     * @param User $user
-     * @param string $role
-     * @return bool
-     */
-    public function updateUserRole(Project $project, User $user, string $role): bool
-    {
-        // Check if user is part of the project
-        if (!$project->users->contains($user->id)) {
-            throw new \Exception('User is not a member of this project.');
-        }
-
-        // Update the role
-        $project->users()->updateExistingPivot($user->id, ['role' => $role]);
-
-        return true;
-    }
-
-    /**
      * Get project statistics.
      *
      * @param Project $project
