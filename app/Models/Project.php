@@ -42,6 +42,15 @@ class Project extends Model
     use HasFactory, SoftDeletes;
 
     /**
+     * Task handling options for project deletion
+     */
+    public const TASK_HANDLING = [
+        'DELETE' => 'delete_tasks',
+        'MOVE' => 'move_tasks',
+        'KEEP' => 'keep_tasks',
+    ];
+
+    /**
      * The attributes that are mass assignable.
      *
      * @var array<string>

@@ -7,6 +7,7 @@ use App\Models\Project;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class ProjectService
 {
@@ -139,32 +140,199 @@ class ProjectService
     }
 
     /**
-     * Delete a project and optionally its related entities.
+     * Delete a project with advanced task handling options.
      *
-     * @param Project $project
-     * @param bool $cascadeDelete Whether to delete related boards, tasks, etc.
+     * @param Project $project The project to delete
+     * @param string $taskHandlingOption Task handling option from ProjectService::TASK_HANDLING
+     * @param array $options Additional options including target_project_id for task movement
      * @return bool
+     * @throws \Exception|\Throwable When validation fails or the operation cannot be completed
      */
-    public function deleteProject(Project $project, bool $cascadeDelete = false): bool
+    public function deleteProject(
+        Project $project,
+        string $taskHandlingOption = Project::TASK_HANDLING['DELETE'],
+        array $options = []
+    ): bool
     {
-        return DB::transaction(function() use ($project, $cascadeDelete) {
-            if ($cascadeDelete) {
-                // Delete all boards associated with this project
-                foreach ($project->boards as $board) {
-                    $this->boardService->deleteBoard($board, true);
-                }
+        // Validate the task handling option
+        if (!in_array($taskHandlingOption, array_values(Project::TASK_HANDLING))) {
+            throw new \Exception("Invalid task handling option: {$taskHandlingOption}");
+        }
 
-                // Delete all tasks associated with this project
-                $project->tasks()->delete();
-            } else {
-                // Simply detach relationships to preserve data
-                $project->users()->detach();
+        return DB::transaction(function() use ($project, $taskHandlingOption, $options) {
+            // Pre-count tasks and users for logging
+            $taskCount = $project->tasks()->count();
+            $userCount = $project->users()->count();
+
+            // Log the deletion intent
+            Log::info("Project deletion initiated for project {$project->id} ({$project->name}) with task handling option: {$taskHandlingOption}");
+
+            switch ($taskHandlingOption) {
+                case Project::TASK_HANDLING['DELETE']:
+                    $this->handleTaskDeletion($project);
+                    break;
+
+                case Project::TASK_HANDLING['MOVE']:
+                    $targetProjectId = $options['target_project_id'] ?? null;
+                    $this->handleTaskMovement($project, $targetProjectId);
+                    break;
+
+                case Project::TASK_HANDLING['KEEP']:
+                    // Keep tasks but detach them from project (orphaning tasks)
+                    $this->handleTaskDetachment($project);
+                    break;
             }
 
+            // Clean up project associations
+            $this->cleanupProjectAssociations($project);
+
+            // Log the deletion
+            activity()
+                ->performedOn($project)
+                ->causedBy(auth()->user())
+                ->withProperties([
+                    'name' => $project->name,
+                    'key' => $project->key,
+                    'task_count' => $taskCount,
+                    'user_count' => $userCount,
+                    'handling_option' => $taskHandlingOption
+                ])
+                ->log('project_deleted');
+
+            // Delete the project
             return $project->delete();
         });
     }
 
+    /**
+     * Handle task deletion for a project
+     *
+     * @param Project $project
+     * @return void
+     */
+    private function handleTaskDeletion(Project $project): void
+    {
+        $taskCount = $project->tasks()->count();
+
+        // Delete all child entities (cascade using task service if available)
+        foreach ($project->tasks as $task) {
+            // Delete comments, attachments, and history for each task
+            // Better if delegated to a TaskService, but keeping it here per your preference
+            $task->comments()->delete();
+            $task->attachments()->delete();
+            $task->history()->delete();
+        }
+
+        // Delete the tasks
+        $project->tasks()->delete();
+
+        Log::info("Deleted {$taskCount} tasks from project {$project->id}");
+    }
+
+    /**
+     * Handle task movement to another project
+     *
+     * @param Project $project
+     * @param int|null $targetProjectId
+     * @throws \Exception When target project validation fails
+     * @return void
+     */
+    private function handleTaskMovement(Project $project, ?int $targetProjectId): void
+    {
+        // Validate target project
+        if (!$targetProjectId) {
+            throw new \Exception('Target project ID is required for task movement');
+        }
+
+        $targetProject = Project::find($targetProjectId);
+        if (!$targetProject) {
+            throw new \Exception('Target project not found');
+        }
+
+        // Cannot move to the same project
+        if ($project->id === $targetProject->id) {
+            throw new \Exception('Cannot move tasks to the same project');
+        }
+
+        // Ensure target project is in the same organization
+        if ($project->organisation_id !== $targetProject->organisation_id) {
+            throw new \Exception('Cannot move tasks to a project in a different organization');
+        }
+
+        // Get target default board and column if exists
+        $targetBoard = $targetProject->boards()->first();
+        $targetBoardId = $targetBoard?->id;
+        $targetColumnId = $targetBoard?->columns()->first()?->id;
+
+        // Process tasks in chunks to avoid memory issues
+        $taskCount = 0;
+        $project->tasks()->chunkById(100, function ($tasks) use ($targetProject, $targetBoardId, $targetColumnId, &$taskCount) {
+            foreach ($tasks as $task) {
+                $taskCount++;
+
+                // Update task with new project and board information
+                $taskUpdateData = [
+                    'project_id' => $targetProject->id,
+                    'board_id' => $targetBoardId,
+                    'board_column_id' => $targetColumnId,
+                ];
+
+                // Update the task
+                $task->update($taskUpdateData);
+
+                // Record history if available
+                if (method_exists($task, 'recordHistory')) {
+                    $task->recordHistory('moved', [
+                        'from_project_id' => $project->id,
+                        'to_project_id' => $targetProject->id,
+                        'by_user_id' => auth()->id() ?? 0
+                    ]);
+                }
+            }
+        });
+
+        Log::info("Moved {$taskCount} tasks from project {$project->id} to project {$targetProject->id}");
+    }
+
+    /**
+     * Handle task detachment (orphaning tasks)
+     *
+     * @param Project $project
+     * @return void
+     */
+    private function handleTaskDetachment(Project $project): void
+    {
+        // This option might not be desirable in most cases due to data integrity
+        // But keeping it as an option for specific use cases
+        $taskCount = $project->tasks()->count();
+
+        // Nullify the project_id on tasks
+        // Warning: This may violate constraints if project_id is NOT NULL
+        $project->tasks()->update(['project_id' => null]);
+
+        Log::info("Detached {$taskCount} tasks from project {$project->id}");
+    }
+
+    /**
+     * Clean up project associations before deletion
+     *
+     * @param Project $project
+     * @return void
+     */
+    private function cleanupProjectAssociations(Project $project): void
+    {
+        // Detach users from project
+        $project->users()->detach();
+
+        // Delete project boards if they exist and aren't already handled
+        foreach ($project->boards as $board) {
+            // Use boardService if it's not handling cascading deletions
+            $this->boardService->deleteBoard($board, true);
+        }
+
+        // Handle other project associations
+        $project->tags()->delete(); // Delete project-specific tags
+    }
     /**
      * Add users to a project with specified roles.
      *
