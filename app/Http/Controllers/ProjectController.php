@@ -173,6 +173,10 @@ class ProjectController extends Controller
             return response()->json([
                 'message' => $e->getMessage()
             ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        } catch (\Throwable $e) {
+            return response()->json([
+                'message' => 'An unexpected error occurred: ' . $e->getMessage()
+            ], ResponseAlias::HTTP_INTERNAL_SERVER_ERROR);
         }
     }
 

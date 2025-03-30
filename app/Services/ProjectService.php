@@ -14,10 +14,13 @@ class ProjectService
     protected BoardService $boardService;
     protected TeamService $teamService;
 
-    public function __construct(BoardService $boardService, TeamService $teamService)
+    protected TaskService $taskService;
+
+    public function __construct(BoardService $boardService, TeamService $teamService, TaskService $taskService)
     {
         $this->boardService = $boardService;
         $this->teamService = $teamService;
+        $this->taskService = $taskService;
     }
 
 
@@ -169,17 +172,29 @@ class ProjectService
 
             switch ($taskHandlingOption) {
                 case Project::TASK_HANDLING['DELETE']:
-                    $this->handleTaskDeletion($project);
+                    $this->taskService->deleteProjectTasks($project);
                     break;
 
                 case Project::TASK_HANDLING['MOVE']:
                     $targetProjectId = $options['target_project_id'] ?? null;
-                    $this->handleTaskMovement($project, $targetProjectId);
+
+                    // Validate target project
+                    if (!$targetProjectId) {
+                        throw new \Exception('Target project ID is required for task movement');
+                    }
+
+                    $targetProject = Project::find($targetProjectId);
+                    if (!$targetProject) {
+                        throw new \Exception('Target project not found');
+                    }
+
+                    // Use TaskService to move tasks
+                    $this->taskService->moveProjectTasks($project, $targetProject);
                     break;
 
                 case Project::TASK_HANDLING['KEEP']:
                     // Keep tasks but detach them from project (orphaning tasks)
-                    $this->handleTaskDetachment($project);
+                    $this->taskService->detachProjectTasks($project);
                     break;
             }
 
@@ -204,114 +219,6 @@ class ProjectService
         });
     }
 
-    /**
-     * Handle task deletion for a project
-     *
-     * @param Project $project
-     * @return void
-     */
-    private function handleTaskDeletion(Project $project): void
-    {
-        $taskCount = $project->tasks()->count();
-
-        // Delete all child entities (cascade using task service if available)
-        foreach ($project->tasks as $task) {
-            // Delete comments, attachments, and history for each task
-            // Better if delegated to a TaskService, but keeping it here per your preference
-            $task->comments()->delete();
-            $task->attachments()->delete();
-            $task->history()->delete();
-        }
-
-        // Delete the tasks
-        $project->tasks()->delete();
-
-        Log::info("Deleted {$taskCount} tasks from project {$project->id}");
-    }
-
-    /**
-     * Handle task movement to another project
-     *
-     * @param Project $project
-     * @param int|null $targetProjectId
-     * @throws \Exception When target project validation fails
-     * @return void
-     */
-    private function handleTaskMovement(Project $project, ?int $targetProjectId): void
-    {
-        // Validate target project
-        if (!$targetProjectId) {
-            throw new \Exception('Target project ID is required for task movement');
-        }
-
-        $targetProject = Project::find($targetProjectId);
-        if (!$targetProject) {
-            throw new \Exception('Target project not found');
-        }
-
-        // Cannot move to the same project
-        if ($project->id === $targetProject->id) {
-            throw new \Exception('Cannot move tasks to the same project');
-        }
-
-        // Ensure target project is in the same organization
-        if ($project->organisation_id !== $targetProject->organisation_id) {
-            throw new \Exception('Cannot move tasks to a project in a different organization');
-        }
-
-        // Get target default board and column if exists
-        $targetBoard = $targetProject->boards()->first();
-        $targetBoardId = $targetBoard?->id;
-        $targetColumnId = $targetBoard?->columns()->first()?->id;
-
-        // Process tasks in chunks to avoid memory issues
-        $taskCount = 0;
-        $project->tasks()->chunkById(100, function ($tasks) use ($targetProject, $targetBoardId, $targetColumnId, &$taskCount) {
-            foreach ($tasks as $task) {
-                $taskCount++;
-
-                // Update task with new project and board information
-                $taskUpdateData = [
-                    'project_id' => $targetProject->id,
-                    'board_id' => $targetBoardId,
-                    'board_column_id' => $targetColumnId,
-                ];
-
-                // Update the task
-                $task->update($taskUpdateData);
-
-                // Record history if available
-                if (method_exists($task, 'recordHistory')) {
-                    $task->recordHistory('moved', [
-                        'from_project_id' => $project->id,
-                        'to_project_id' => $targetProject->id,
-                        'by_user_id' => auth()->id() ?? 0
-                    ]);
-                }
-            }
-        });
-
-        Log::info("Moved {$taskCount} tasks from project {$project->id} to project {$targetProject->id}");
-    }
-
-    /**
-     * Handle task detachment (orphaning tasks)
-     *
-     * @param Project $project
-     * @return void
-     */
-    private function handleTaskDetachment(Project $project): void
-    {
-        // This option might not be desirable in most cases due to data integrity
-        // But keeping it as an option for specific use cases
-        $taskCount = $project->tasks()->count();
-
-        // Nullify the project_id on tasks
-        // Warning: This may violate constraints if project_id is NOT NULL
-        $project->tasks()->update(['project_id' => null]);
-
-        Log::info("Detached {$taskCount} tasks from project {$project->id}");
-    }
 
     /**
      * Clean up project associations before deletion
@@ -395,20 +302,11 @@ class ProjectService
                 }
 
                 // Perform the reassignment - using responsible_id from Task model
-                $tasksReassigned = $project->tasks()
-                    ->where('responsible_id', $user->id)
-                    ->update(['responsible_id' => $reassignToUserId]);
-
-                \Log::info("Reassigned {$tasksReassigned} tasks from user {$user->id} to user {$reassignToUserId} in project {$project->id}");
-
+                $this->taskService->reassignProjectTasks($project, $user, $reassignToUser);
 
             } else {
-                // Unassign tasks if not being reassigned
-                $tasksUnassigned = $project->tasks()
-                    ->where('responsible_id', $user->id)
-                    ->update(['responsible_id' => null]);
-
-                \Log::info("Unassigned {$tasksUnassigned} tasks from user {$user->id} in project {$project->id}");
+                // Unassign tasks using TaskService
+                $this->taskService->reassignProjectTasks($project, $user, null);
             }
 
             // Remove user from project
@@ -505,5 +403,18 @@ class ProjectService
                 'is_overdue' => $project->is_overdue,
             ]
         ];
+    }
+
+    /**
+     * Get tasks for a specific project with optional filtering.
+     *
+     * @param Project $project
+     * @param array $filters
+     * @param array $with Related models to load
+     * @return Collection
+     */
+    public function getProjectTasks(Project $project, array $filters = [], array $with = []): Collection
+    {
+        return $this->taskService->getProjectTasks($project, $filters, $with);
     }
 }

@@ -8,6 +8,7 @@ use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 class TaskService
 {
@@ -312,5 +313,195 @@ class TaskService
         }
 
         return $query->get();
+    }
+
+    /**
+     * Delete all tasks associated with a project.
+     * Used during project deletion process.
+     *
+     * @param Project $project
+     * @return int Number of tasks deleted
+     */
+    public function deleteProjectTasks(Project $project): int
+    {
+        $taskCount = $project->tasks()->count();
+
+        if ($taskCount === 0) {
+            Log::info("No tasks to delete for project {$project->id} ({$project->name})");
+            return 0;
+        }
+
+        return DB::transaction(function() use ($project, $taskCount) {
+            // Delete all task-related data
+            foreach ($project->tasks as $task) {
+                // Delete comments, attachments, and history for each task
+                $task->comments()->delete();
+                $task->attachments()->delete();
+                $task->history()->delete();
+
+                // Detach from sprints if applicable
+                if (method_exists($task, 'sprints')) {
+                    $task->sprints()->detach();
+                }
+
+                // Detach tags if applicable
+                if (method_exists($task, 'tags')) {
+                    $task->tags()->detach();
+                }
+            }
+
+            // Delete the tasks
+            $project->tasks()->delete();
+
+            Log::info("Deleted {$taskCount} tasks from project {$project->id} ({$project->name})");
+
+            return $taskCount;
+        });
+    }
+
+    /**
+     * Move tasks from one project to another.
+     * Used during project deletion process.
+     *
+     * @param Project $sourceProject
+     * @param Project $targetProject
+     * @return int Number of tasks moved
+     * @throws \Exception When validation fails
+     */
+    public function moveProjectTasks(Project $sourceProject, Project $targetProject): int
+    {
+        // Cannot move to the same project
+        if ($sourceProject->id === $targetProject->id) {
+            throw new \Exception('Cannot move tasks to the same project');
+        }
+
+        // Ensure target project is in the same organization
+        if ($sourceProject->organisation_id !== $targetProject->organisation_id) {
+            throw new \Exception('Cannot move tasks to a project in a different organization');
+        }
+
+        $taskCount = $sourceProject->tasks()->count();
+
+        if ($taskCount === 0) {
+            Log::info("No tasks to move from project {$sourceProject->id} ({$sourceProject->name})");
+            return 0;
+        }
+
+        // Get target default board and column if exists
+        $targetBoard = $targetProject->boards()->first();
+        $targetBoardId = $targetBoard?->id;
+        $targetColumnId = $targetBoard?->columns()->first()?->id;
+
+        return DB::transaction(function() use ($sourceProject, $targetProject, $targetBoardId, $targetColumnId, $taskCount) {
+            // Process tasks in chunks to avoid memory issues
+            $sourceProject->tasks()->chunkById(100, function ($tasks) use ($sourceProject, $targetProject, $targetBoardId, $targetColumnId) {
+                foreach ($tasks as $task) {
+                    // Update task with new project and board information
+                    $taskUpdateData = [
+                        'project_id' => $targetProject->id,
+                        'board_id' => $targetBoardId,
+                        'board_column_id' => $targetColumnId,
+                    ];
+
+                    // Update the task
+                    $task->update($taskUpdateData);
+
+                    // Record history if available
+                    if (method_exists($task, 'recordHistory')) {
+                        $task->recordHistory('moved', [
+                            'from_project_id' => $sourceProject->id,
+                            'to_project_id' => $targetProject->id,
+                            'by_user_id' => auth()->id() ?? 0
+                        ]);
+                    } else if (method_exists($task, 'history')) {
+                        // Create history record directly
+                        $task->history()->create([
+                            'action' => 'moved',
+                            'user_id' => auth()->id() ?? 0,
+                            'details' => json_encode([
+                                'from_project_id' => $sourceProject->id,
+                                'to_project_id' => $targetProject->id
+                            ])
+                        ]);
+                    }
+                }
+            });
+
+            Log::info("Moved {$taskCount} tasks from project {$sourceProject->id} to project {$targetProject->id}");
+
+            return $taskCount;
+        });
+    }
+
+    /**
+     * Detach tasks from a project without deleting them.
+     * This potentially creates orphaned tasks, use with caution.
+     * Used during project deletion process.
+     *
+     * @param Project $project
+     * @return int Number of tasks detached
+     * @throws \Exception|\Throwable If database constraints prevent detachment
+     */
+    public function detachProjectTasks(Project $project): int
+    {
+        $taskCount = $project->tasks()->count();
+
+        if ($taskCount === 0) {
+            Log::info("No tasks to detach for project {$project->id} ({$project->name})");
+            return 0;
+        }
+
+        try {
+            // Some databases might prevent nullifying project_id if there's a NOT NULL constraint
+            DB::transaction(function() use ($project) {
+                // Update tasks to remove project association
+                $project->tasks()->update([
+                    'project_id' => null,
+                    'board_id' => null,
+                    'board_column_id' => null
+                ]);
+            });
+
+            Log::info("Detached {$taskCount} tasks from project {$project->id} ({$project->name})");
+
+            return $taskCount;
+        } catch (\Exception $e) {
+            Log::error("Failed to detach tasks from project {$project->id}: " . $e->getMessage());
+            throw new \Exception('Cannot detach tasks from project due to database constraints. Consider using a different task handling option.');
+        }
+    }
+
+    /**
+     * Bulk reassign tasks from one user to another within a project.
+     *
+     * @param Project $project
+     * @param User $fromUser
+     * @param User|null $toUser Set to null to unassign tasks
+     * @return int Number of tasks reassigned
+     */
+    public function reassignProjectTasks(Project $project, User $fromUser, ?User $toUser = null): int
+    {
+        $query = $project->tasks()->where('responsible_id', $fromUser->id);
+        $taskCount = $query->count();
+
+        if ($taskCount === 0) {
+            return 0;
+        }
+
+        $newResponsibleId = $toUser?->id;
+
+        // If a new user is specified, verify they are part of the project
+        if ($toUser && !$project->users()->where('users.id', $toUser->id)->exists()) {
+            throw new \Exception('Cannot reassign tasks to a user who is not a project member.');
+        }
+
+        DB::transaction(function() use ($query, $newResponsibleId, $fromUser, $toUser, $project) {
+            $query->update(['responsible_id' => $newResponsibleId]);
+
+            $action = $toUser ? "reassigned to user {$toUser->id}" : "unassigned";
+            Log::info("Tasks {$action} from user {$fromUser->id} in project {$project->id}");
+        });
+
+        return $taskCount;
     }
 }
