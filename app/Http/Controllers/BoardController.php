@@ -7,6 +7,7 @@ use App\Http\Resources\BoardColumnResource;
 use App\Http\Resources\BoardResource;
 use App\Http\Resources\TaskResource;
 use App\Models\Board;
+use App\Models\Project;
 use App\Services\BoardService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -54,6 +55,31 @@ class BoardController extends Controller
         $boards = $this->boardService->getBoards($filters, $with);
 
         return BoardResource::collection($boards);
+    }
+
+    /**
+     * Store a newly created board.
+     *
+     * @param BoardRequest $request
+     * @return BoardResource
+     */
+    public function store(BoardRequest $request): BoardResource
+    {
+        $validated = $request->validated();
+
+        $project = Project::findOrFail($validated['project_id']);
+        $boardTypeId = $validated['board_type_id'];
+
+        // Remove these fields as they're passed separately to createBoard
+        unset($validated['project_id'], $validated['board_type_id']);
+
+        $board = $this->boardService->createBoard(
+            $project,
+            $boardTypeId,
+            $validated
+        );
+
+        return new BoardResource($board->load('columns'));
     }
 
     /**

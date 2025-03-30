@@ -22,7 +22,6 @@ class BoardResource extends JsonResource
             'name' => $this->name,
             'description' => $this->description,
             'type' => $this->type,
-            'is_archived' => $this->when(isset($this->is_archived), $this->is_archived, false),
             'project_id' => $this->project_id,
             'board_type_id' => $this->board_type_id,
             'created_at' => $this->created_at,
@@ -49,7 +48,6 @@ class BoardResource extends JsonResource
             'can' => $this->when($request->user(), [
                 'update' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
                 'delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
-                'archive' => $request->user() ? $request->user()->hasPermission('archive', $this->resource) : false,
                 'duplicate' => $request->user() ? $request->user()->hasPermission('duplicate', $this->resource) : false,
             ]),
 

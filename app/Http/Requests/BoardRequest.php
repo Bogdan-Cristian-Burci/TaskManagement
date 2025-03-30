@@ -50,7 +50,6 @@ class BoardRequest extends FormRequest
                 }
             ],
             'board_type_id' => ['required', 'exists:board_types,id'],
-            'is_archived' => ['sometimes', 'boolean'],
         ];
     }
 }
