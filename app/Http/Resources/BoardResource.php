@@ -21,7 +21,6 @@ class BoardResource extends JsonResource
             'id' => $this->id,
             'name' => $this->name,
             'description' => $this->description,
-            'type' => $this->type,
             'project_id' => $this->project_id,
             'board_type_id' => $this->board_type_id,
             'created_at' => $this->created_at,

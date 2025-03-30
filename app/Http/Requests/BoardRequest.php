@@ -39,7 +39,6 @@ class BoardRequest extends FormRequest
                     ->ignore($boardId)
             ],
             'description' => ['nullable', 'string'],
-            'type' => ['nullable', 'string', 'max:50'],
             'project_id' => [
                 'required',
                 'exists:projects,id',

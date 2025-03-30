@@ -19,7 +19,6 @@ use Illuminate\Support\Facades\Cache;
  * @property string $description
  * @property integer $project_id
  * @property integer $board_type_id
- * @property string $type
  * @property Project $project
  * @property BoardType $boardType
  * @property BoardColumn[] $columns
@@ -37,7 +36,6 @@ class Board extends Model
     protected $fillable = [
         'name',
         'description',
-        'type',
         'project_id',
         'board_type_id',
     ];

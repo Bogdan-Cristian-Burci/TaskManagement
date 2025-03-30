@@ -11,7 +11,6 @@ return new class extends Migration {
             $table->id();
             $table->string('name');
             $table->string('description');
-            $table->string('type')->default('kanban');
             $table->foreignId('project_id')->constrained('projects');
             $table->foreignId('board_type_id')->nullable()->constrained('board_types')->nullOnDelete();
             $table->timestamps();
