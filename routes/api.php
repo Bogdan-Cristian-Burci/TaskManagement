@@ -192,8 +192,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::apiResource('boards', BoardController::class);
     Route::prefix('boards')->group(function () {
         // Board actions
-        Route::post('/{board}/archive', [BoardController::class, 'archive'])->name('boards.archive');
-        Route::post('/{board}/unarchive', [BoardController::class, 'unarchive'])->name('boards.unarchive');
         Route::post('/{board}/duplicate', [BoardController::class, 'duplicate'])->name('boards.duplicate');
         Route::get('/{board}/columns', [BoardController::class,'columns']);
         Route::get('/{board}/tasks', [BoardController::class,'tasks']);

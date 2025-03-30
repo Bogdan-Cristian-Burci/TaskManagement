@@ -42,10 +42,6 @@ class BoardController extends Controller
             $filters['board_type_id'] = $request->board_type_id;
         }
 
-        if ($request->has('is_archived')) {
-            $filters['is_archived'] = $request->boolean('is_archived');
-        }
-
         // Add relationships to load
         if ($request->has('with_columns')) {
             $with[] = 'columns';
@@ -112,36 +108,6 @@ class BoardController extends Controller
         $this->boardService->deleteBoard($board, $cascadeDelete);
 
         return response()->json(['message' => 'Board deleted successfully']);
-    }
-
-    /**
-     * Archive a board.
-     *
-     * @param Board $board
-     * @return BoardResource
-     */
-    public function archive(Board $board): BoardResource
-    {
-        $this->authorize('archive', $board);
-
-        $board = $this->boardService->archiveBoard($board);
-
-        return new BoardResource($board);
-    }
-
-    /**
-     * Unarchive a board.
-     *
-     * @param Board $board
-     * @return BoardResource
-     */
-    public function unarchive(Board $board): BoardResource
-    {
-        $this->authorize('unarchive', $board);
-
-        $board = $this->boardService->unarchiveBoard($board);
-
-        return new BoardResource($board);
     }
 
     /**

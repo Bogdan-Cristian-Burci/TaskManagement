@@ -102,10 +102,6 @@ class BoardService
             $query->where('board_type_id', $filters['board_type_id']);
         }
 
-        if (isset($filters['is_archived'])) {
-            $query->where('is_archived', $filters['is_archived']);
-        }
-
         // Load relationships
         if (!empty($with)) {
             $query->with($with);
@@ -136,30 +132,6 @@ class BoardService
     public function updateBoard(Board $board, array $attributes): Board
     {
         $board->update($attributes);
-        return $board->fresh();
-    }
-
-    /**
-     * Archive a board.
-     *
-     * @param Board $board
-     * @return Board
-     */
-    public function archiveBoard(Board $board): Board
-    {
-        $board->archive();
-        return $board->fresh();
-    }
-
-    /**
-     * Unarchive a board.
-     *
-     * @param Board $board
-     * @return Board
-     */
-    public function unarchiveBoard(Board $board): Board
-    {
-        $board->unarchive();
         return $board->fresh();
     }
 

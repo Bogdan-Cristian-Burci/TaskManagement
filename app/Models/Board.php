@@ -40,7 +40,6 @@ class Board extends Model
         'type',
         'project_id',
         'board_type_id',
-        'is_archived'
     ];
 
     /**
@@ -53,7 +52,6 @@ class Board extends Model
         'project_id' => 'integer',
         'board_type_id' => 'integer',
         'deleted_at' => 'datetime',
-        'is_archived' => 'boolean'
     ];
 
     /**
@@ -164,29 +162,6 @@ class Board extends Model
     public function activeSprint() : HasOne
     {
         return $this->hasOne(Sprint::class)->where('status', 'active');
-    }
-
-    /**
-     * Archive the board.
-     *
-     * @return bool
-     */
-    public function archive(): bool
-    {
-        // Save the current state
-        $this->is_archived = true;
-        return $this->save();
-    }
-
-    /**
-     * Unarchive the board.
-     *
-     * @return bool
-     */
-    public function unarchive(): bool
-    {
-        $this->is_archived = false;
-        return $this->save();
     }
 
     /**
