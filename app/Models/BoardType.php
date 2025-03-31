@@ -65,13 +65,25 @@ class BoardType extends Model
      */
     public function createBoard(array $attributes): ?Board
     {
+        // Make sure template is loaded
+        if (!$this->relationLoaded('template')) {
+            $this->load('template');
+        }
+
         if (!$this->template) {
+            \Log::error('Template not found for BoardType ID: ' . $this->id);
             return null;
         }
 
-        return $this->template->createBoard(array_merge($attributes, [
-            'board_type_id' => $this->id
-        ]));
+
+        try {
+            return $this->template->createBoard(array_merge($attributes, [
+                'board_type_id' => $this->id
+            ]));
+        } catch (\Exception $e) {
+            \Log::error('Error creating board: ' . $e->getMessage());
+            return null;
+        }
     }
 
     /**

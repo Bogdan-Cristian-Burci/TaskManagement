@@ -14,10 +14,10 @@ class BoardRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->route('board')) {
-            return $this->user()->hasPermission('update', $this->route('board'));
+            return $this->user()->hasPermission('board.update');
         }
 
-        return $this->user()->hasPermission('create', 'App\Models\Board');
+        return $this->user()->hasPermission('board.create');
     }
 
     /**

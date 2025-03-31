@@ -193,8 +193,8 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::prefix('boards')->group(function () {
         // Board actions
         Route::post('/{board}/duplicate', [BoardController::class, 'duplicate'])->name('boards.duplicate');
-        Route::get('/{board}/columns', [BoardController::class,'columns']);
-        Route::get('/{board}/tasks', [BoardController::class,'tasks']);
+        Route::get('/{board}/columns', [BoardController::class,'columns'])->name('boards.columns.index');
+        Route::get('/{board}/tasks', [BoardController::class,'tasks'])->name('boards.tasks.index');
         Route::get('/{board}/statistics', [BoardController::class,'statistics']);
     });
 

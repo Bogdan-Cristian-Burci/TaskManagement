@@ -17,7 +17,8 @@ class DatabaseSeeder extends Seeder
             ChangeTypeSeeder::class,
             PrioritySeeder::class,
             StatusSeeder::class,
-            TaskTypeSeeder::class
+            TaskTypeSeeder::class,
+            BoardTemplateAndTypeSeeder::class
         ]);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\Board;
 use App\Models\BoardColumn;
+use App\Models\BoardTemplate;
 use App\Models\BoardType;
 use App\Models\Project;
 use App\Models\Task;
@@ -26,10 +27,25 @@ class BoardService
      * @param int $boardTypeId
      * @param array $attributes Additional board attributes
      * @return Board
+     * @throws \Exception
      */
     public function createBoard(Project $project, int $boardTypeId, array $attributes = []): Board
     {
         $boardType = BoardType::findOrFail($boardTypeId);
+
+        // Load template without global scopes that might be filtering it
+        $template = BoardTemplate::withoutGlobalScopes()
+            ->where('id', $boardType->template_id)
+            ->first();
+
+        \Log::info('Loading template directly: ', [
+            'template_id' => $boardType->template_id,
+            'template_found' => $template ? 'yes' : 'no'
+        ]);
+
+        // Manually attach the template to the board type
+        $boardType->setRelation('template', $template);
+
 
         return DB::transaction(function() use ($project, $boardType, $attributes) {
             // Create board with default attributes
@@ -40,6 +56,10 @@ class BoardService
             ], $attributes);
 
             $board = $boardType->createBoard($boardData);
+
+            if (!$board) {
+                throw new \Exception('Failed to create board using template for board type: ' . $boardType->name);
+            }
 
             // Initialize based on board type
             $this->initializeBoardByType($board, $boardType);
