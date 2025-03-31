@@ -31,7 +31,7 @@ class BoardRequest extends FormRequest
 
         return [
             'name' => [
-                'required',
+                $this->isMethod('patch') ? 'sometimes' : 'required',
                 'string',
                 'max:255',
                 Rule::unique('boards')
@@ -40,7 +40,7 @@ class BoardRequest extends FormRequest
             ],
             'description' => ['nullable', 'string'],
             'project_id' => [
-                'required',
+                $this->isMethod('patch') ? 'sometimes' : 'required',
                 'exists:projects,id',
                 function ($attribute, $value, $fail) {
                     if (!$this->user()->projects()->where('projects.id', $value)->exists()) {
@@ -48,7 +48,7 @@ class BoardRequest extends FormRequest
                     }
                 }
             ],
-            'board_type_id' => ['required', 'exists:board_types,id'],
+            'board_type_id' => [$this->isMethod('patch') ? 'sometimes' : 'required', 'exists:board_types,id'],
         ];
     }
 }
