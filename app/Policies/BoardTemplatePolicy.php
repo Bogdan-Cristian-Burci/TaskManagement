@@ -100,7 +100,7 @@ class BoardTemplatePolicy
      */
     public function duplicate(User $user, BoardTemplate $boardTemplate): bool
     {
-        return $user->hasPermission('manage board templates')
-            || $user->hasRole('admin');
+        return $user->hasPermission('board.create');
+
     }
 }

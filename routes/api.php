@@ -1,9 +1,9 @@
 <?php
 
+use App\Http\Controllers\BoardTemplateController;
 use App\Http\Controllers\PermissionController;
 use App\Http\Controllers\UserPermissionOverrideController;
 use App\Http\Controllers\AttachmentController;
-use App\Http\Controllers\BoardColumnController;
 use App\Http\Controllers\BoardController;
 use App\Http\Controllers\BoardTypeController;
 use App\Http\Controllers\ChangeTypeController;
@@ -198,13 +198,10 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::get('/{board}/statistics', [BoardController::class,'statistics']);
     });
 
-    Route::apiResource('board-columns', 'BoardColumnController');
-    Route::post('board-columns/reorder', 'BoardColumnController@reorder');
-    Route::get('board-columns/{boardColumn}/check-wip-limit', 'BoardColumnController@checkWipLimit');
-
     // Board Templates
-    Route::apiResource('board-templates', 'BoardTemplateController');
-    Route::post('board-templates/{boardTemplate}/duplicate', 'BoardTemplateController@duplicate');
+    Route::apiResource('board-templates', BoardTemplateController::class);
+    //TODO fix global scope issue for duplicate method
+    Route::post('board-templates/{id}/duplicate', [BoardTemplateController::class,'duplicate']);
     Route::post('board-templates/{boardTemplate}/toggle-active', 'BoardTemplateController@toggleActive');
     Route::get('board-templates/system', 'BoardTemplateController@systemTemplates');
 
@@ -219,7 +216,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::post('tasks/{task}/comments', [CommentController::class, 'store']);
     Route::apiResource('comments', CommentController::class)->except(['index', 'store']);
 
-    Route::apiResource('organisations', OrganisationController::class);
 
     Route::apiResource('priorities', PriorityController::class);
     Route::post('priorities/reorder', [PriorityController::class, 'reorder']);

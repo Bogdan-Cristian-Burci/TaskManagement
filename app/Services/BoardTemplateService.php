@@ -133,19 +133,24 @@ class BoardTemplateService
     /**
      * Duplicate a template (system or custom).
      *
-     * @param BoardTemplate $boardTemplate
+     * @param int | BoardTemplate $boardTemplate
      * @param int $organisationId
      * @param string|null $newName
      * @param int|null $createdBy
      * @return BoardTemplate
      */
     public function duplicateTemplate(
-        BoardTemplate $boardTemplate,
-        int $organisationId,
-        ?string $newName = null,
-        ?int $createdBy = null
+        int|BoardTemplate $boardTemplate,
+        int               $organisationId,
+        ?string           $newName = null,
+        ?int              $createdBy = null
     ): BoardTemplate
     {
+        // If we got an ID instead of a model, fetch the template without global scopes
+        if (!($boardTemplate instanceof BoardTemplate)) {
+            $boardTemplate = BoardTemplate::withoutGlobalScopes()->findOrFail($boardTemplate);
+        }
+
         return BoardTemplate::duplicateExisting(
             $organisationId,
             $boardTemplate->id,
