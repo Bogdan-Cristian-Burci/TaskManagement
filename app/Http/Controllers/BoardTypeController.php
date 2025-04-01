@@ -61,6 +61,7 @@ class BoardTypeController extends Controller
      */
     public function store(BoardTypeRequest $request): BoardTypeResource
     {
+        $this->authorize('create');
         $boardType = $this->boardTypeService->createBoardType($request->validated());
         return new BoardTypeResource($boardType);
     }
@@ -101,6 +102,7 @@ class BoardTypeController extends Controller
      */
     public function update(BoardTypeRequest $request, BoardType $boardType): BoardTypeResource
     {
+        $this->authorize('update', $boardType);
         $boardType = $this->boardTypeService->updateBoardType($boardType, $request->validated());
         return new BoardTypeResource($boardType);
     }
@@ -113,6 +115,8 @@ class BoardTypeController extends Controller
      */
     public function destroy(BoardType $boardType): Response|JsonResponse
     {
+        $this->authorize('delete', $boardType);
+
         try {
             $this->boardTypeService->deleteBoardType($boardType);
             return response()->noContent();
