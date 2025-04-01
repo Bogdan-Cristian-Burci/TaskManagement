@@ -23,13 +23,13 @@ class BoardTypePolicy
     public function create(User $user): bool
     {
         // Only admin or users with specific permissions can create board types
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage board types');
+        return $user->hasPermission('board.create');
     }
 
     public function update(User $user, BoardType $boardType): bool
     {
         // Only admin or users with specific permissions can update board types
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage board types');
+        return $user->hasPermission('board.update');
     }
 
     public function delete(User $user, BoardType $boardType): bool
@@ -40,16 +40,16 @@ class BoardTypePolicy
             return false;
         }
 
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage board types');
+        return  $user->hasPermission('board.delete');
     }
 
     public function restore(User $user, BoardType $boardType): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage board types');
+        return $user->hasPermission('board.restore');
     }
 
     public function forceDelete(User $user, BoardType $boardType): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage board types');
+        return $user->hasPermission('board.forceDelete');
     }
 }

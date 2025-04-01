@@ -204,10 +204,11 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('board-templates/system', [BoardTemplateController::class,'systemTemplates']);
     Route::apiResource('board-templates', BoardTemplateController::class);
 
+    Route::apiResource('board-types', BoardTypeController::class);
 
     Route::apiResource('attachments', AttachmentController::class);
 
-    Route::apiResource('board-types', BoardTypeController::class);
+
     Route::apiResource('change-types', ChangeTypeController::class);
     // Board sprints
     Route::get('boards/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');

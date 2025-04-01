@@ -141,7 +141,7 @@ class BoardTypeService
                 $boardType = BoardType::create([
                     'name' => $name,
                     'description' => $description,
-                    'board_template_id' => $templateId
+                    'template_id' => $templateId
                 ]);
             }
 

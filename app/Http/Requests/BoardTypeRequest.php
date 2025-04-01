@@ -2,51 +2,31 @@
 
 namespace App\Http\Requests;
 
-use App\Models\BoardType;
 use Illuminate\Foundation\Http\FormRequest;
-use Illuminate\Validation\Rule;
 
-/**
- * @property string $name
- * @property string|null $description
- * @property bool $is_active
- */
 class BoardTypeRequest extends FormRequest
 {
+    public function authorize(): true
+    {
+        return true;
+    }
+
     public function rules(): array
     {
-        $rules =  [
-            'name' => ['required','string', 'max:255'],
-            'description' => ['nullable', 'string'],
-
-            'sort_by' => ['sometimes', 'string', Rule::in([
-                'id', 'name', 'is_active', 'created_at', 'updated_at'
-            ])],
-            'sort_direction' => ['sometimes', 'string', Rule::in(['asc', 'desc'])],
+        $rules = [
+            'name' => 'required|string|max:255',
+            'description' => 'nullable|string',
         ];
 
-        if ($this->isMethod('PATCH') || $this->isMethod('PUT')) {
-            // Make fields optional for updates
-            foreach ($rules as &$rule) {
-                $rule = array_filter($rule, fn($item) => $item !== 'required');
-            }
+        // For store (create) operations, template_id is required
+        if ($this->isMethod('post')) {
+            $rules['template_id'] = 'required|exists:board_templates,id';
+        }
+        // For update operations, make template_id optional but valid if provided
+        else if ($this->isMethod('put') || $this->isMethod('patch')) {
+            $rules['template_id'] = 'sometimes|exists:board_templates,id';
         }
 
         return $rules;
-    }
-
-    public function authorize(): bool
-    {
-        // For store requests
-        if ($this->isMethod('POST')) {
-            return auth()->user()->hasPermission('create', BoardType::class);
-        }
-
-        // For update/delete requests
-        if ($this->route('boardType')) {
-            return auth()->user()->hasPermission('update', $this->route('boardType'));
-        }
-
-        return false;
     }
 }
