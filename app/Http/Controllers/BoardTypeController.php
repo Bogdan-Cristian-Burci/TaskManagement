@@ -18,7 +18,6 @@ class BoardTypeController extends Controller
     public function __construct(BoardTypeService $boardTypeService)
     {
         $this->boardTypeService = $boardTypeService;
-        $this->authorizeResource(BoardType::class, 'boardType');
     }
 
     /**
@@ -29,6 +28,8 @@ class BoardTypeController extends Controller
      */
     public function index(Request $request): AnonymousResourceCollection
     {
+        $this->authorize('viewAny', BoardType::class);
+
         $filters = [];
         $with = [];
         $perPage = $request->get('per_page', 15);
@@ -73,6 +74,7 @@ class BoardTypeController extends Controller
      */
     public function show(Request $request, BoardType $boardType): BoardTypeResource
     {
+        $this->authorize('view', $boardType);
         $with = [];
 
         if ($request->boolean('with_boards')) {

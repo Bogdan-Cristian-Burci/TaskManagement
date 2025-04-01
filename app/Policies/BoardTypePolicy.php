@@ -12,12 +12,12 @@ class BoardTypePolicy
 
     public function viewAny(User $user): bool
     {
-        return true;
+         return $user->hasPermission('board.viewAny');
     }
 
     public function view(User $user, BoardType $boardType): bool
     {
-        return true;
+        return $user->hasPermission('board.view');
     }
 
     public function create(User $user): bool
