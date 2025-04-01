@@ -199,11 +199,12 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     });
 
     // Board Templates
-    Route::apiResource('board-templates', BoardTemplateController::class);
     //TODO fix global scope issue for duplicate method
     Route::post('board-templates/{id}/duplicate', [BoardTemplateController::class,'duplicate']);
     Route::post('board-templates/{boardTemplate}/toggle-active', 'BoardTemplateController@toggleActive');
     Route::get('board-templates/system', 'BoardTemplateController@systemTemplates');
+    Route::apiResource('board-templates', BoardTemplateController::class);
+
 
     Route::apiResource('attachments', AttachmentController::class);
 

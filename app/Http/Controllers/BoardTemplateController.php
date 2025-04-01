@@ -173,54 +173,73 @@ class BoardTemplateController extends Controller
      */
     public function duplicate(Request $request, int $id): BoardTemplateResource
     {
+        try {
 
-        \Log::debug('Starting template duplication', ['template_id' => $id]);
+            // Get the current user's organization ID
+            $currentUserOrgId = OrganizationContext::getCurrentOrganizationId();
+            \Log::info('Current user organization ID: ' . $currentUserOrgId);
 
-        // Get the current user's organization ID
-        $currentUserOrgId = OrganizationContext::getCurrentOrganizationId();
+            if (!$currentUserOrgId) {
+                \Log::warning('No organization context found');
+                throw new \Illuminate\Http\Exceptions\HttpResponseException(
+                    response()->json([
+                        'message' => 'You must belong to an organization to perform this action'
+                    ], 403)
+                );
+            }
 
-        if (!$currentUserOrgId) {
-            throw new \Illuminate\Http\Exceptions\HttpResponseException(
-                response()->json([
-                    'message' => 'You must belong to an organization to perform this action'
-                ], 403)
-            );
-        }
-        \Log::info('BoardTemplate id is: ' . $id.' and current user org id is: ' . $currentUserOrgId);
-        // Fetch the board template without global scopes
+            // Check if template exists at the DB level first for better debugging
+            $exists = \DB::table('board_templates')->where('id', $id)->exists();
 
-        $boardTemplate = BoardTemplate::withoutGlobalScopes()->find($id);
+            if (!$exists) {
+                \Log::warning('Template with ID ' . $id . ' not found in database');
+                throw new \Illuminate\Database\Eloquent\ModelNotFoundException(
+                    "Template with ID {$id} not found"
+                );
+            }
 
-        // Security check: Only allow duplication if the template is:
-        // 1. A system template (organization_id is null, is_system is true)
-        // 2. Belongs to the user's current organization
-        if (!$boardTemplate->is_system && $boardTemplate->organisation_id !== $currentUserOrgId) {
-            \Log::warning('Unauthorized template duplication attempt', [
-                'user_id' => auth()->id(),
-                'user_org' => $currentUserOrgId,
-                'template_id' => $id,
-                'template_org' => $boardTemplate->organisation_id
+            // Now fetch with all the right scope bypassing
+            $boardTemplate = BoardTemplate::withoutGlobalScope('withoutSystem')
+                ->withoutGlobalScope(\App\Models\Scopes\OrganizationScope::class)
+                ->find($id);
+
+            // Security check for template ownership
+            if (!$boardTemplate->is_system && $boardTemplate->organisation_id !== $currentUserOrgId) {
+                \Log::warning('Unauthorized template access attempt', [
+                    'template_id' => $id,
+                    'template_org' => $boardTemplate->organisation_id,
+                    'user_org' => $currentUserOrgId
+                ]);
+
+                throw new \Illuminate\Auth\Access\AuthorizationException(
+                    'You cannot duplicate templates from other organizations'
+                );
+            }
+
+            // Check policy authorization
+            $this->authorize('duplicate', $boardTemplate);
+
+            $request->validate([
+                'name' => 'sometimes|string|max:255'
             ]);
 
-            throw new \Illuminate\Auth\Access\AuthorizationException(
-                'You cannot duplicate templates from other organizations'
+            // Create the duplicate
+            $newTemplate = $this->boardTemplateService->duplicateTemplate(
+                $boardTemplate,
+                $currentUserOrgId,
+                $request->input('name'),
+                auth()->id()
             );
+
+            return new BoardTemplateResource($newTemplate);
+        } catch (\Exception $e) {
+            \Log::error('Exception in duplicate method', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
         }
-
-        $this->authorize('duplicate', $boardTemplate);
-
-        $request->validate([
-            'name' => 'sometimes|string|max:255',
-        ]);
-
-        $newTemplate = $this->boardTemplateService->duplicateTemplate(
-            $boardTemplate,
-            $currentUserOrgId,
-            $request->input('name'),
-            auth()->id()
-        );
-
-        return new BoardTemplateResource($newTemplate);
     }
 
     /**

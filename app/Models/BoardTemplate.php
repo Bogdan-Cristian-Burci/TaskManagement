@@ -292,7 +292,10 @@ class BoardTemplate extends Model
         ?string $newName = null,
         int $createdBy = null
     ): self {
-        $sourceTemplate = self::findOrFail($templateId);
+        // Use withoutGlobalScopes to find the template
+        $sourceTemplate = self::withoutGlobalScope('withoutSystem')
+            ->withoutGlobalScope(\App\Models\Scopes\OrganizationScope::class)
+            ->findOrFail($templateId);
 
         $name = $newName ?? $sourceTemplate->name . ' (Copy)';
         $key = 'custom_' . strtolower(str_replace(' ', '_', $name)) . '_' . time();
