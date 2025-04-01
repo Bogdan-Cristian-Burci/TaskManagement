@@ -245,16 +245,95 @@ class BoardTemplateController extends Controller
     /**
      * Toggle the active state of a template.
      *
-     * @param BoardTemplate $boardTemplate
+     * @param int $id
      * @return BoardTemplateResource
+     * @throws \Exception
      */
-    public function toggleActive(BoardTemplate $boardTemplate): BoardTemplateResource
+    public function toggleActive(int $id): BoardTemplateResource
     {
-        $this->authorize('update', $boardTemplate);
+        try {
+            \Log::info('Starting toggleActive method with ID: ' . $id);
 
-        $template = $this->boardTemplateService->toggleActiveState($boardTemplate);
+            // Get the current user's organization ID
+            $currentUserOrgId = OrganizationContext::getCurrentOrganizationId();
 
-        return new BoardTemplateResource($template);
+            if (!$currentUserOrgId) {
+                throw new \Illuminate\Http\Exceptions\HttpResponseException(
+                    response()->json([
+                        'message' => 'You must belong to an organization to perform this action'
+                    ], 403)
+                );
+            }
+
+            // Fetch the template including soft-deleted ones
+            $boardTemplate = BoardTemplate::withoutGlobalScope('withoutSystem')
+                ->withoutGlobalScope(\App\Models\Scopes\OrganizationScope::class)
+                ->withTrashed() // Include soft-deleted templates
+                ->findOrFail($id);
+
+            \Log::info('Template found', [
+                'id' => $boardTemplate->id,
+                'name' => $boardTemplate->name,
+                'is_active' => $boardTemplate->is_active,
+                'deleted_at' => $boardTemplate->deleted_at
+            ]);
+
+            // Check if template is soft-deleted
+            if ($boardTemplate->trashed()) {
+                \Log::warning('Attempted to toggle active state of a deleted template', [
+                    'template_id' => $id,
+                    'deleted_at' => $boardTemplate->deleted_at
+                ]);
+
+                // Either throw an exception or restore the template first
+                if (auth()->user()->can('restore', BoardTemplate::class)) {
+                    // If user can restore templates, restore it first
+                    $boardTemplate->restore();
+                    \Log::info('Template restored before toggling active state', ['id' => $id]);
+                } else {
+                    throw new \Illuminate\Http\Exceptions\HttpResponseException(
+                        response()->json([
+                            'message' => 'Cannot modify a deleted template. Restore it first.',
+                            'deleted_at' => $boardTemplate->deleted_at
+                        ], 400)
+                    );
+                }
+            }
+
+            // Security check: Only allow operation on own organization's templates or system templates
+            if (!$boardTemplate->is_system && $boardTemplate->organisation_id !== $currentUserOrgId) {
+                \Log::warning('Security violation: Unauthorized template access', [
+                    'user_id' => auth()->id(),
+                    'user_org' => $currentUserOrgId,
+                    'template_id' => $id,
+                    'template_org' => $boardTemplate->organisation_id
+                ]);
+
+                throw new \Illuminate\Auth\Access\AuthorizationException(
+                    'You cannot modify templates from other organizations'
+                );
+            }
+
+            $this->authorize('update', $boardTemplate);
+
+            // Toggle active state
+            $boardTemplate->is_active = !$boardTemplate->is_active;
+            $boardTemplate->save();
+
+            \Log::info('Template active state toggled successfully', [
+                'id' => $boardTemplate->id,
+                'is_active' => $boardTemplate->is_active ? 'Active' : 'Inactive'
+            ]);
+
+            return new BoardTemplateResource($boardTemplate);
+        } catch (\Exception $e) {
+            \Log::error('Exception in toggleActive method', [
+                'exception' => get_class($e),
+                'message' => $e->getMessage(),
+                'trace' => $e->getTraceAsString()
+            ]);
+            throw $e;
+        }
     }
 
     /**

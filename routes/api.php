@@ -199,10 +199,9 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     });
 
     // Board Templates
-    //TODO fix global scope issue for duplicate method
     Route::post('board-templates/{id}/duplicate', [BoardTemplateController::class,'duplicate']);
-    Route::post('board-templates/{boardTemplate}/toggle-active', 'BoardTemplateController@toggleActive');
-    Route::get('board-templates/system', 'BoardTemplateController@systemTemplates');
+    Route::post('board-templates/{id}/toggle-active', [BoardTemplateController::class,'toggleActive']);
+    Route::get('board-templates/system', [BoardTemplateController::class,'systemTemplates']);
     Route::apiResource('board-templates', BoardTemplateController::class);
 
 

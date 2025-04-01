@@ -167,8 +167,16 @@ class BoardTemplateService
      */
     public function toggleActiveState(BoardTemplate $boardTemplate): BoardTemplate
     {
+        if ($boardTemplate->is_system) {
+                throw new \Exception('Cannot toggle system template state');
+        }
         $boardTemplate->is_active = !$boardTemplate->is_active;
         $boardTemplate->save();
+
+        \Log::info('Template active state toggled in service', [
+            'id' => $boardTemplate->id,
+            'is_active' => $boardTemplate->is_active ? 'active' : 'inactive'
+        ]);
 
         return $boardTemplate->fresh();
     }
