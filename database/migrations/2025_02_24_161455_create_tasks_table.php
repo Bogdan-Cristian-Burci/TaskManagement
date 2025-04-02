@@ -19,7 +19,7 @@ return new class extends Migration {
             $table->foreignId('task_type_id')->constrained('task_types');
             $table->foreignId('responsible_id')->constrained('users');
             $table->foreignId('reporter_id')->constrained('users');
-            $table->integer('task_number');
+            $table->string('task_number');
             $table->foreignId('parent_task_id')->nullable()->constrained('tasks');
             $table->decimal('estimated_hours',8,2)->nullable();
             $table->decimal('spent_hours',8,2)->nullable();

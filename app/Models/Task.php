@@ -24,7 +24,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property integer $task_type_id
  * @property integer $responsible_id
  * @property integer $reporter_id
- * @property integer $task_number
+ * @property string $task_number
  * @property integer $parent_task_id
  * @property float $estimated_hours
  * @property float $spent_hours
@@ -188,11 +188,11 @@ class Task extends Model
         static $closedStatusId = null;
 
         if ($completedStatusId === null) {
-            $completedStatusId = Status::where('name', 'Completed')->first()->id;
+            $completedStatusId = Status::where('category', 'done')->first()->id;
         }
 
         if ($closedStatusId === null) {
-            $closedStatusId = Status::where('name', 'Closed')->first()->id;
+            $closedStatusId = Status::where('category', 'canceled')->first()->id;
         }
 
         return $this->due_date && $this->due_date < now() &&
