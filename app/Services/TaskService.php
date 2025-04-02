@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Models\BoardColumn;
 use App\Models\Project;
+use App\Models\Sprint;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,6 +21,7 @@ class TaskService
      */
     public function createTask(array $attributes): Task
     {
+        return DB::transaction(function() use ($attributes) {
         // If no board_column_id is specified but a board_id is, assign to the first column
         if (!isset($attributes['board_column_id']) && isset($attributes['board_id'])) {
             $firstColumn = BoardColumn::where('board_id', $attributes['board_id'])
@@ -31,7 +33,23 @@ class TaskService
             }
         }
 
-        return Task::create($attributes);
+            // Generate task number if not provided
+            if (!isset($attributes['task_number'])) {
+                $attributes['task_number'] = $this->generateTaskNumber($attributes['project_id']);
+            }
+
+            $task = Task::create($attributes);
+
+            // Create initial history record
+            $task->history()->create([
+                'user_id' => auth()->id() ?? 0,
+                'field_changed' => 'created',
+                'change_type_id' => 1,
+                'new_value' => 'Task created'
+            ]);
+
+            return $task;
+        });
     }
 
     /**
@@ -276,6 +294,14 @@ class TaskService
     {
         $query = Task::query();
 
+        // Ensure organization context if not using global scope
+        $orgId = OrganizationContext::getCurrentOrganizationId();
+        if ($orgId) {
+            $query->whereHas('project', function($q) use ($orgId) {
+                $q->where('organisation_id', $orgId);
+            });
+        }
+
         // Text search
         if (isset($filters['search'])) {
             $searchTerm = $filters['search'];
@@ -503,5 +529,44 @@ class TaskService
         });
 
         return $taskCount;
+    }
+
+    /**
+     * Generate a unique task number for a project
+     *
+     * @param int $projectId
+     * @return string
+     */
+    public function generateTaskNumber(int $projectId): string
+    {
+        $project = Project::findOrFail($projectId);
+        $prefix = $project->code ?? 'TASK';
+
+        $lastNumber = Task::where('project_id', $projectId)
+            ->orderByDesc('id')
+            ->value('task_number');
+
+        $counter = 1;
+        if ($lastNumber) {
+            $parts = explode('-', $lastNumber);
+            $counter = (int)end($parts) + 1;
+        }
+
+        return $prefix . '-' . str_pad($counter, 4, '0', STR_PAD_LEFT);
+    }
+
+    /**
+     * Add task to sprint
+     */
+    public function addTaskToSprint(Task $task, int $sprintId): bool
+    {
+        $sprint = Sprint::findOrFail($sprintId);
+
+        // Check if sprint is in same project as task
+        if ($sprint->project_id !== $task->project_id) {
+            throw new \Exception('Cannot add task to sprint in different project');
+        }
+
+        return (bool)$task->sprints()->syncWithoutDetaching([$sprintId]);
     }
 }

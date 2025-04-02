@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\Task;
 use App\Models\User;
+use App\Services\OrganizationContext;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class TaskPolicy
@@ -23,6 +24,12 @@ class TaskPolicy
      */
     public function view(User $user, Task $task): bool
     {
+        // First check organization context
+        $userOrgId = OrganizationContext::getCurrentOrganizationId();
+        if ($task->project && $task->project->organisation_id !== $userOrgId) {
+            return false;
+        }
+
         // Users can view tasks if they're responsible, reporter, or part of the project
         return $user->id === $task->responsible_id
             || $user->id === $task->reporter_id
@@ -75,4 +82,12 @@ class TaskPolicy
     {
         return $user->hasRole('admin');
     }
+    /**
+     * Determine if user can move a task between columns
+     */
+    public function move(User $user, Task $task): bool
+    {
+        return $this->update($user, $task);
+    }
+
 }

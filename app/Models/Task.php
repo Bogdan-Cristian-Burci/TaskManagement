@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Events\TaskMovedEvent;
+use App\Services\OrganizationContext;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -77,6 +78,17 @@ class Task extends Model
         'position' => 'integer',
     ];
 
+
+    // Add to booted method:
+    protected static function booted(): void
+    {
+        // Apply organization scope automatically
+        static::addGlobalScope('organization', function ($builder) {
+            if ($orgId = OrganizationContext::getCurrentOrganizationId()) {
+                $builder->inOrganization($orgId);
+            }
+        });
+    }
 
     public function project(): BelongsTo
     {
@@ -260,4 +272,11 @@ class Task extends Model
         return $saved;
     }
 
+    public function scopeInOrganization($query, $organizationId = null)
+    {
+        $orgId = $organizationId ?? OrganizationContext::getCurrentOrganizationId();
+        return $query->whereHas('project', function ($q) use ($orgId) {
+            $q->where('organisation_id', $orgId);
+        });
+    }
 }

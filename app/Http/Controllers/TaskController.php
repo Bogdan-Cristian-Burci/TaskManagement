@@ -68,10 +68,23 @@ class TaskController extends Controller
      * Store a newly created task.
      *
      * @param TaskRequest $request
-     * @return TaskResource
+     * @return JsonResponse
      */
-    public function store(TaskRequest $request): TaskResource
+    public function store(TaskRequest $request): JsonResponse
     {
+        // Add validation to ensure the column belongs to the board
+        if ($request->filled('board_id') && $request->filled('board_column_id')) {
+            $columnBelongsToBoard = BoardColumn::where('id', $request->board_column_id)
+                ->where('board_id', $request->board_id)
+                ->exists();
+
+            if (!$columnBelongsToBoard) {
+                return response()->json([
+                    'message' => 'The selected board column does not belong to the specified board'
+                ], 422);
+            }
+        }
+
         $task = $this->taskService->createTask($request->validated());
 
         return (new TaskResource($task))

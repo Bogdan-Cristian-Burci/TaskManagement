@@ -213,14 +213,16 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     // Board sprints
     Route::get('boards/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
 
-    Route::get('tasks/{task}/comments', [CommentController::class, 'index']);
-    Route::post('tasks/{task}/comments', [CommentController::class, 'store']);
+
     Route::apiResource('comments', CommentController::class)->except(['index', 'store']);
 
 
     Route::apiResource('priorities', PriorityController::class);
     Route::post('priorities/reorder', [PriorityController::class, 'reorder']);
 
+    //Task comments
+    Route::get('tasks/{task}/comments', [CommentController::class, 'index']);
+    Route::post('tasks/{task}/comments', [CommentController::class, 'store']);
     Route::apiResource('tasks', TaskController::class);
 
     // Additional task endpoints
@@ -232,14 +234,14 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('tasks/by-user/{user}', [TaskController::class, 'getTasksByUser']);
     Route::get('tasks/overdue', [TaskController::class, 'getOverdueTasks']);
 
+    Route::apiResource('task-types', TaskTypeController::class);
+    Route::post('task-types/find-by-name', [TaskTypeController::class, 'findByName']);
+    Route::post('task-types/clear-cache', [TaskTypeController::class, 'clearCache']);
+
     // Attachment routes
     Route::apiResource('attachments', AttachmentController::class)->except(['index']);
     Route::get('attachments/by-task/{task}', [AttachmentController::class, 'getByTask']);
     Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
-
-    Route::apiResource('task-types', TaskTypeController::class);
-    Route::post('task-types/find-by-name', [TaskTypeController::class, 'findByName']);
-    Route::post('task-types/clear-cache', [TaskTypeController::class, 'clearCache']);
 
     // Status routes
     Route::apiResource('statuses', StatusController::class);
@@ -247,6 +249,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('statuses/default', [StatusController::class, 'getDefault']);
     Route::post('statuses/reorder', [StatusController::class, 'reorder']);
     Route::post('statuses/clear-cache', [StatusController::class, 'clearCache']);
+
 
     // ChangeType routes
     Route::apiResource('change-types', ChangeTypeController::class);
