@@ -319,7 +319,7 @@ class ProjectController extends Controller
     public function tasks(Request $request, Project $project): AnonymousResourceCollection
     {
         $filters = [];
-        $with = ['status', 'assignee', 'board', 'boardColumn'];
+        $with = ['status', 'responsible', 'board', 'boardColumn'];
 
         // Build filters from request
         if ($request->has('status_id')) {
@@ -330,8 +330,8 @@ class ProjectController extends Controller
             $filters['priority_id'] = $request->input('priority_id');
         }
 
-        if ($request->has('assignee_id')) {
-            $filters['assignee_id'] = $request->input('assignee_id');
+        if ($request->has('responsible_id')) {
+            $filters['responsible_id'] = $request->input('responsible_id');
         }
 
         // Add relationships to load

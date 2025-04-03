@@ -229,11 +229,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::patch('tasks/{task}/change-status', [TaskController::class, 'changeStatus']);
     Route::patch('tasks/{task}/assign', [TaskController::class, 'assignTask']);
 
-    // Task filtering routes
-    Route::get('tasks/by-project/{project}', [TaskController::class, 'getTasksByProject']);
-    Route::get('tasks/by-user/{user}', [TaskController::class, 'getTasksByUser']);
-    Route::get('tasks/overdue', [TaskController::class, 'getOverdueTasks']);
-
     Route::apiResource('tasks', TaskController::class);
 
     Route::apiResource('task-types', TaskTypeController::class);

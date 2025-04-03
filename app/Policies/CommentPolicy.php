@@ -20,7 +20,7 @@ class CommentPolicy
      */
     public function viewAny(User $user, Task $task): bool
     {
-        return $user->hasPermission('view', $task);
+        return $user->hasPermission('comment.viewAny', $task->project->organisation_id);
     }
 
     /**
@@ -32,7 +32,7 @@ class CommentPolicy
      */
     public function view(User $user, Comment $comment): bool
     {
-        return $user->hasPermission('view', $comment->task);
+        return $user->hasPermission('comment.view', $comment->task->project->organisation_id);
     }
 
     /**
@@ -44,7 +44,7 @@ class CommentPolicy
      */
     public function create(User $user, Task $task): bool
     {
-        return $user->hasPermission('view', $task);
+        return $user->hasPermission('comment.create', $task->project->organisation_id);
     }
 
     /**
@@ -61,9 +61,7 @@ class CommentPolicy
             $comment->created_at->diffInMinutes(now()) <= 30) {
             return true;
         }
-
-        // Admins and project managers can edit any comment
-        return $user->hasRole(['admin', 'project_manager']);
+        return false;
     }
 
     /**
@@ -77,12 +75,6 @@ class CommentPolicy
     {
         // Users can delete their own comments
         if ($comment->user_id === $user->id) {
-            return true;
-        }
-
-        // Task owners can delete comments on their tasks
-        $task = $comment->task;
-        if ($task && $task->responsible_id === $user->id) {
             return true;
         }
 

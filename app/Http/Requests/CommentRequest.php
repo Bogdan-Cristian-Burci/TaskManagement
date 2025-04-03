@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Comment;
 use App\Models\Task;
+use App\Services\OrganizationContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -91,12 +92,33 @@ class CommentRequest extends FormRequest
     public function authorize(): bool
     {
         if ($this->isMethod('POST')) {
+
             $task = $this->route('task');
-            return $this->user()->hasPermission('create', [Comment::class, $task]);
+
+            // First check: User has general permission to create comments
+            $organisationId = OrganizationContext::getCurrentOrganizationId();
+
+            if (!$this->user()->hasPermission('comment.create', $organisationId)) {
+                return false;
+            }
+
+            // Second check: User belongs to the project (or is admin)
+            $projectId = $task->project_id;
+            return $this->user()
+                ->projects()
+                ->where('projects.id', $projectId)
+                ->exists();
         }
 
         if ($comment = $this->route('comment')) {
-            return $this->user()->hasPermission('update', $comment);
+            // For updates, check if user owns comment or has update permission
+            if ($comment->user_id === $this->user()->id) {
+                return true; // Comment author can edit their own comment
+            }
+
+            // Otherwise, check update permission at organization level
+            $organisationId = OrganizationContext::getCurrentOrganizationId();
+            return $this->user()->hasPermission('comment.update', $organisationId);
         }
 
         return false;
@@ -109,10 +131,8 @@ class CommentRequest extends FormRequest
      */
     protected function prepareForValidation(): void
     {
-        if ($this->has('content')) {
-            $this->merge([
-                'content' => trim($this->content)
-            ]);
-        }
+        $content = $this->input('content');
+
+        $this->merge(['content' => trim($content)]);
     }
 }
