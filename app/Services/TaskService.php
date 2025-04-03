@@ -61,7 +61,6 @@ class TaskService
      */
     public function updateTask(Task $task, array $attributes): Task
     {
-        \Log::debug('received attributes', $attributes);
         $task->update($attributes);
         return $task->fresh();
     }

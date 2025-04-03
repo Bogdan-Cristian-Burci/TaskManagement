@@ -140,7 +140,6 @@ class TaskController extends Controller
      */
     public function update(TaskRequest $request, Task $task): TaskResource
     {
-        \Log::debug('received attributes in controller: '. json_encode($request->validated()));
         $task = $this->taskService->updateTask($task, $request->validated());
         return new TaskResource($task);
     }
