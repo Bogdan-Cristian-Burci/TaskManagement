@@ -26,7 +26,7 @@ class TaskTypeResource extends JsonResource
             // Add links for better HATEOAS support
             'links' => [
                 'self' => route('task-types.show', ['task_type' => $this->id]),
-                'tasks' => route('task-types.tasks.index', ['task_type' => $this->id]),
+                'tasks' => route('task-types.index', ['task_type' => $this->id]),
             ],
         ];
     }

@@ -45,7 +45,7 @@ class Priority extends Model
     protected static function booted(): void
     {
         static::addGlobalScope('ordered', function ($query) {
-            $query->orderBy('position');
+            $query->orderBy('level');
         });
     }
 

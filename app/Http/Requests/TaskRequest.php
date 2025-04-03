@@ -22,28 +22,21 @@ class TaskRequest extends FormRequest
     public function rules(): array
     {
         $rules = [
-            'name' => ['required', 'string', 'max:255'],
-            'description' => ['required', 'string'],
-            'project_id' => ['required', 'exists:projects,id'],
-            'priority_id' => ['required', 'exists:priorities,id'],
-            'task_type_id' => ['required', 'exists:task_types,id'],
+            'name' => ['string', 'max:255'],
+            'description' => ['string'],
+            'project_id' => ['exists:projects,id'],
+            'priority_id' => ['exists:priorities,id'],
+            'task_type_id' => ['exists:task_types,id'],
             'estimated_hours' => ['nullable', 'numeric', 'min:0'],
             'spent_hours' => ['nullable', 'numeric', 'min:0'],
             'start_date' => ['nullable', 'date'],
             'due_date' => ['nullable', 'date', 'after_or_equal:start_date'],
             'position' => ['nullable', 'integer', 'min:0'],
+            'task_number' => ['string'],
         ];
-
-        // For update operations, make task_number required
-        if ($this->isMethod('put') || $this->isMethod('patch')) {
-            $rules['task_number'] = ['required', 'string'];
-        } else {
-            $rules['task_number'] = ['nullable', 'string'];
-        }
 
         // Make board_id validation dependent on project_id
         $rules['board_id'] = [
-            'required', // Changed from required to nullable
             'exists:boards,id',
             function ($attribute, $value, $fail) {
                 if (!$value && !$this->input('project_id')) {
@@ -127,6 +120,16 @@ class TaskRequest extends FormRequest
                 }
             }
         ];
+
+        if ($this->isMethod('post')) {
+            $rules['name'][] = 'required';
+            $rules['description'][] = 'required';
+            $rules['project_id'][] = 'required';
+            $rules['priority_id'][] = 'required';
+            $rules['task_type_id'][] = 'required';
+            $rules['task_number'][] = 'nullable';
+            $rules['board_id'][] = 'required';
+        }
 
         return $rules;
     }
@@ -267,6 +270,7 @@ class TaskRequest extends FormRequest
 
             DB::commit();
         } catch (\Exception $e) {
+            \Log::error($e->getMessage());
             DB::rollBack();
             throw $e;
         }

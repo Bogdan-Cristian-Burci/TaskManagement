@@ -223,7 +223,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     //Task comments
     Route::get('tasks/{task}/comments', [CommentController::class, 'index']);
     Route::post('tasks/{task}/comments', [CommentController::class, 'store']);
-    Route::apiResource('tasks', TaskController::class);
+
 
     // Additional task endpoints
     Route::patch('tasks/{task}/change-status', [TaskController::class, 'changeStatus']);
@@ -234,9 +234,13 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('tasks/by-user/{user}', [TaskController::class, 'getTasksByUser']);
     Route::get('tasks/overdue', [TaskController::class, 'getOverdueTasks']);
 
+    Route::apiResource('tasks', TaskController::class);
+
     Route::apiResource('task-types', TaskTypeController::class);
     Route::post('task-types/find-by-name', [TaskTypeController::class, 'findByName']);
     Route::post('task-types/clear-cache', [TaskTypeController::class, 'clearCache']);
+
+
 
     // Attachment routes
     Route::apiResource('attachments', AttachmentController::class)->except(['index']);
