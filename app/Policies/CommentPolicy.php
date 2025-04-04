@@ -77,9 +77,6 @@ class CommentPolicy
         if ($comment->user_id === $user->id) {
             return true;
         }
-
-        // Admins and project managers can delete any comment
-        return $user->hasRole(['admin', 'project_manager']);
     }
 
     /**

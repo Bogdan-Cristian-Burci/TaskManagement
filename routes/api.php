@@ -213,10 +213,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     // Board sprints
     Route::get('boards/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
 
-
-    Route::apiResource('comments', CommentController::class)->except(['index', 'store']);
-
-
     Route::apiResource('priorities', PriorityController::class);
     Route::post('priorities/reorder', [PriorityController::class, 'reorder']);
 
@@ -237,8 +233,11 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
 
     // Comments routes
-    Route::apiResource('tasks.comments', CommentController::class);
+// Individual comment actions
     Route::get('comments/{comment}', [CommentController::class, 'show'])->name('comments.show');
+    Route::patch('comments/{comment}', [CommentController::class, 'update']);
+    Route::delete('comments/{comment}', [CommentController::class, 'destroy']);
+
     Route::post('comments/{id}/restore', [CommentController::class, 'restore'])->name('comments.restore');
     Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
 

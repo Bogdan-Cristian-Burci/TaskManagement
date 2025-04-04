@@ -124,9 +124,10 @@ class CommentController extends Controller
 
         // If the comment has replies and user is not an admin,
         // just remove the content but keep the comment structure
-        if ($comment->hasReplies() && !$request->user()->hasRole('admin')) {
+        if ($comment->hasReplies() && !auth()->user()->can('delete')) {
+
             $comment->update([
-                'content' => '[Comment deleted by ' . $request->user()->name . ']'
+                'content' => '[Comment deleted by ' . auth()->user()->name . ']'
             ]);
 
             return response()->json([
