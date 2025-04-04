@@ -13,6 +13,8 @@ return new class extends Migration {
             $table->string('description');
             $table->string('icon')->nullable();
             $table->string('color',20)->nullable();
+            $table->foreignId('organisation_id')->nullable()->constrained('organisations');
+            $table->boolean('is_system')->default(false);
             $table->softDeletes();
             $table->timestamps();
         });

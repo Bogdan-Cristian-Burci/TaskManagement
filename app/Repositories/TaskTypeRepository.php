@@ -141,17 +141,59 @@ class TaskTypeRepository implements TaskTypeRepositoryInterface
     }
 
     /**
+     * Get task types available to an organisation (system types + org-specific types).
+     *
+     * @param int|null $organisationId
+     * @param array $columns
+     * @return Collection
+     */
+    public function getAvailableToOrganisation(?int $organisationId, array $columns = ['*']): Collection
+    {
+        return Cache::remember("task_types:available:org:{$organisationId}", $this->cacheTime, function () use ($organisationId, $columns) {
+            return $this->model
+                ->availableToOrganisation($organisationId)
+                ->get($columns);
+        });
+    }
+
+    /**
+     * Get system task types only.
+     *
+     * @param array $columns
+     * @return Collection
+     */
+    public function getSystemTaskTypes(array $columns = ['*']): Collection
+    {
+        return Cache::remember("task_types:system", $this->cacheTime, function () use ($columns) {
+            return $this->model
+                ->where('is_system', true)
+                ->get($columns);
+        });
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function clearCache(): void
     {
+        $organisationIds = $this->model->distinct('organisation_id')->pluck('organisation_id')->toArray();
+        $organisationIds[] = null; // Add null for system-wide cache
+
         Cache::forget('task_types:all');
-        Cache::forget('task_types:with_tasks_count');
+        Cache::forget('task_types:system');
+
+        foreach ($organisationIds as $orgId) {
+            Cache::forget("task_types:with_tasks_count:org:{$orgId}");
+            Cache::forget("task_types:available:org:{$orgId}");
+        }
 
         $taskTypes = $this->model->all('id', 'name');
         foreach ($taskTypes as $taskType) {
             Cache::forget("task_types:id:{$taskType->id}");
-            Cache::forget("task_types:name:{$taskType->name}");
+
+            foreach ($organisationIds as $orgId) {
+                Cache::forget("task_types:name:{$taskType->name}:org:{$orgId}");
+            }
         }
     }
 

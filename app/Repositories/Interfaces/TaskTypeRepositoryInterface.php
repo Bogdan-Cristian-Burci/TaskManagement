@@ -21,4 +21,21 @@ interface TaskTypeRepositoryInterface extends RepositoryInterface
      * @return Collection
      */
     public function getWithTaskCount(): Collection;
+
+    /**
+     * Get task types available to an organisation (system types + org-specific types).
+     *
+     * @param int|null $organisationId
+     * @param array $columns
+     * @return Collection
+     */
+    public function getAvailableToOrganisation(?int $organisationId, array $columns = ['*']): Collection;
+
+    /**
+     * Get system task types only.
+     *
+     * @param array $columns
+     * @return Collection
+     */
+    public function getSystemTaskTypes(array $columns = ['*']): Collection;
 }
