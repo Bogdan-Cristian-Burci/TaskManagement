@@ -41,7 +41,7 @@ class TaskTypePolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return  $user->hasPermission('taskType.create');
     }
 
     /**
@@ -53,7 +53,7 @@ class TaskTypePolicy
      */
     public function update(User $user, TaskType $taskType): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return  $user->hasPermission('taskType.update');
     }
 
     /**
@@ -65,7 +65,7 @@ class TaskTypePolicy
      */
     public function delete(User $user, TaskType $taskType): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return $user->hasPermission('taskType.delete');
     }
 
     /**
@@ -77,7 +77,7 @@ class TaskTypePolicy
      */
     public function restore(User $user, TaskType $taskType): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return $user->hasPermission('taskType.restore');
     }
 
     /**
@@ -89,7 +89,7 @@ class TaskTypePolicy
      */
     public function forceDelete(User $user, TaskType $taskType): bool
     {
-        return $user->hasRole('admin');
+        return $user->hasPermission('taskType.forceDelete');
     }
 
     /**
@@ -100,6 +100,6 @@ class TaskTypePolicy
      */
     public function manage(User $user): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return  $user->hasPermission('manage-settings');
     }
 }

@@ -6,6 +6,7 @@ use App\Http\Requests\TaskTypeRequest;
 use App\Http\Resources\TaskTypeResource;
 use App\Models\TaskType;
 use App\Repositories\Interfaces\TaskTypeRepositoryInterface;
+use App\Services\OrganizationContext;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
@@ -39,10 +40,17 @@ class TaskTypeController extends Controller
      */
     public function index(Request $request) : AnonymousResourceCollection
     {
+        $organisationId = OrganizationContext::getCurrentOrganizationId();
+
         if ($request->boolean('with_tasks_count')) {
+            // Get task types with task count, respecting organization context
             $taskTypes = $this->taskTypeRepository->getWithTaskCount();
+        } else if ($request->boolean('system_only')) {
+            // Get only system task types (available to all organizations)
+            $taskTypes = $this->taskTypeRepository->getSystemTaskTypes();
         } else {
-            $taskTypes = $this->taskTypeRepository->all();
+            // Get all task types available to the current organization
+            $taskTypes = $this->taskTypeRepository->getAvailableToOrganisation($organisationId);
         }
 
         return TaskTypeResource::collection($taskTypes);
@@ -56,7 +64,11 @@ class TaskTypeController extends Controller
      */
     public function store(TaskTypeRequest $request) : JsonResponse
     {
-        $taskType = $this->taskTypeRepository->create($request->validated());
+        $attributes = $request->validated();
+        $organisationId = OrganizationContext::getCurrentOrganizationId();
+        $attributes['organisation_id'] = $organisationId;
+
+        $taskType = $this->taskTypeRepository->create($attributes);
 
         return (new TaskTypeResource($taskType))
             ->response()

@@ -82,11 +82,14 @@ class TaskType extends Model
      * @param int|null $organisationId
      * @return Builder
      */
-    public function scopeAvailableToOrganisation($query, ?int $organisationId)
+    public function scopeAvailableToOrganisation(Builder $query, ?int $organisationId): Builder
     {
         return $query->where(function($q) use ($organisationId) {
-            $q->where('is_system', true)
-                ->orWhere('organisation_id', $organisationId);
+            $q->where('is_system', true);
+
+            if ($organisationId !== null) {
+                $q->orWhere('organisation_id', $organisationId);
+            }
         });
     }
 }

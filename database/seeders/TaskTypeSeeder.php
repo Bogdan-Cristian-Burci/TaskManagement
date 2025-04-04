@@ -32,6 +32,7 @@ class TaskTypeSeeder extends Seeder
                 'description' => 'New functionality to be developed',
                 'icon' => 'star',
                 'color' => '#3498db', // Blue
+                'is_system' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -40,6 +41,7 @@ class TaskTypeSeeder extends Seeder
                 'description' => 'Something that needs to be fixed',
                 'icon' => 'bug',
                 'color' => '#e74c3c', // Red
+                'is_system' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -48,6 +50,7 @@ class TaskTypeSeeder extends Seeder
                 'description' => 'Improvement to existing functionality',
                 'icon' => 'arrow-up',
                 'color' => '#2ecc71', // Green
+                'is_system' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -56,6 +59,7 @@ class TaskTypeSeeder extends Seeder
                 'description' => 'Creating or updating documentation',
                 'icon' => 'book',
                 'color' => '#9b59b6', // Purple
+                'is_system' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -64,6 +68,7 @@ class TaskTypeSeeder extends Seeder
                 'description' => 'Investigation tasks that require analysis',
                 'icon' => 'search',
                 'color' => '#f39c12', // Orange
+                'is_system' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -72,6 +77,7 @@ class TaskTypeSeeder extends Seeder
                 'description' => 'Testing related tasks',
                 'icon' => 'vial',
                 'color' => '#1abc9c', // Turquoise
+                'is_system' => true,
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
