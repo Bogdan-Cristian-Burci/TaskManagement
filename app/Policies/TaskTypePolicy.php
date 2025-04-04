@@ -30,7 +30,7 @@ class TaskTypePolicy
      */
     public function view(User $user, TaskType $taskType): bool
     {
-        return true; // All authenticated users can view task types
+        return $taskType->is_system || $taskType->organisation_id === $user->organisation_id;
     }
 
     /**

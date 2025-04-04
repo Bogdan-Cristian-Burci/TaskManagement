@@ -231,9 +231,10 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     Route::apiResource('tasks', TaskController::class);
 
-    Route::apiResource('task-types', TaskTypeController::class);
     Route::post('task-types/find-by-name', [TaskTypeController::class, 'findByName']);
     Route::post('task-types/clear-cache', [TaskTypeController::class, 'clearCache']);
+    Route::apiResource('task-types', TaskTypeController::class);
+
 
     // Comments routes
     Route::apiResource('tasks.comments', CommentController::class);

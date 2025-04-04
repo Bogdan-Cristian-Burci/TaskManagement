@@ -29,7 +29,7 @@ class TaskTypeController extends Controller
     public function __construct(TaskTypeRepositoryInterface $taskTypeRepository)
     {
         $this->taskTypeRepository = $taskTypeRepository;
-        $this->authorizeResource(TaskType::class, 'taskType');
+        $this->authorizeResource(TaskType::class);
     }
 
     /**
@@ -79,12 +79,18 @@ class TaskTypeController extends Controller
      * Display the specified task type.
      *
      * @param TaskType $taskType
-     * @return TaskTypeResource
+     * @return TaskTypeResource|JsonResponse
      */
-    public function show(TaskType $taskType) : TaskTypeResource
+    public function show(TaskType $taskType) : TaskTypeResource | JsonResponse
     {
-        // We could use $this->taskTypeRepository->find($taskType->id) here,
-        // but Laravel route model binding is more efficient in this case
+        // Check organization boundaries explicitly (in addition to policy)
+        $organisationId = OrganizationContext::getCurrentOrganizationId();
+
+        if (!$taskType->is_system && $taskType->organisation_id !== $organisationId) {
+            return response()->json([
+                'message' => 'Task type not found or not available to your organization.'
+            ], ResponseAlias::HTTP_NOT_FOUND);
+        }
 
         if (request()->boolean('with_tasks_count')) {
             $taskType->loadCount('tasks');

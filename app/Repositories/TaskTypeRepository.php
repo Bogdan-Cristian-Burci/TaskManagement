@@ -135,8 +135,13 @@ class TaskTypeRepository implements TaskTypeRepositoryInterface
      */
     public function getWithTaskCount(): Collection
     {
-        return Cache::remember('task_types:with_tasks_count', $this->cacheTime, function () {
-            return $this->model->withCount('tasks')->get();
+        $organisationId = OrganizationContext::getCurrentOrganizationId();
+
+        return Cache::remember("task_types:with_tasks_count:org:{$organisationId}", $this->cacheTime, function () use ($organisationId) {
+            return $this->model
+                ->withCount('tasks')
+                ->availableToOrganisation($organisationId)
+                ->get();
         });
     }
 
