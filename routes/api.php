@@ -235,7 +235,11 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::post('task-types/find-by-name', [TaskTypeController::class, 'findByName']);
     Route::post('task-types/clear-cache', [TaskTypeController::class, 'clearCache']);
 
-
+    // Comments routes
+    Route::apiResource('tasks.comments', CommentController::class);
+    Route::get('comments/{comment}', [CommentController::class, 'show'])->name('comments.show');
+    Route::post('comments/{id}/restore', [CommentController::class, 'restore'])->name('comments.restore');
+    Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
 
     // Attachment routes
     Route::apiResource('attachments', AttachmentController::class)->except(['index']);
@@ -281,11 +285,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::post('status-transitions/clear-cache', [StatusTransitionController::class, 'clearCache'])
         ->name('status-transitions.clear-cache');
 
-    // Comments routes
-    Route::apiResource('tasks.comments', CommentController::class);
-    Route::get('comments/{comment}', [CommentController::class, 'show'])->name('comments.show');
-    Route::post('comments/{id}/restore', [CommentController::class, 'restore'])->name('comments.restore');
-    Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
+
 
     // Tag routes
     Route::apiResource('tags', TagController::class);
