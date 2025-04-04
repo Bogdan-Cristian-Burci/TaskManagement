@@ -118,34 +118,64 @@ class CommentController extends Controller
      * @return JsonResponse
      * @throws AuthorizationException
      */
-    public function destroy(Comment $comment): JsonResponse
+    public function destroy(Request $request, Comment $comment): JsonResponse
     {
         $this->authorize('delete', $comment);
 
-        // If the comment has replies and user is not an admin,
-        // just remove the content but keep the comment structure
-        if ($comment->hasReplies() && !auth()->user()->can('delete')) {
+        try {
+            // If the comment has replies and user is not an admin
+            if ($comment->hasReplies()) {
+                // Encrypt and save the original content
+                $metadata = [
+                    'original_content' => $comment->content,
+                    'deleted_by' => $request->user()->name,
+                    'deleted_at' => now()->toIso8601String(),
+                    'deletion_type' => 'content_only'
+                ];
 
-            $comment->update([
-                'content' => '[Comment deleted by ' . auth()->user()->name . ']'
-            ]);
+                \Log::debug('metadata is: ' . json_encode($metadata));
+
+                // Update the comment - the metadata will be auto-encrypted by the model
+                $comment->update([
+                    'metadata' => $metadata,
+                    'content' => '[Comment deleted by ' . $request->user()->name . ']'
+                ]);
+
+                return response()->json([
+                    'message' => 'Comment content removed but structure preserved due to existing replies.',
+                    'comment_id' => $comment->id
+                ]);
+            }
+
+            // For regular deletion, still store encrypted metadata
+            // but perform a soft delete of the entire comment
+            $metadata = [
+                'original_content' => $comment->content,
+                'deleted_by' => $request->user()->name,
+                'deleted_at' => now()->toIso8601String(),
+                'deletion_type' => 'full_delete'
+            ];
+
+            $comment->metadata = $metadata;
+            $comment->save();
+
+            // Soft delete the comment
+            $comment->delete();
+
+            // Touch the task to update its timestamp
+            $comment->task->touch();
 
             return response()->json([
-                'message' => 'Comment content removed but structure preserved due to existing replies.',
+                'message' => 'Comment deleted successfully.',
                 'comment_id' => $comment->id
-            ]);
+            ], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            \Log::error('Error deleting comment: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to delete comment: ' . $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
         }
-
-        // Otherwise delete the comment
-        $comment->delete();
-
-        // Touch the task to update its timestamp
-        $comment->task->touch();
-
-        return response()->json([
-            'message' => 'Comment deleted successfully.',
-            'comment_id' => $comment->id
-        ], Response::HTTP_OK);
     }
 
     /**
@@ -158,18 +188,65 @@ class CommentController extends Controller
      */
     public function restore(Request $request, int $id): JsonResponse
     {
-        $comment = Comment::withTrashed()->findOrFail($id);
-        $this->authorize('restore', $comment);
+        try {
+            // Find the comment even if soft-deleted
+            $comment = Comment::withTrashed()->findOrFail($id);
+            $this->authorize('restore', $comment);
 
-        $comment->restore();
+            // Get the metadata (automatically decrypted by the model)
+            $metadata = $comment->metadata;
 
-        // Touch the task to update its timestamp
-        $comment->task->touch();
+            // Check if we have valid metadata
+            if (empty($metadata) || !isset($metadata['deletion_type'])) {
+                return response()->json([
+                    'message' => 'Comment cannot be restored due to missing metadata.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
 
-        return response()->json([
-            'message' => 'Comment restored successfully.',
-            'comment' => new CommentResource($comment)
-        ]);
+            // Handle different types of deletion
+            if ($metadata['deletion_type'] === 'full_delete' && $comment->trashed()) {
+                // Restore a fully soft-deleted comment
+                $comment->restore();
+
+                // Optional: restore original content if it was modified before deletion
+                if (isset($metadata['original_content'])) {
+                    $comment->content = $metadata['original_content'];
+                    $comment->save();
+                }
+
+                $message = 'Comment fully restored successfully.';
+            }
+            elseif ($metadata['deletion_type'] === 'content_only' && isset($metadata['original_content'])) {
+                // Restore just the content for comments with replies
+                $comment->update([
+                    'content' => $metadata['original_content'],
+                ]);
+                $message = 'Comment content restored successfully.';
+            }
+            else {
+                return response()->json([
+                    'message' => 'Unknown deletion type. Cannot restore comment.'
+                ], Response::HTTP_BAD_REQUEST);
+            }
+
+            // Clear the metadata after successful restoration
+            $comment->metadata = null;
+            $comment->save();
+
+            // Touch the task to update its timestamp
+            $comment->task->touch();
+
+            return response()->json([
+                'message' => $message,
+                'comment' => new CommentResource($comment->fresh())
+            ]);
+        } catch (\Exception $e) {
+            \Log::error('Error restoring comment: ' . $e->getMessage());
+
+            return response()->json([
+                'message' => 'Failed to restore comment: ' . $e->getMessage()
+            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+        }
     }
 
     /**

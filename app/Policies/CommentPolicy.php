@@ -88,7 +88,8 @@ class CommentPolicy
      */
     public function restore(User $user, Comment $comment): bool
     {
-        return $user->hasRole(['admin', 'project_manager']);
+        return $comment->user_id === $user->id ||
+               $user->hasPermission('comment.restore', $comment->task->project->organisation_id);
     }
 
     /**

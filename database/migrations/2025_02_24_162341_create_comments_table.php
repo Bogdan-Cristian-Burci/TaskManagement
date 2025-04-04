@@ -10,6 +10,7 @@ return new class extends Migration {
         Schema::create('comments', function (Blueprint $table) {
             $table->id();
             $table->string('content');
+            $table->text('metadata')->nullable();
             $table->foreignId('task_id')->constrained('tasks');
             $table->foreignId('user_id')->constrained('users');
             $table->foreignId('parent_id')->nullable()->constrained('comments');

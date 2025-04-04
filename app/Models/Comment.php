@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
 
 /**
@@ -16,6 +17,7 @@ use Illuminate\Support\Str;
  * @property int $task_id
  * @property int $user_id
  * @property int|null $parent_id
+ * @property array|null $metadata
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property Carbon|null $deleted_at
@@ -37,7 +39,8 @@ class Comment extends Model
         'content',
         'task_id',
         'user_id',
-        'parent_id'
+        'parent_id',
+        'metadata',
     ];
 
     /**
@@ -50,7 +53,46 @@ class Comment extends Model
         'user_id' => 'integer',
         'parent_id' => 'integer',
         'deleted_at' => 'datetime',
+        'metadata' => 'array',
     ];
+
+    /**
+     * Set the metadata attribute with encryption.
+     *
+     * @param mixed $value
+     * @return void
+     */
+    public function setMetadataAttribute($value): void
+    {
+        if (empty($value)) {
+            $this->attributes['metadata'] = null;
+            return;
+        }
+
+        // Convert to JSON and encrypt
+        $this->attributes['metadata'] = Crypt::encryptString(json_encode($value));
+    }
+
+    /**
+     * Get the metadata attribute with decryption.
+     *
+     * @param mixed $value
+     * @return array|null
+     */
+    public function getMetadataAttribute($value): ?array
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            // Decrypt and convert from JSON to array
+            return json_decode(Crypt::decryptString($value), true);
+        } catch (\Exception $e) {
+            \Log::error('Failed to decrypt comment metadata: ' . $e->getMessage());
+            return null;
+        }
+    }
 
     /**
      * Get the task that the comment belongs to.
