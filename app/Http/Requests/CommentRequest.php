@@ -37,6 +37,7 @@ class CommentRequest extends FormRequest
                     }
                 }
             ],
+            'metadata' => ['nullable', 'array'],
         ];
 
         if ($this->isMethod('PATCH') || $this->isMethod('PUT')) {
@@ -66,6 +67,7 @@ class CommentRequest extends FormRequest
         return [
             'content' => 'comment content',
             'parent_id' => 'parent comment',
+            'metadata' => 'metadata',
         ];
     }
 

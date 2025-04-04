@@ -62,7 +62,7 @@ class Comment extends Model
      * @param mixed $value
      * @return void
      */
-    public function setMetadataAttribute($value): void
+    public function setMetadataAttribute(mixed $value): void
     {
         if (empty($value)) {
             $this->attributes['metadata'] = null;
@@ -79,7 +79,7 @@ class Comment extends Model
      * @param mixed $value
      * @return array|null
      */
-    public function getMetadataAttribute($value): ?array
+    public function getMetadataAttribute(mixed $value): ?array
     {
         if (empty($value)) {
             return null;
