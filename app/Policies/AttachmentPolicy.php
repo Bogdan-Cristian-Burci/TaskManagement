@@ -51,7 +51,7 @@ class AttachmentPolicy
     public function update(User $user, Attachment $attachment): bool
     {
         // Users can update attachments if they uploaded them or can update the associated task
-        return $user->id === $attachment->user_id || $user->hasPermission('update', $attachment->task);
+        return $user->id === $attachment->user_id || $user->hasPermission('attachment.update', $attachment->task->project->organisation_id);
     }
 
     /**

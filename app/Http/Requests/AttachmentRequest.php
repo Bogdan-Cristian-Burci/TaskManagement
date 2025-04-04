@@ -45,7 +45,7 @@ class AttachmentRequest extends FormRequest
                 return false;
             }
 
-            return $this->user()->hasPermission('update', $task);
+            return $this->user()->hasPermission('attachment.create', $task->project->organisation_id);
         }
 
         // For update/delete requests, check if user can update the attachment
@@ -55,7 +55,7 @@ class AttachmentRequest extends FormRequest
             return true; // Let the controller handle missing resources
         }
 
-        return $this->user()->hasPermission('update', $attachment);
+        return $this->user()->can('update', $attachment) ;
     }
     /**
      * Get the validation rules that apply to the request.

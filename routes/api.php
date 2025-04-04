@@ -243,9 +243,10 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
 
     // Attachment routes
-    Route::apiResource('attachments', AttachmentController::class)->except(['index']);
+
     Route::get('attachments/by-task/{task}', [AttachmentController::class, 'getByTask']);
     Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
+    Route::apiResource('attachments', AttachmentController::class)->except(['index']);
 
     // Status routes
     Route::apiResource('statuses', StatusController::class);
