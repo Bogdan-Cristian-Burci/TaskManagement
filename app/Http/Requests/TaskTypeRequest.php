@@ -21,7 +21,8 @@ class TaskTypeRequest extends FormRequest
         }
 
         // For update requests
-        $taskType = $this->route('taskType');
+        $taskType = $this->route('task_type');
+
         if ($taskType && ($this->isMethod('PUT') || $this->isMethod('PATCH'))) {
             return $this->user()->can('update', $taskType);
         }

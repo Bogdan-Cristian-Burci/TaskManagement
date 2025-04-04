@@ -4,6 +4,7 @@ namespace App\Policies;
 
 use App\Models\TaskType;
 use App\Models\User;
+use App\Services\OrganizationContext;
 use Illuminate\Auth\Access\HandlesAuthorization;
 
 class TaskTypePolicy
@@ -53,7 +54,10 @@ class TaskTypePolicy
      */
     public function update(User $user, TaskType $taskType): bool
     {
-        return  $user->hasPermission('taskType.update');
+        if ($taskType->is_system) {
+            return false; // System task types cannot be updated
+        }
+        return  $user->hasPermission('taskType.update', $taskType->organisation_id );
     }
 
     /**

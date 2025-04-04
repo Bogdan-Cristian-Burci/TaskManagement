@@ -108,6 +108,7 @@ class TaskTypeController extends Controller
      */
     public function update(TaskTypeRequest $request, TaskType $taskType) : TaskTypeResource
     {
+        \Log::debug('receiving updates: '. json_encode($request->validated()));
         $this->taskTypeRepository->update($taskType, $request->validated());
 
         // Get a fresh instance with updated data
@@ -150,6 +151,14 @@ class TaskTypeController extends Controller
         ]);
 
         $taskType = $this->taskTypeRepository->findByName($request->name);
+
+        $organisationId = OrganizationContext::getCurrentOrganizationId();
+
+        if(!$taskType->is_system && $taskType->organisation_id !== $organisationId) {
+            return response()->json([
+                'message' => 'Task type not found or not available to your organization.'
+            ], ResponseAlias::HTTP_NOT_FOUND);
+        }
 
         if (!$taskType) {
             return response()->json([
