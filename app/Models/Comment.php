@@ -53,7 +53,6 @@ class Comment extends Model
         'user_id' => 'integer',
         'parent_id' => 'integer',
         'deleted_at' => 'datetime',
-        'metadata' => 'array',
     ];
 
     /**

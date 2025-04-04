@@ -213,6 +213,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     // Board sprints
     Route::get('boards/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
 
+    //TODO: run tests for this
     Route::apiResource('priorities', PriorityController::class);
     Route::post('priorities/reorder', [PriorityController::class, 'reorder']);
 
