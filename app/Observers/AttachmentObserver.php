@@ -71,10 +71,6 @@ class AttachmentObserver
                 'original_filename' => $attachment->original_filename,
             ],
         ]);
-
-        if ($attachment->file_path && Storage::exists($attachment->file_path)) {
-            Storage::delete($attachment->file_path);
-        }
     }
 
     /**

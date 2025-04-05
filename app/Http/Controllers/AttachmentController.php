@@ -7,7 +7,7 @@ use App\Http\Resources\AttachmentResource;
 use App\Models\Attachment;
 use App\Models\Task;
 use Illuminate\Auth\Access\AuthorizationException;
-use Illuminate\Http\Client\Request;
+use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
@@ -104,32 +104,42 @@ class AttachmentController extends Controller
         $this->authorize('delete', $attachment);
 
         try {
+
             // Get file path information before deletion
-            $storage = Storage::disk($attachment->disk);
-            $originalPath = $attachment->path;
+            $disk = $attachment->disk ?? 'public';
+            $storage = Storage::disk($disk);
+            $originalPath = $attachment->file_path;
+
             $filename = basename($originalPath);
 
             // Create a trash directory path with preservation of subdirectories
             $relativePath = dirname($originalPath);
             $trashPath = 'trash/' . $relativePath;
 
+
             // Ensure trash directory exists
             if (!$storage->exists($trashPath)) {
-                $storage->makeDirectory($trashPath, 0755, true);
+                $result = $storage->makeDirectory($trashPath, 0755, true);
             }
 
             // Move the file to trash with the same filename
             if ($storage->exists($originalPath)) {
+
                 $storage->move($originalPath, $trashPath . '/' . $filename);
 
                 // Store the trash path in metadata for potential restoration
-                $attachment->metadata = [
+                $metadata = [
                     'original_path' => $originalPath,
                     'trash_path' => $trashPath . '/' . $filename,
                     'deleted_by' => auth()->user()->name,
                     'deleted_at' => now()->toIso8601String()
                 ];
+
+                // Set metadata and save explicitly
+                $attachment->metadata = $metadata;
                 $attachment->save();
+            } else {
+                \Log::warning('Original file not found', ['path' => $originalPath]);
             }
 
             // Soft delete the attachment record
@@ -140,7 +150,10 @@ class AttachmentController extends Controller
                 'attachment_id' => $attachment->id
             ], Response::HTTP_OK);
         } catch (\Exception $e) {
-            \Log::error('Error deleting attachment: ' . $e->getMessage());
+            \Log::error('Error deleting attachment: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString()
+            ]);
 
             return response()->json([
                 'message' => 'Failed to delete attachment: ' . $e->getMessage()

@@ -21,7 +21,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $updated_at
  * @property Task $task
  * @property User $user
- * @property string $metadata
+ * @property array|null $metadata
+ * @property string $disk
  */
 class Attachment extends Model
 {
@@ -37,14 +38,53 @@ class Attachment extends Model
         'file_type',
         'description',
         'metadata',
+        'disk',
     ];
 
     protected $casts = [
         'file_size' => 'integer',
         'created_at' => 'datetime',
         'updated_at' => 'datetime',
+        'deleted_at' => 'datetime',
     ];
 
+    /**
+     * Set the metadata attribute with encryption.
+     *
+     * @param mixed $value
+     * @return void
+     */
+    public function setMetadataAttribute(mixed $value): void
+    {
+        if (is_null($value)) {
+            $this->attributes['metadata'] = null;
+            return;
+        }
+
+        // Convert to JSON and encrypt
+        $this->attributes['metadata'] = \Illuminate\Support\Facades\Crypt::encryptString(json_encode($value));
+    }
+
+    /**
+     * Get the metadata attribute with decryption.
+     *
+     * @param mixed $value
+     * @return array|null
+     */
+    public function getMetadataAttribute(mixed $value): ?array
+    {
+        if (empty($value)) {
+            return null;
+        }
+
+        try {
+            // Decrypt and convert from JSON to array
+            return json_decode(\Illuminate\Support\Facades\Crypt::decryptString($value), true);
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::error('Failed to decrypt metadata: ' . $e->getMessage());
+            return null;
+        }
+    }
     public function task(): BelongsTo
     {
         return $this->belongsTo(Task::class);

@@ -12,6 +12,7 @@ return new class extends Migration {
             $table->string('filename');
             $table->string('original_filename');
             $table->string('file_path');
+            $table->string('disk', 50)->nullable();
             $table->unsignedBigInteger('file_size');
             $table->string('file_type');
             $table->text('description')->nullable();
