@@ -251,6 +251,8 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('/attachments/{attachment}/file', [AttachmentController::class, 'downloadFile'])
         ->name('attachments.download.file')
         ->middleware('signed');
+    Route::post('attachments/{attachment}/restore', [AttachmentController::class, 'restore'])
+        ->name('attachments.restore');
     Route::apiResource('attachments', AttachmentController::class)->except(['index']);
 
     // Status routes

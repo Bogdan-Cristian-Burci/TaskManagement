@@ -175,7 +175,9 @@ class AttachmentController extends Controller
         $this->authorize('restore', $attachment);
 
         try {
-            $storage = Storage::disk($attachment->disk);
+
+            $disk = $attachment->disk ?? 'public';
+            $storage = Storage::disk($disk);
             $metadata = $attachment->metadata;
 
             // Check if we have metadata with file paths
@@ -183,33 +185,41 @@ class AttachmentController extends Controller
                 $trashPath = $metadata['trash_path'];
                 $originalPath = $metadata['original_path'];
 
-                // Move the file back to its original location
-                if ($storage->exists($trashPath)) {
+                // Check if trash file exists
+                $trashFileExists = $storage->exists($trashPath);
+
+                if ($trashFileExists) {
                     // Create directory if it doesn't exist
                     $originalDir = dirname($originalPath);
+
                     if (!$storage->exists($originalDir)) {
-                        $storage->makeDirectory($originalDir, 0755, true);
+                        $dirCreated = $storage->makeDirectory($originalDir, 0755, true);
                     }
 
                     // Move file back
-                    $storage->move($trashPath, $originalPath);
+                    $moveResult = $storage->move($trashPath, $originalPath);
+
+                    // Update file_path in case we needed to adjust for spelling
+                    if ($moveResult && $originalPath !== $attachment->file_path) {
+                        $attachment->file_path = $originalPath;
+                    }
                 }
+            } else {
+                \Log::warning("No metadata or incomplete metadata found for attachment");
             }
 
             // Restore the attachment record
             $attachment->restore();
 
-            // Clear the metadata
+            // Clear the metadata and save
             $attachment->metadata = null;
             $attachment->save();
 
             return response()->json([
                 'message' => 'Attachment restored successfully.',
-                'attachment' => new AttachmentResource($attachment)
+                'attachment' => new AttachmentResource($attachment->fresh()->load('task'))
             ]);
         } catch (\Exception $e) {
-            \Log::error('Error restoring attachment: ' . $e->getMessage());
-
             return response()->json([
                 'message' => 'Failed to restore attachment: ' . $e->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
