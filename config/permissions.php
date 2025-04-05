@@ -127,5 +127,6 @@ return [
         'manage-teams',
         'manage-projects',
         'manage-settings',
+        'manage-statuses',
     ],
 ];

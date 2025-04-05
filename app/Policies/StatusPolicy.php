@@ -41,8 +41,7 @@ class StatusPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage workflow settings');
+        return $user->hasPermission('status.create');
     }
 
     /**
@@ -54,8 +53,7 @@ class StatusPolicy
      */
     public function update(User $user, Status $status): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage workflow settings');
+        return $user->hasPermission('status.update');
     }
 
     /**
@@ -68,8 +66,7 @@ class StatusPolicy
     public function delete(User $user, Status $status): bool
     {
         // Only allow deletion if the user has proper permissions and the status is not default
-        return ($user->hasRole(['admin', 'project_manager']) ||
-                $user->hasPermissionTo('manage workflow settings')) &&
+        return $user->hasPermission('status.delete') &&
             !$status->is_default;
     }
 
@@ -82,8 +79,7 @@ class StatusPolicy
      */
     public function restore(User $user, Status $status): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage workflow settings');
+        return $user->hasPermission('status.delete');
     }
 
     /**
@@ -95,7 +91,7 @@ class StatusPolicy
      */
     public function forceDelete(User $user, Status $status): bool
     {
-        return $user->hasRole('admin');
+        return $user->can('delete', $user);
     }
 
     /**
@@ -106,7 +102,6 @@ class StatusPolicy
      */
     public function manage(User $user): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage workflow settings');
+        return $user->hasPermission('manage-statuses');
     }
 }

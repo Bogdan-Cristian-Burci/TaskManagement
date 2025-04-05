@@ -243,9 +243,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::get('user/comments', [CommentController::class, 'getUserComments'])->name('user.comments');
 
     // Attachment routes
-
-    //TODO: destroy and restore method should have a different behaviour - move files into a trashed folder
-    // and dispatch a job for deletion after a certain time
     Route::get('attachments/by-task/{task}', [AttachmentController::class, 'getByTask']);
     Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
     Route::get('/attachments/{attachment}/file', [AttachmentController::class, 'downloadFile'])
@@ -256,15 +253,16 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::apiResource('attachments', AttachmentController::class)->except(['index']);
 
     // Status routes
-    Route::apiResource('statuses', StatusController::class);
+    //TODO: add organisation scope fo better flexibility
     Route::post('statuses/find-by-name', [StatusController::class, 'findByName']);
     Route::get('statuses/default', [StatusController::class, 'getDefault']);
     Route::post('statuses/reorder', [StatusController::class, 'reorder']);
     Route::post('statuses/clear-cache', [StatusController::class, 'clearCache']);
-
+    Route::apiResource('statuses', StatusController::class)->except(['store','update','destroy']);
 
     // ChangeType routes
-    Route::apiResource('change-types', ChangeTypeController::class);
+    //TODO: add organisation scope fo better flexibility
+    Route::apiResource('change-types', ChangeTypeController::class)->except(['store','update','destroy']);
     Route::post('change-types/find-by-name', [ChangeTypeController::class, 'findByName'])
         ->name('change-types.find-by-name');
     Route::post('change-types/sync-task-histories', [ChangeTypeController::class, 'syncTaskHistories'])
@@ -273,7 +271,8 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         ->name('change-types.clear-cache');
 
     // Priority routes
-    Route::apiResource('priorities', PriorityController::class);
+    //TODO: add organisation scope fo better flexibility
+    Route::apiResource('priorities', PriorityController::class)->except(['store', 'update', 'destroy']);
     Route::post('priorities/find-by-level', [PriorityController::class, 'findByLevel'])
         ->name('priorities.find-by-level');
     Route::get('priorities/highest', [PriorityController::class, 'getHighest'])
