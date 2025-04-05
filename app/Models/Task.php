@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Events\TaskMovedEvent;
 use App\Services\OrganizationContext;
+use App\Traits\HasAuditTrail;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -11,6 +12,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * @property integer $id
@@ -47,7 +50,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Task extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, HasAuditTrail;
 
 
     protected $fillable = [
@@ -278,5 +281,45 @@ class Task extends Model
         return $query->whereHas('project', function ($q) use ($orgId) {
             $q->where('organisation_id', $orgId);
         });
+    }
+
+    // Override the base implementation for custom behavior
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['status_id', 'priority_id', 'responsible_id', 'name', 'description', 'due_date'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('task')
+            ->tapActivity(function(Activity $activity) {
+                // Link with your existing ChangeType model
+                if ($activity->properties->has('attributes')) {
+                    $attributes = $activity->properties->get('attributes');
+                    $this->setChangeType($activity, $attributes);
+                }
+            });
+    }
+
+    protected function setChangeType(Activity $activity, array $attributes): void
+    {
+        $changeTypeMapping = [
+            'status_id' => 'status',
+            'priority_id' => 'priority',
+            'responsible_id' => 'responsible',
+            'reporter_id' => 'reporter',
+            'parent_task_id' => 'parent_task',
+            'board_id' => 'board',
+            'project_id' => 'project',
+            'name' => 'name',
+            'description' => 'description',
+            'due_date' => 'due_date',
+        ];
+
+        foreach ($changeTypeMapping as $attribute => $changeTypeName) {
+            if (array_key_exists($attribute, $attributes)) {
+                $activity->change_type_id = ChangeType::where('name', $changeTypeName)->value('id');
+                break;
+            }
+        }
     }
 }

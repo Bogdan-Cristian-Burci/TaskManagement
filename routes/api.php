@@ -262,13 +262,14 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // ChangeType routes
     //TODO: add organisation scope fo better flexibility
-    Route::apiResource('change-types', ChangeTypeController::class)->except(['store','update','destroy']);
+
     Route::post('change-types/find-by-name', [ChangeTypeController::class, 'findByName'])
         ->name('change-types.find-by-name');
     Route::post('change-types/sync-task-histories', [ChangeTypeController::class, 'syncTaskHistories'])
         ->name('change-types.sync-task-histories');
     Route::post('change-types/clear-cache', [ChangeTypeController::class, 'clearCache'])
         ->name('change-types.clear-cache');
+    Route::apiResource('change-types', ChangeTypeController::class)->except(['store','update','destroy']);
 
     // Priority routes
     //TODO: add organisation scope fo better flexibility

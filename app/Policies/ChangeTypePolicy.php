@@ -41,7 +41,7 @@ class ChangeTypePolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return  $user->hasPermission('manage-changeTypes');
     }
 
     /**
@@ -53,7 +53,7 @@ class ChangeTypePolicy
      */
     public function update(User $user, ChangeType $changeType): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return  $user->hasPermission('manage-changeTypes');
     }
 
     /**
@@ -65,7 +65,7 @@ class ChangeTypePolicy
      */
     public function delete(User $user, ChangeType $changeType): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return  $user->hasPermission('manage-changeTypes');
     }
 
     /**
@@ -77,7 +77,7 @@ class ChangeTypePolicy
      */
     public function restore(User $user, ChangeType $changeType): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return  $user->hasPermission('manage-changeTypes');
     }
 
     /**
@@ -89,7 +89,7 @@ class ChangeTypePolicy
      */
     public function forceDelete(User $user, ChangeType $changeType): bool
     {
-        return $user->hasRole('admin');
+        return $user->hasPermission('manage-changeTypes');
     }
 
     /**
@@ -100,6 +100,6 @@ class ChangeTypePolicy
      */
     public function manage(User $user): bool
     {
-        return $user->hasRole('admin') || $user->hasPermissionTo('manage task settings');
+        return $user->hasPermission('manage-changeTypes');
     }
 }

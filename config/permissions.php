@@ -128,5 +128,6 @@ return [
         'manage-projects',
         'manage-settings',
         'manage-statuses',
+        'manage-changeTypes'
     ],
 ];
