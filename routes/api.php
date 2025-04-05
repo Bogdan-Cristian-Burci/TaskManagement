@@ -256,7 +256,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     //TODO: add organisation scope fo better flexibility
     Route::post('statuses/find-by-name', [StatusController::class, 'findByName']);
     Route::get('statuses/default', [StatusController::class, 'getDefault']);
-    Route::post('statuses/reorder', [StatusController::class, 'reorder']);
+    Route::post('statuses/reorder', [StatusController::class, 'reorder'])->name('statuses.reorder');
     Route::post('statuses/clear-cache', [StatusController::class, 'clearCache']);
     Route::apiResource('statuses', StatusController::class)->except(['store','update','destroy']);
 
