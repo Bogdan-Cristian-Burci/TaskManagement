@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasAuditTrail;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * @property int $id
@@ -39,7 +42,7 @@ use Illuminate\Support\Str;
  */
 class Project extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, HasAuditTrail;
 
     /**
      * Task handling options for project deletion
@@ -275,8 +278,23 @@ class Project extends Model
      * @param Builder $query
      * @return Builder
      */
-    public function scopeActive($query)
+    public function scopeActive(Builder $query)
     {
         return $query->where('status', 'active');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'code', 'description', 'status', 'start_date', 'end_date', 'organisation_id'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('project')
+            ->tapActivity(function(Activity $activity) {
+                // Add organization context
+                $activity->properties = $activity->properties->merge([
+                    'organization_name' => $this->organization->name ?? 'Unknown',
+                ]);
+            });
     }
 }

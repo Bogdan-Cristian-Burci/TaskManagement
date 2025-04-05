@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Notifications\PasswordResetNotification;
+use App\Traits\HasAuditTrail;
 use App\Traits\HasPermissions;
 use App\Traits\HasRoles;
 use App\Traits\OrganisationHelpers;
@@ -20,6 +21,7 @@ use Illuminate\Notifications\DatabaseNotificationCollection;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Facades\DB;
 use Laravel\Passport\HasApiTokens;
+use Spatie\Activitylog\LogOptions;
 
 /**
  * @property int $id
@@ -54,6 +56,7 @@ class User extends Authenticatable implements MustVerifyEmail
         HasRoles,
         HasPermissions,
         OrganisationHelpers,
+        HasAuditTrail,
         SoftDeletes;
 
     /**
@@ -600,5 +603,15 @@ class User extends Authenticatable implements MustVerifyEmail
             \Log::error('Failed to sync pivot role: ' . $e->getMessage());
             return false;
         }
+    }
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'email', 'status', 'last_login_at'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('user')
+            // Don't log password changes
+            ->dontLogIfAttributesChangedOnly(['password', 'remember_token']);
     }
 }

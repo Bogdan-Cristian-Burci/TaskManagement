@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Models\Scopes\BoardOrganizationScope;
+use App\Traits\HasAuditTrail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -12,6 +13,8 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\HasOneThrough;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Cache;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * @property integer $id
@@ -26,7 +29,7 @@ use Illuminate\Support\Facades\Cache;
  */
 class Board extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, HasAuditTrail;
 
     /**
      * The attributes that are mass assignable.
@@ -269,5 +272,23 @@ class Board extends Model
         return $query->whereHas('sprints', function ($query) {
             $query->where('status', 'active');
         });
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'description', 'project_id', 'board_type_id', 'is_active'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('board')
+            ->tapActivity(function(Activity $activity) {
+                if ($this->project) {
+                    $activity->properties = $activity->properties->merge([
+                        'project_name' => $this->project->name ?? 'Unknown',
+                        'project_code' => $this->project->code ?? 'Unknown',
+                        'organization_id' => $this->project->organisation_id ?? null
+                    ]);
+                }
+            });
     }
 }

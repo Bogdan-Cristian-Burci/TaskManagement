@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasAuditTrail;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -21,6 +22,13 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  */
 class BoardColumn extends Model
 {
+
+    use HasAuditTrail;
+    /**
+     * The attributes that are mass assignable.
+     *
+     * @var array<int, string>
+     */
     protected $fillable = [
         'name',
         'board_id',

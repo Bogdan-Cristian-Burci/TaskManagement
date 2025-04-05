@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasAuditTrail;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -28,7 +29,7 @@ use Illuminate\Support\Str;
  */
 class Comment extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, HasAuditTrail;
 
     /**
      * The attributes that are mass assignable.
@@ -162,5 +163,24 @@ class Comment extends Model
     public function isReply(): bool
     {
         return $this->parent_id !== null;
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['content', 'task_id', 'user_id', 'parent_id'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('comment')
+            ->tapActivity(function(Activity $activity) {
+                // Add task context
+                if ($this->task) {
+                    $activity->properties = $activity->properties->merge([
+                        'task_name' => $this->task->name ?? 'Unknown',
+                        'task_number' => $this->task->task_number ?? 'Unknown',
+                        'project_id' => $this->task->project_id ?? null
+                    ]);
+                }
+            });
     }
 }

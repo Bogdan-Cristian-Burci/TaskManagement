@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Traits\HasAuditTrail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * @property integer $id
@@ -26,7 +29,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  */
 class Attachment extends Model
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, HasAuditTrail;
 
     protected $fillable = [
         'task_id',
@@ -120,5 +123,23 @@ class Attachment extends Model
     public function getIsImageAttribute(): bool
     {
         return str_starts_with($this->file_type, 'image/');
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['filename', 'filepath', 'filesize', 'filetype', 'task_id', 'user_id'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('attachment')
+            ->tapActivity(function(Activity $activity) {
+                if ($this->task) {
+                    $activity->change_type_id = ChangeType::where('name', 'attachment')->value('id');
+                    $activity->properties = $activity->properties->merge([
+                        'task_name' => $this->task->name ?? 'Unknown',
+                        'task_number' => $this->task->task_number ?? 'Unknown'
+                    ]);
+                }
+            });
     }
 }

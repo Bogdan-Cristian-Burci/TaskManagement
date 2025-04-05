@@ -2,14 +2,16 @@
 
 namespace App\Models;
 
+use App\Traits\HasAuditTrail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Spatie\Activitylog\LogOptions;
 
 class Role extends Model
 {
-    use HasFactory;
+    use HasFactory, HasAuditTrail;
 
     protected $fillable = [
         'organisation_id',
@@ -136,5 +138,14 @@ class Role extends Model
 
         // Fall back to system role
         return self::getSystemRole($templateName);
+    }
+
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'description', 'is_system_role'])
+            ->logOnlyDirty()
+            ->dontSubmitEmptyLogs()
+            ->useLogName('role');
     }
 }

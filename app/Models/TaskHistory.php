@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Traits\HasAuditTrail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -23,7 +24,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 class TaskHistory extends Model
 {
 
-    use HasFactory;
+    use HasFactory, HasAuditTrail;
 
     protected $fillable = [
         'task_id',
