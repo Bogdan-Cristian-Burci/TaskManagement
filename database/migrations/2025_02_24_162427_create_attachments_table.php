@@ -17,6 +17,7 @@ return new class extends Migration {
             $table->text('description')->nullable();
             $table->foreignId('task_id')->constrained('tasks')->cascadeOnDelete();
             $table->foreignId('user_id')->nullable()->constrained('users')->nullOnDelete();
+            $table->text('metadata')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

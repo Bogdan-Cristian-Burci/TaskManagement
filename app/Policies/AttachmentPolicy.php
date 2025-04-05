@@ -22,7 +22,7 @@ class AttachmentPolicy
      */
     public function viewAny(User $user): bool
     {
-        return $user->hasPermission('view attachments');
+        return $user->hasPermission('attachment.view');
     }
 
     /**
@@ -31,7 +31,7 @@ class AttachmentPolicy
     public function view(User $user, Attachment $attachment): bool
     {
         // Users can view attachments if they can view the associated task
-        return $user->hasPermission('view', $attachment->task);
+        return $user->hasPermission('attachment.view', $attachment->task->project->organisation_id);
     }
 
     /**
@@ -39,7 +39,7 @@ class AttachmentPolicy
      */
     public function create(User $user): bool
     {
-        if ($user->hasPermission('create attachment')) {
+        if ($user->hasPermission('attachment.create')) {
             return true;
         }
 
@@ -60,7 +60,7 @@ class AttachmentPolicy
     public function delete(User $user, Attachment $attachment): bool
     {
         // Users can delete attachments if they uploaded them or can update the associated task
-        return $user->id === $attachment->user_id || $user->hasPermission('update', $attachment->task);
+        return $user->id === $attachment->user_id || $user->hasPermission('update', $attachment->task->project->organisation_id);
     }
 
     /**
@@ -77,7 +77,7 @@ class AttachmentPolicy
      */
     public function forceDelete(User $user, Attachment $attachment): bool
     {
-        if ($user->hasPermission('force delete attachment')) {
+        if ($user->hasPermission('attachment.forceDelete', $attachment->task->project->organisation_id)) {
             return true;
         }
 

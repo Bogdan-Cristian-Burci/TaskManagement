@@ -244,8 +244,13 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // Attachment routes
 
+    //TODO: destroy and restore method should have a different behaviour - move files into a trashed folder
+    // and dispatch a job for deletion after a certain time
     Route::get('attachments/by-task/{task}', [AttachmentController::class, 'getByTask']);
     Route::get('attachments/{attachment}/download', [AttachmentController::class, 'download'])->name('attachments.download');
+    Route::get('/attachments/{attachment}/file', [AttachmentController::class, 'downloadFile'])
+        ->name('attachments.download.file')
+        ->middleware('signed');
     Route::apiResource('attachments', AttachmentController::class)->except(['index']);
 
     // Status routes

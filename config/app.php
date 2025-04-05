@@ -125,5 +125,10 @@ return [
 
     'frontend_url' => env('FRONTEND_URL', 'http://localhost'),
 
-    'max_organisations_per_user'=>5
+    'max_organisations_per_user'=>5,
+
+    /*
+     * --------------------------------------------------------------------------
+     */
+    'admin_email'=>env('ADMIN_EMAIL','bogdanburci81@gmail.com')
 ];

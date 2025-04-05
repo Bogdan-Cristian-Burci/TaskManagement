@@ -21,6 +21,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $updated_at
  * @property Task $task
  * @property User $user
+ * @property string $metadata
  */
 class Attachment extends Model
 {
@@ -35,6 +36,7 @@ class Attachment extends Model
         'file_size',
         'file_type',
         'description',
+        'metadata',
     ];
 
     protected $casts = [
