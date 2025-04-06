@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Facades\Crypt;
 use Illuminate\Support\Str;
+use Spatie\Activitylog\LogOptions;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * @property int $id
@@ -171,16 +173,21 @@ class Comment extends Model
             ->logOnly(['content', 'task_id', 'user_id', 'parent_id'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
-            ->useLogName('comment')
-            ->tapActivity(function(Activity $activity) {
-                // Add task context
-                if ($this->task) {
-                    $activity->properties = $activity->properties->merge([
-                        'task_name' => $this->task->name ?? 'Unknown',
-                        'task_number' => $this->task->task_number ?? 'Unknown',
-                        'project_id' => $this->task->project_id ?? null
-                    ]);
-                }
-            });
+            ->useLogName('comment');
+    }
+
+    public function tapActivity(Activity $activity, string $eventName): void
+    {
+        // Add task context
+        if ($this->task) {
+            $activity->properties = $activity->properties->merge([
+                'task_name' => $this->task->name ?? 'Unknown',
+                'task_number' => $this->task->task_number ?? 'Unknown',
+                'project_id' => $this->task->project_id ?? null
+            ]);
+
+            // Save the changes
+            $activity->save();
+        }
     }
 }

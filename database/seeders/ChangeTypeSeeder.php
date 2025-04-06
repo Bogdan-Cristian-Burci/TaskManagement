@@ -6,6 +6,7 @@ use Illuminate\Database\Seeder;
 use App\Models\ChangeType;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use App\Enums\ChangeTypeEnum;
 
 class ChangeTypeSeeder extends Seeder
 {
@@ -19,59 +20,20 @@ class ChangeTypeSeeder extends Seeder
         // Clear any cached change types
         Cache::forget('change_types:all');
 
-        $types = [
-            [
-                'name' => 'status',
-                'description' => 'Change status of a task',
+        $changeTypes = [];
+
+        // Use the config file to get the descriptions
+        foreach (config('change_types.types') as $typeName => $typeInfo) {
+            $changeTypes[] = [
+                'name' => $typeName,
+                'description' => $typeInfo['description'],
                 'created_at' => now(),
                 'updated_at' => now(),
-            ],
-            [
-                'name' => 'priority',
-                'description' => 'Change priority of a task',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'name' => 'task_type',
-                'description' => 'Change type of a task',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'name' => 'responsible',
-                'description' => 'Change responsible of a task',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'name' => 'reporter',
-                'description' => 'Change reporter of a task',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'name' => 'parent_task',
-                'description' => 'Change parent task of a task',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'name' => 'board',
-                'description' => 'Change board of a task',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-            [
-                'name' => 'project',
-                'description' => 'Change project of a task',
-                'created_at' => now(),
-                'updated_at' => now(),
-            ],
-        ];
+            ];
+        }
 
         // Use insert instead of create for better performance with multiple records
-        ChangeType::insert($types);
+        ChangeType::insert($changeTypes);
 
         $this->command->info('ChangeType table seeded successfully!');
     }

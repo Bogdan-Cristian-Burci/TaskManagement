@@ -280,15 +280,20 @@ class Board extends Model
             ->logOnly(['name', 'description', 'project_id', 'board_type_id', 'is_active'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
-            ->useLogName('board')
-            ->tapActivity(function(Activity $activity) {
-                if ($this->project) {
-                    $activity->properties = $activity->properties->merge([
-                        'project_name' => $this->project->name ?? 'Unknown',
-                        'project_code' => $this->project->code ?? 'Unknown',
-                        'organization_id' => $this->project->organisation_id ?? null
-                    ]);
-                }
-            });
+            ->useLogName('board');
+    }
+
+    public function tapActivity(Activity $activity, string $eventName): void
+    {
+        if ($this->project) {
+            $activity->properties = $activity->properties->merge([
+                'project_name' => $this->project->name ?? 'Unknown',
+                'project_code' => $this->project->key ?? 'Unknown',
+                'organization_id' => $this->project->organisation_id ?? null
+            ]);
+
+            // Save the changes
+            $activity->save();
+        }
     }
 }

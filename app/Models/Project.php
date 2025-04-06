@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ChangeTypeEnum;
 use App\Traits\HasAuditTrail;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Builder;
@@ -286,15 +287,25 @@ class Project extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['name', 'code', 'description', 'status', 'start_date', 'end_date', 'organisation_id'])
+            ->logOnly(['name', 'key', 'description', 'status', 'start_date', 'end_date', 'organisation_id'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
-            ->useLogName('project')
-            ->tapActivity(function(Activity $activity) {
-                // Add organization context
-                $activity->properties = $activity->properties->merge([
-                    'organization_name' => $this->organization->name ?? 'Unknown',
-                ]);
-            });
+            ->useLogName('project');
+    }
+
+    public function tapActivity(Activity $activity, string $eventName)
+    {
+        // Add organization context - NOTE: Fixed the spelling to match your model (organisation with an 's')
+        if ($this->organisation) {
+            $activity->properties = $activity->properties->merge([
+                'organization_name' => $this->organisation->name ?? 'Unknown',
+            ]);
+
+            // Set change type if you have a ChangeType model
+            $activity->change_type_id = ChangeType::where('name', ChangeTypeEnum::PROJECT->value)->value('id');
+
+            // Save the changes
+            $activity->save();
+        }
     }
 }

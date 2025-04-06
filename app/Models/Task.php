@@ -290,32 +290,28 @@ class Task extends Model
             ->logOnly(['status_id', 'priority_id', 'responsible_id', 'name', 'description', 'due_date'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
-            ->useLogName('task')
-            ->tapActivity(function(Activity $activity) {
-                // Link with your existing ChangeType model
-                if ($activity->properties->has('attributes')) {
-                    $attributes = $activity->properties->get('attributes');
-                    $this->setChangeType($activity, $attributes);
-                }
-            });
+            ->useLogName('task');
     }
 
+    // The package will automatically call this method after logging activity
+    public function tapActivity(Activity $activity, string $eventName): void
+    {
+        // Link with your existing ChangeType model
+        if ($activity->properties->has('attributes')) {
+            $attributes = $activity->properties->get('attributes');
+            $this->setChangeType($activity, $attributes);
+
+            $activity->save();
+        }
+    }
+
+    // Keep your existing setChangeType method
     protected function setChangeType(Activity $activity, array $attributes): void
     {
-        $changeTypeMapping = [
-            'status_id' => 'status',
-            'priority_id' => 'priority',
-            'responsible_id' => 'responsible',
-            'reporter_id' => 'reporter',
-            'parent_task_id' => 'parent_task',
-            'board_id' => 'board',
-            'project_id' => 'project',
-            'name' => 'name',
-            'description' => 'description',
-            'due_date' => 'due_date',
-        ];
+        // Get attribute mapping from config
+        $attributeMapping = config('change_types.attribute_mapping');
 
-        foreach ($changeTypeMapping as $attribute => $changeTypeName) {
+        foreach ($attributeMapping as $attribute => $changeTypeName) {
             if (array_key_exists($attribute, $attributes)) {
                 $activity->change_type_id = ChangeType::where('name', $changeTypeName)->value('id');
                 break;

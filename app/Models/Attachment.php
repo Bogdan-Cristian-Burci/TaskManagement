@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\ChangeTypeEnum;
 use App\Traits\HasAuditTrail;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -131,15 +132,20 @@ class Attachment extends Model
             ->logOnly(['filename', 'filepath', 'filesize', 'filetype', 'task_id', 'user_id'])
             ->logOnlyDirty()
             ->dontSubmitEmptyLogs()
-            ->useLogName('attachment')
-            ->tapActivity(function(Activity $activity) {
-                if ($this->task) {
-                    $activity->change_type_id = ChangeType::where('name', 'attachment')->value('id');
-                    $activity->properties = $activity->properties->merge([
-                        'task_name' => $this->task->name ?? 'Unknown',
-                        'task_number' => $this->task->task_number ?? 'Unknown'
-                    ]);
-                }
-            });
+            ->useLogName('attachment');
+    }
+
+    public function tapActivity(Activity $activity, string $eventName)
+    {
+        if ($this->task) {
+            $activity->change_type_id = ChangeType::where('name', ChangeTypeEnum::ATTACHMENT->value)->value('id');
+            $activity->properties = $activity->properties->merge([
+                'task_name' => $this->task->name ?? 'Unknown',
+                'task_number' => $this->task->task_number ?? 'Unknown'
+            ]);
+
+            // Save the changes to the activity
+            $activity->save();
+        }
     }
 }
