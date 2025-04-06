@@ -11,6 +11,7 @@ class AddBatchUuidColumnToActivityLogTable extends Migration
         Schema::connection(config('activitylog.database_connection'))->table(config('activitylog.table_name'), function (Blueprint $table) {
             $table->uuid('batch_uuid')->nullable()->after('properties');
             $table->unsignedBigInteger('change_type_id')->nullable()->after('properties');
+            $table->string('description')->nullable()->change();
 
             $table->foreign('change_type_id')
                 ->references('id')
@@ -25,6 +26,7 @@ class AddBatchUuidColumnToActivityLogTable extends Migration
             $table->dropColumn('batch_uuid');
             $table->dropForeign(['change_type_id']);
             $table->dropColumn('change_type_id');
+            $table->string('description')->nullable(false)->change();
         });
     }
 }
