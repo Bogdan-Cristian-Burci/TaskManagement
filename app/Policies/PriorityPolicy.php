@@ -41,8 +41,7 @@ class PriorityPolicy
      */
     public function create(User $user): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage task settings');
+        return $user->hasPermission('priority.create');
     }
 
     /**
@@ -54,8 +53,7 @@ class PriorityPolicy
      */
     public function update(User $user, Priority $priority): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage task settings');
+        return $user->hasPermission('priority.update');
     }
 
     /**
@@ -67,8 +65,7 @@ class PriorityPolicy
      */
     public function delete(User $user, Priority $priority): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage task settings');
+        return $user->hasPermission('priority.delete');
     }
 
     /**
@@ -80,8 +77,7 @@ class PriorityPolicy
      */
     public function restore(User $user, Priority $priority): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage task settings');
+        return $user->hasPermission('priority.restore');
     }
 
     /**
@@ -93,7 +89,7 @@ class PriorityPolicy
      */
     public function forceDelete(User $user, Priority $priority): bool
     {
-        return $user->hasRole('admin');
+        return $user->hasPermission('priority.forceDelete');
     }
 
     /**
@@ -104,7 +100,6 @@ class PriorityPolicy
      */
     public function manage(User $user): bool
     {
-        return $user->hasRole(['admin', 'project_manager']) ||
-            $user->hasPermissionTo('manage task settings');
+        return $user->hasPermission('manage-priorities');
     }
 }

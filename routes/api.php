@@ -213,10 +213,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     // Board sprints
     Route::get('boards/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
 
-    //TODO: run tests for this
-    Route::apiResource('priorities', PriorityController::class);
-    Route::post('priorities/reorder', [PriorityController::class, 'reorder']);
-
     //Task comments
     Route::get('tasks/{task}/comments', [CommentController::class, 'index']);
     Route::post('tasks/{task}/comments', [CommentController::class, 'store']);
@@ -273,7 +269,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // Priority routes
     //TODO: add organisation scope fo better flexibility
-    Route::apiResource('priorities', PriorityController::class)->except(['store', 'update', 'destroy']);
     Route::post('priorities/find-by-level', [PriorityController::class, 'findByLevel'])
         ->name('priorities.find-by-level');
     Route::get('priorities/highest', [PriorityController::class, 'getHighest'])
@@ -284,16 +279,16 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         ->name('priorities.reorder');
     Route::post('priorities/clear-cache', [PriorityController::class, 'clearCache'])
         ->name('priorities.clear-cache');
+    Route::apiResource('priorities', PriorityController::class)->except(['store', 'update', 'destroy']);
 
     // Status Transition routes
-    Route::apiResource('status-transitions', StatusTransitionController::class);
     Route::get('status-transitions/from-status/{status}', [StatusTransitionController::class, 'getFromStatus'])
         ->name('status-transitions.from-status');
     Route::post('status-transitions/is-valid', [StatusTransitionController::class, 'isValidTransition'])
         ->name('status-transitions.is-valid');
     Route::post('status-transitions/clear-cache', [StatusTransitionController::class, 'clearCache'])
         ->name('status-transitions.clear-cache');
-
+    Route::apiResource('status-transitions', StatusTransitionController::class);
 
 
     // Tag routes
