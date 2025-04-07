@@ -12,12 +12,12 @@ return new class extends Migration {
             $table->string('name')->nullable();
             $table->foreignId('from_status_id')->constrained('statuses');
             $table->foreignId('to_status_id')->constrained('statuses');
-            $table->foreignId('board_template_id')->constrained('boards_templates');
+            $table->foreignId('board_template_id')->constrained('board_templates');
             $table->softDeletes();
             $table->timestamps();
 
             // Each transition from one status to another should be unique per board
-            $table->unique(['from_status_id', 'to_status_id', 'board_id'], 'unique_transition_per_board');
+            $table->unique(['from_status_id', 'to_status_id', 'board_template_id'], 'unique_transition_per_board');
         });
     }
 

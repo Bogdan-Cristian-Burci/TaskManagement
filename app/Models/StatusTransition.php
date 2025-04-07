@@ -26,7 +26,7 @@ use Spatie\Activitylog\Models\Activity;
  */
 class StatusTransition extends Model
 {
-    use HasFactory, SoftDeletes, HasAuditTrail;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'name',
@@ -109,34 +109,4 @@ class StatusTransition extends Model
         return $this->from_status_id === $task->status_id;
     }
 
-    /**
-     * Set the change type for activity logs.
-     *
-     * @param Activity $activity
-     * @param string $eventName
-     * @return void
-     */
-    protected function tapActivity(Activity $activity, string $eventName): void
-    {
-        // Set the change type to STATUS
-        $activity->change_type_id = ChangeType::where('name', ChangeTypeEnum::STATUS->value)->value('id');
-
-        // If related to a board template, add context
-        if ($this->boardTemplate) {
-            $activity->properties = $activity->properties->merge([
-                'board_template_name' => $this->boardTemplate->name ?? 'Unknown',
-            ]);
-        }
-
-        // Add status context
-        if ($this->fromStatus && $this->toStatus) {
-            $activity->properties = $activity->properties->merge([
-                'from_status' => $this->fromStatus->name ?? 'Unknown',
-                'to_status' => $this->toStatus->name ?? 'Unknown',
-            ]);
-        }
-
-        // Save the changes
-        $activity->save();
-    }
 }

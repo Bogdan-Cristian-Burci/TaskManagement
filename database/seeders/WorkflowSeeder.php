@@ -29,26 +29,18 @@ class WorkflowSeeder extends Seeder
             return;
         }
 
-        // Begin transaction to ensure atomicity
-        DB::beginTransaction();
-
         try {
             // Step 1: Set up statuses
             $statusMap = $this->setupStatuses($workflowConfig['statuses'] ?? []);
 
-            // Step 2: Set up global transitions
-            $this->setupGlobalTransitions($statusMap, $workflowConfig['global_transitions'] ?? []);
+            // Step 2: Process global transitions (now just returns the data)
+            $globalTransitions = $this->setupGlobalTransitions($statusMap, $workflowConfig['global_transitions'] ?? []);
 
-            // Step 3: Set up board templates that reference the statuses
-            $this->setupBoardTemplates($statusMap, $workflowConfig['board_templates'] ?? []);
-
-            // Commit all changes
-            DB::commit();
+            // Step 3: Set up board templates with both global and template-specific transitions
+            $this->setupBoardTemplates($statusMap, $workflowConfig['board_templates'] ?? [], $globalTransitions);
 
             $this->command->info('Workflow setup completed successfully.');
         } catch (\Exception $e) {
-            // Rollback on any error
-            DB::rollBack();
             $this->command->error('Workflow setup failed: ' . $e->getMessage());
             throw $e;
         }
@@ -102,20 +94,15 @@ class WorkflowSeeder extends Seeder
      *
      * @param array $statusMap
      * @param array $transitionConfigs
-     * @return void
+     * @return array
      */
-    protected function setupGlobalTransitions(array $statusMap, array $transitionConfigs): void
+    protected function setupGlobalTransitions(array $statusMap, array $transitionConfigs): array
     {
         $this->command->info('Setting up global transitions...');
 
-        // Clear existing global transitions
-        StatusTransition::whereNull('board_id')->delete();
-
-        // Clear transition caches
-        Cache::forget('status_transitions:all');
-
-        $now = now();
-        $transitionEntries = [];
+        // Instead of creating a global template, we'll prepare transition data
+        // that will be applied to each board template
+        $globalTransitions = [];
 
         // Process each transition
         foreach ($transitionConfigs as $config) {
@@ -123,26 +110,19 @@ class WorkflowSeeder extends Seeder
             $toStatusId = $statusMap[$config['to']] ?? null;
 
             if ($fromStatusId && $toStatusId) {
-                $transitionEntries[] = [
+                $globalTransitions[] = [
                     'name' => $config['name'] ?? "{$config['from']} to {$config['to']}",
                     'from_status_id' => $fromStatusId,
                     'to_status_id' => $toStatusId,
-                    'board_id' => null, // Global transition
-                    'created_at' => $now,
-                    'updated_at' => $now,
                 ];
             } else {
                 $this->command->warn("Skipping transition: {$config['from']} to {$config['to']} - Status not found.");
             }
         }
 
-        // Insert all transitions at once
-        if (!empty($transitionEntries)) {
-            StatusTransition::insert($transitionEntries);
-            $this->command->info('Created ' . count($transitionEntries) . ' global transitions.');
-        } else {
-            $this->command->warn('No global transitions created.');
-        }
+        $this->command->info('Created ' . count($globalTransitions) . ' global transitions definition.');
+
+        return $globalTransitions;
     }
 
     /**
@@ -151,11 +131,16 @@ class WorkflowSeeder extends Seeder
      * @param array $statusMap Map of status names to IDs
      * @param array $templateConfigs Board template configurations
      * @return void
+     * @throws \Throwable
      */
-    protected function setupBoardTemplates(array $statusMap, array $templateConfigs): void
+    protected function setupBoardTemplates(array $statusMap, array $templateConfigs,array $globalTransitions): void
     {
         $this->command->info('Setting up board templates and their transitions...');
 
+        // Begin a transaction for this step
+        DB::beginTransaction();
+
+        try {
         // Clear the cache for board templates
         BoardTemplate::clearCaches();
 
@@ -243,24 +228,20 @@ class WorkflowSeeder extends Seeder
             StatusTransition::where('board_template_id', $template->id)->delete();
 
             // Create global category-based transitions for this template
-            foreach ($this->getCategoryTransitions() as $transition) {
+            foreach ($globalTransitions as $transition) {
                 $fromStatusIds = $categoryMap[$transition['from_category']] ?? [];
                 $toStatusIds = $categoryMap[$transition['to_category']] ?? [];
 
                 foreach ($fromStatusIds as $fromId) {
-                    foreach ($toStatusIds as $toId) {
-                        if ($fromId !== $toId) {
-                            StatusTransition::create([
-                                'name' => $transition['name'],
-                                'from_status_id' => $fromId,
-                                'to_status_id' => $toId,
-                                'board_template_id' => $template->id,
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ]);
-                            $transitionsCount++;
-                        }
-                    }
+                    StatusTransition::create([
+                        'name' => $transition['name'],
+                        'from_status_id' => $transition['from_status_id'],
+                        'to_status_id' => $transition['to_status_id'],
+                        'board_template_id' => $template->id,
+                        'created_at' => now(),
+                        'updated_at' => now(),
+                    ]);
+                    $transitionsCount++;
                 }
             }
 
@@ -327,6 +308,13 @@ class WorkflowSeeder extends Seeder
         }
 
         $this->command->info("Created or updated {$templatesCount} board templates with {$transitionsCount} transitions.");
+            // Commit this transaction
+            DB::commit();
+        } catch (\Exception $e) {
+            DB::rollBack();
+            $this->command->error('Board template setup failed: ' . $e->getMessage());
+            throw $e;
+        }
     }
 
     /**
