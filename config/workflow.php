@@ -107,37 +107,55 @@ return [
                     'name' => 'To Do',
                     'color' => '#3B82F6', // Cool Blue
                     'wip_limit' => null,
-                    'status' => 'to_do',
+                    'status' => [
+                        'name'=>'To Do',
+                        'category'=>'to_do'
+                    ],
                 ],
                 [
                     'name' => 'In Progress',
                     'color' => '#F39C12', // Warm Yellow
                     'wip_limit' => 3,
-                    'status' => 'in_progress',
+                    'status' => [
+                        'name'=>'In Progress',
+                        'category'=>'in_progress'
+                    ],
                 ],
                 [
                     'name' => 'In Review',
                     'color' => '#8B5CF6', // Violet
                     'wip_limit' => 3,
-                    'status' => 'in_review',
+                    'status' => [
+                        'name'=>'In Review',
+                        'category'=>'in_progress'
+                    ],
                 ],
                 [
                     'name' => 'Blocked',
                     'color' => '#EF4444', // Alert Red
                     'wip_limit' => 3,
-                    'status' => 'blocked',
+                    'status' => [
+                        'name'=>'Blocked',
+                        'category'=>'to_do'
+                    ],
                 ],
                 [
                     'name' => 'Done',
                     'color' => '#10B981', // Success Green
                     'wip_limit' => null,
-                    'status' => 'done',
+                    'status' => [
+                        'name'=>'Done',
+                        'category'=>'done'
+                    ],
                 ],
                 [
                     'name' => 'Canceled',
                     'color' => '#9CA3AF', // Neutral Gray
                     'wip_limit' => null,
-                    'status' => 'canceled',
+                    'status' => [
+                        'name'=>'Canceled',
+                        'category'=>'canceled'
+                    ],
                 ],
             ],
             'board_specific_transitions' => [
@@ -162,31 +180,46 @@ return [
                     'name' => 'Backlog',
                     'color' => '#95A5A6', // Gray
                     'wip_limit' => null,
-                    'status' => 'to_do',
+                    'status' => [
+                        'name'=>'Backlog',
+                        'category'=>'to_do'
+                    ],
                 ],
                 [
                     'name' => 'Sprint Backlog',
                     'color' => '#3498DB', // Blue
                     'wip_limit' => null,
-                    'status' => 'to_do',
+                    'status' => [
+                        'name'=>'Sprint Backlog',
+                        'category'=>'to_do'
+                    ],
                 ],
                 [
                     'name' => 'In Progress',
                     'color' => '#F39C12', // Orange
                     'wip_limit' => null,
-                    'status' => 'in_progress',
+                    'status' => [
+                        'name'=>'In Progress',
+                        'category'=>'in_progress',
+                    ],
                 ],
                 [
                     'name' => 'Testing',
                     'color' => '#9B59B6', // Purple
                     'wip_limit' => null,
-                    'status' => 'in_review',
+                    'status' => [
+                        'name'=>'Testing',
+                        'category'=>'in_progress'
+                    ],
                 ],
                 [
                     'name' => 'Done',
                     'color' => '#27AE60', // Green
                     'wip_limit' => null,
-                    'status' => 'done',
+                    'status' => [
+                        'name'=>'Done',
+                        'category'=>'done'
+                    ],
                 ],
             ],
             'settings' => [
@@ -211,19 +244,28 @@ return [
                     'name' => 'To Do',
                     'color' => '#3498DB', // Blue
                     'wip_limit' => null,
-                    'status' => 'To Do',
+                    'status' => [
+                        'name'=>'To Do',
+                        'category'=>'to_do'
+                    ],
                 ],
                 [
                     'name' => 'In Progress',
                     'color' => '#F39C12', // Orange
                     'wip_limit' => null,
-                    'status' => 'in_progress',
+                    'status' => [
+                        'name'=>'In Progress',
+                        'category'=>'in_progress'
+                    ],
                 ],
                 [
                     'name' => 'Done',
                     'color' => '#27AE60', // Green
                     'wip_limit' => null,
-                    'status' => 'Done',
+                    'status' => [
+                        'name'=>'Done',
+                        'category'=>'done'
+                    ],
                 ],
             ],
             'settings' => [
