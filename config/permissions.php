@@ -34,6 +34,7 @@ return [
         'team',
         'role',
         'permission',
+        'tag',
     ],
 
     /*

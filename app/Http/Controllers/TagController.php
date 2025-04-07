@@ -21,9 +21,6 @@ class TagController extends Controller
     public function __construct()
     {
         $this->middleware('auth:api');
-        $this->authorizeResource(Tag::class, 'tag', [
-            'except' => ['index', 'store']
-        ]);
     }
 
     /**
@@ -102,7 +99,7 @@ class TagController extends Controller
      */
     public function store(TagRequest $request): TagResource
     {
-        $this->authorize('create', [Tag::class, $request->input('project_id')]);
+        $this->authorize('create');
 
         $tag = Tag::create($request->validated());
 
@@ -159,6 +156,8 @@ class TagController extends Controller
      */
     public function destroy(Tag $tag): Response
     {
+        $this->authorize('delete', $tag);
+
         // Check if tag is used by tasks
         if ($tag->tasks()->count() > 0) {
             return response([
@@ -267,5 +266,52 @@ class TagController extends Controller
         }
 
         return TagResource::collection(collect($tags));
+    }
+
+    /**
+     * Import tags from another project to the current project.
+     *
+     * @param Request $request
+     * @param Project $targetProject
+     * @return AnonymousResourceCollection
+     * @throws AuthorizationException
+     */
+    public function importTags(Request $request, Project $targetProject): AnonymousResourceCollection
+    {
+        $this->authorize('update', $targetProject);
+
+        $request->validate([
+            'source_project_id' => 'required|exists:projects,id',
+            'tag_ids' => 'required|array',
+            'tag_ids.*' => 'exists:tags,id'
+        ]);
+
+        $sourceProject = Project::findOrFail($request->source_project_id);
+        $this->authorize('view', $sourceProject);
+
+        $importedTags = [];
+        $tags = Tag::whereIn('id', $request->tag_ids)
+            ->where('project_id', $sourceProject->id)
+            ->get();
+
+        foreach ($tags as $tag) {
+            // Check if a tag with the same name already exists in the target project
+            $existingTag = Tag::where('name', $tag->name)
+                ->where('project_id', $targetProject->id)
+                ->first();
+
+            if (!$existingTag) {
+                $newTag = Tag::create([
+                    'name' => $tag->name,
+                    'color' => $tag->color,
+                    'project_id' => $targetProject->id,
+                    'organization_id' => $tag->organization_id, // Preserve organization link if present
+                ]);
+
+                $importedTags[] = $newTag;
+            }
+        }
+
+        return TagResource::collection(collect($importedTags));
     }
 }

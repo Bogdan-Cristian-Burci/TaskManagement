@@ -17,6 +17,8 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * @property string $name
  * @property string $color
  * @property int $project_id
+ * @property int $organisation_id
+ * @property bool $is_system
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property Carbon|null $deleted_at
@@ -35,7 +37,9 @@ class Tag extends Model
     protected $fillable = [
         'name',
         'color',
-        'project_id', // Changed from projects_id to project_id for consistency
+        'project_id',
+        'organisation_id',
+        'is_system'
     ];
 
     /**
@@ -45,6 +49,8 @@ class Tag extends Model
      */
     protected $casts = [
         'project_id' => 'integer',
+        'organisation_id' => 'integer',
+        'is_system' => 'boolean',
     ];
 
     /**
@@ -66,6 +72,15 @@ class Tag extends Model
     {
         return $this->belongsToMany(Task::class, 'tag_task', 'tag_id', 'task_id')
             ->withTimestamps();
+    }
+    /**
+     * Get the organization that owns the tag.
+     *
+     * @return BelongsTo
+     */
+    public function organisation(): BelongsTo
+    {
+        return $this->belongsTo(Organisation::class, 'organisation_id');
     }
 
     /**

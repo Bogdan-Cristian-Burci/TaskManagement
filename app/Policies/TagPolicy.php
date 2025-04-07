@@ -33,7 +33,7 @@ class TagPolicy
     public function view(User $user, Tag $tag): Response|bool
     {
         // User can view tag if they can view the project
-        return $user->hasPermission('view', $tag->project);
+        return $user->hasPermission('tag.view', $tag->organisation_id);
     }
 
     /**
@@ -52,7 +52,7 @@ class TagPolicy
         $project = \App\Models\Project::find($projectId);
 
         // User can create tags if they can update the project
-        return $project && $user->hasPermission('update', $project);
+        return $project && $user->hasPermission('tag.create');
     }
 
     /**
@@ -64,8 +64,12 @@ class TagPolicy
      */
     public function update(User $user, Tag $tag): Response|bool
     {
+        if($tag->is_system) {
+            // System tags cannot be updated
+            return Response::deny('System tags cannot be updated.');
+        }
         // User can update tag if they can update the project
-        return $user->hasPermission('update', $tag->project);
+        return $user->hasPermission('tag.update', $tag->organisation_id);
     }
 
     /**
@@ -77,13 +81,17 @@ class TagPolicy
      */
     public function delete(User $user, Tag $tag): Response|bool
     {
-        // User can delete tag if they can update the project
-        // Additional check: don't allow deletion if tag is in use
+
+        if($tag->is_system) {
+            // System tags cannot be deleted
+            return Response::deny('System tags cannot be deleted.');
+        }
+
         if ($tag->tasks()->count() > 0) {
             return Response::deny('Cannot delete tag that is in use by tasks.');
         }
 
-        return $user->hasPermission('update', $tag->project);
+        return $user->hasPermission('tag.delete', $tag->organisation_id);
     }
 
     /**
@@ -96,7 +104,7 @@ class TagPolicy
     public function restore(User $user, Tag $tag): Response|bool
     {
         // User can restore tag if they can update the project
-        return $user->hasPermission('update', $tag->project);
+        return $user->hasPermission('tag.restore', $tag->organisation_id);
     }
 
     /**
@@ -108,7 +116,11 @@ class TagPolicy
      */
     public function forceDelete(User $user, Tag $tag): Response|bool
     {
+        if($tag->is_system) {
+            // System tags cannot be permanently deleted
+            return Response::deny('System tags cannot be permanently deleted.');
+        }
         // Only allow permanent deletion for users with delete project permission
-        return $user->hasPermission('delete project');
+        return $user->hasPermission('tag.forceDelete', $tag->organisation_id);
     }
 }

@@ -12,8 +12,12 @@ return new class extends Migration {
             $table->string('name');
             $table->string('color');
             $table->foreignId('project_id')->constrained('projects');
+            $table->foreignId('organisation_id')->constrained('organisations');
+            $table->boolean('is_system')->default(false);
             $table->softDeletes();
             $table->timestamps();
+
+            $table->index(['organization_id', 'is_system']);
         });
     }
 

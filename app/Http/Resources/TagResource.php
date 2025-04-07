@@ -23,12 +23,15 @@ class TagResource extends JsonResource
             'color' => $this->color,
             'hex_color' => $this->hex_color, // Accessor that ensures # prefix
             'project_id' => $this->project_id,
+            'organisation_id' => $this->organisation_id,
+            'is_system' => $this->is_system,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
             'deleted_at' => $this->when($request->user() && $request->user()->hasPermission('delete', $this->resource), $this->deleted_at),
 
             // Relationships
             'project' => new ProjectResource($this->whenLoaded('project')),
+            'organisation' => new OrganisationResource($this->whenLoaded('organisation')),
             'tasks_count' => $this->when(isset($this->tasks_count), $this->tasks_count),
 
             // Conditionally load tasks if they are loaded and the request includes them

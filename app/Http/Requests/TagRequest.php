@@ -4,6 +4,7 @@ namespace App\Http\Requests;
 
 use App\Models\Project;
 use App\Models\Tag;
+use App\Services\OrganizationContext;
 use Illuminate\Foundation\Http\FormRequest;
 use Illuminate\Validation\Rule;
 
@@ -39,10 +40,14 @@ class TagRequest extends FormRequest
                 function ($attribute, $value, $fail) {
                     // Check if user has access to this project
                     $project = Project::find($value);
-                    if (!$project || !$this->user()->hasPermission('view', $project)) {
+                    if (!$project || !$this->user()->hasPermission('project.view', $project->organisation_id)) {
                         $fail('You do not have access to this project.');
                     }
                 }
+            ],
+            'organisation_id' => [
+                'required',
+                'exists:organisations,id',
             ],
         ];
     }
@@ -54,16 +59,7 @@ class TagRequest extends FormRequest
      */
     public function authorize(): bool
     {
-        // For creating a new tag
-        if (!$this->route('tag')) {
-            $project = Project::find($this->input('project_id'));
-            return $project && $this->user()->hasPermission('update', $project);
-        }
-
-        // For updating an existing tag
-        $tag = $this->route('tag');
-        $project = $tag->project;
-        return $project && $this->user()->hasPermission('update', $project);
+        return true;
     }
 
     /**
@@ -89,6 +85,14 @@ class TagRequest extends FormRequest
         if ($this->has('color') && !str_starts_with($this->color, '#')) {
             $this->merge([
                 'color' => "#{$this->color}",
+            ]);
+        }
+
+        $organisationId = OrganizationContext::getCurrentOrganizationId();
+
+        if ($organisationId) {
+            $this->merge([
+                'organisation_id' => $organisationId,
             ]);
         }
     }
