@@ -13,32 +13,22 @@ class BoardTypeSeeder extends Seeder
      *
      * @return void
      */
-    public function run(): void
+    public function run()
     {
         $this->command->info('Creating board types from templates...');
 
-        $templates = BoardTemplate::withoutGlobalScope('withoutSystem')
-            ->withoutGlobalScope('OrganizationScope')
-            ->where('is_system', true)
+        // Get all active board templates
+        $templates = BoardTemplate::where('is_active', true)
             ->get();
 
-        $count = 0;
-
         foreach ($templates as $template) {
-            $boardType = BoardType::firstOrCreate(
-                ['template_id' => $template->id],
-                [
-                    'name' => $template->name,
-                    'description' => $template->description ?? ('Default board type for ' . $template->name),
-                    'is_active' => true
-                ]
-            );
-
-            if ($boardType->wasRecentlyCreated) {
-                $count++;
-            }
+            BoardType::create([
+                'template_id' => $template->id,
+                'name' => $template->name,
+                'description' => $template->description,
+            ]);
         }
 
-        $this->command->info("Created {$count} new board types.");
+        $this->command->info('Created ' . $templates->count() . ' board types.');
     }
 }
