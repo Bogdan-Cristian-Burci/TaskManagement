@@ -164,8 +164,8 @@ class StatusTransitionRepository implements StatusTransitionRepositoryInterface
 
             if ($boardId !== null) {
                 // Get the board's template ID
-                $board = \App\Models\Board::with('board_type')->find($boardId);
-                $templateId = $board?->board_type?->template_id;
+                $board = \App\Models\Board::with('boardType')->find($boardId);
+                $templateId = $board?->boardType?->template_id;
 
                 if ($templateId) {
                     $query->where('board_template_id', $templateId);

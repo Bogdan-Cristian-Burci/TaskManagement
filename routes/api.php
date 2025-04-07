@@ -288,7 +288,9 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         ->name('status-transitions.is-valid');
     Route::post('status-transitions/clear-cache', [StatusTransitionController::class, 'clearCache'])
         ->name('status-transitions.clear-cache');
-    Route::apiResource('status-transitions', StatusTransitionController::class);
+    Route::apiResource('status-transitions', StatusTransitionController::class)->except(
+        ['store', 'update', 'destroy']
+    );
 
 
     // Tag routes

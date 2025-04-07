@@ -106,7 +106,18 @@ class Board extends Model
      */
     public function boardType(): BelongsTo
     {
-        return $this->belongsTo(BoardType::class);
+        return $this->belongsTo(BoardType::class,'board_type_id');
+    }
+
+    /**
+     * Define a relationship for compatibility with older code that uses 'board_type'
+     * This is an alias for the boardType() relationship
+     *
+     * @return BelongsTo
+     */
+    public function board_type(): BelongsTo
+    {
+        return $this->boardType();
     }
 
     /**
