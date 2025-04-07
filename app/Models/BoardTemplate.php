@@ -114,15 +114,13 @@ class BoardTemplate extends Model
         // Create the board
         $board = Board::create($boardData);
 
-        // Create columns and store their IDs for transition mapping
-        $columnIds = [];
+        // Create columns based on template
         $position = 0;
+        $statusIdMap = [];
 
         // Create the columns based on the template
         if (!empty($this->columns_structure)) {
-
-            // First pass: Create all columns
-            foreach ($this->columns_structure as $index => $column) {
+            foreach ($this->columns_structure as $column) {
                 $position++;
                 $newColumn = $board->columns()->create([
                     'name' => $column['name'],
@@ -130,30 +128,30 @@ class BoardTemplate extends Model
                     'color' => $column['color'] ?? '#6C757D',
                     'wip_limit' => $column['wip_limit'] ?? null,
                     'maps_to_status_id' => $column['status_id'] ?? null,
-                    // Don't set allowed_transitions yet
+                    // Removed allowed_transitions
                 ]);
 
-                // Store the column ID with its index
-                $columnIds[$index + 1] = $newColumn->id;
-            }
-
-            // Second pass: Update all columns with proper transition IDs
-            foreach ($this->columns_structure as $index => $column) {
-                if (!empty($column['allowed_transitions'])) {
-                    // Convert template indices to actual column IDs
-                    $transitionIds = array_map(
-                        fn($idx) => $columnIds[$idx] ?? null,
-                        $column['allowed_transitions']
-                    );
-
-                    // Filter out any nulls from invalid references
-                    $transitionIds = array_filter($transitionIds);
-
-                    // Update the column with the resolved IDs
-                    $board->columns()->where('position', $index + 1)->update([
-                        'allowed_transitions' => $transitionIds
-                    ]);
+                // Store the status ID mapping for transitions
+                if (!empty($column['status_id'])) {
+                    $statusIdMap[$column['status_id']] = $newColumn->id;
                 }
+            }
+        }
+
+        // Create board-specific status transitions
+        if (!empty($this->settings['transitions'])) {
+            foreach ($this->settings['transitions'] as $transition) {
+                // Skip if missing required fields
+                if (empty($transition['from_status_id']) || empty($transition['to_status_id'])) {
+                    continue;
+                }
+
+                StatusTransition::create([
+                    'name' => $transition['name'] ?? 'Status Transition',
+                    'from_status_id' => $transition['from_status_id'],
+                    'to_status_id' => $transition['to_status_id'],
+                    'board_id' => $board->id,
+                ]);
             }
         }
 

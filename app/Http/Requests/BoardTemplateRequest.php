@@ -32,10 +32,13 @@ class BoardTemplateRequest extends FormRequest
             'columns_structure.*.color' => 'nullable|string|max:50',
             'columns_structure.*.wip_limit' => 'nullable|integer|min:1',
             'columns_structure.*.status_id' => 'nullable|exists:statuses,id',
-            'columns_structure.*.allowed_transitions' => 'nullable|array',
             'columns_structure.*.allowed_transitions.*' => 'integer',
             'settings' => 'nullable|array',
             'organisation_id' => 'required|exists:organisations,id',
+            'transitions' => 'nullable|array',
+            'transitions.*.from_status_id' => 'required|exists:statuses,id',
+            'transitions.*.to_status_id' => 'required|exists:statuses,id',
+            'transitions.*.name' => 'nullable|string|max:255',
         ];
 
         // If we're updating, prevent changing the organisation_id of system templates

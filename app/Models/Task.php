@@ -234,13 +234,22 @@ class Task extends Model
     {
         $currentColumn = $this->boardColumn;
 
-        // Skip validation if forced (admin action) or if there are no transition rules
-        if (!$force && !empty($currentColumn->allowed_transitions)) {
-            $allowedColumnIds = $currentColumn->allowed_transitions;
+        // Skip validation if forced (admin action)
+        if (!$force) {
+            // Check if this transition is allowed
+            if ($currentColumn->maps_to_status_id && $targetColumn->maps_to_status_id) {
+                // Check if transition is valid using StatusTransition
+                $validTransition = StatusTransition::where('from_status_id', $currentColumn->maps_to_status_id)
+                    ->where('to_status_id', $targetColumn->maps_to_status_id)
+                    ->where(function($query) use ($currentColumn) {
+                        $query->where('board_id', $currentColumn->board_id)
+                            ->orWhereNull('board_id'); // Include global transitions
+                    })
+                    ->exists();
 
-            if (!in_array($targetColumn->id, $allowedColumnIds)) {
-                // Move not allowed by workflow rules
-                return false;
+                if (!$validTransition) {
+                    return false; // Transition not allowed
+                }
             }
         }
 

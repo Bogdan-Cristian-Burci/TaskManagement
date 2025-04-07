@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Traits\HasAuditTrail;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -15,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property integer $position
  * @property string $color
  * @property integer $wip_limit
+ * @property integer|null $maps_to_status_id
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property Board $board
@@ -36,14 +38,12 @@ class BoardColumn extends Model
         'color',
         'wip_limit',
         'maps_to_status_id',
-        'allowed_transitions'
     ];
 
     protected $casts = [
         'position' => 'integer',
         'wip_limit' => 'integer',
         'maps_to_status_id' => 'integer',
-        'allowed_transitions' => 'array',
     ];
 
     public function board(): BelongsTo
@@ -74,5 +74,33 @@ class BoardColumn extends Model
     public function status(): BelongsTo
     {
         return $this->belongsTo(Status::class, 'maps_to_status_id');
+    }
+
+    /**
+     * Get the columns this column can transition tasks to.
+     * Uses StatusTransition model to determine valid transitions.
+     *
+     * @return \Illuminate\Support\Collection
+     */
+    public function getAllowedTransitionColumns(): \Illuminate\Support\Collection
+    {
+        if (!$this->maps_to_status_id || !$this->board_id) {
+            return collect();
+        }
+
+        // Get status transitions for this column's status
+        $statusTransitions = StatusTransition::where('from_status_id', $this->maps_to_status_id)
+            ->where(function($query) {
+                $query->where('board_id', $this->board_id)
+                    ->orWhereNull('board_id'); // Include global transitions
+            })
+            ->get();
+
+        // Map to columns in this board with matching status IDs
+        $toStatusIds = $statusTransitions->pluck('to_status_id')->unique()->toArray();
+
+        return BoardColumn::where('board_id', $this->board_id)
+            ->whereIn('maps_to_status_id', $toStatusIds)
+            ->get();
     }
 }

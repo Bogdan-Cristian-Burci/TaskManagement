@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\TaskRequest;
 use App\Http\Resources\TaskResource;
 use App\Models\BoardColumn;
+use App\Models\StatusTransition;
 use App\Models\Task;
 use App\Services\TaskService;
 use Illuminate\Http\JsonResponse;
@@ -189,12 +190,27 @@ class TaskController extends Controller
             $success = $this->taskService->moveTask($task, $targetColumn, $force);
 
             if (!$success) {
+                // Check if WIP limit is the issue
+                $isWipLimitReached = $targetColumn->isAtWipLimit();
+
+                // Check if transition is not allowed
+                $isNotAllowedTransition = false;
+                if ($task->boardColumn && $task->boardColumn->maps_to_status_id && $targetColumn->maps_to_status_id) {
+                    // Check transition validity using StatusTransition
+                    $isNotAllowedTransition = !StatusTransition::where('from_status_id', $task->boardColumn->maps_to_status_id)
+                        ->where('to_status_id', $targetColumn->maps_to_status_id)
+                        ->where(function($query) use ($task) {
+                            $query->where('board_id', $task->board_id)
+                                ->orWhereNull('board_id'); // Include global transitions
+                        })
+                        ->exists();
+                }
+
                 return response()->json([
                     'message' => 'Task could not be moved to the target column',
                     'reasons' => [
-                        'wip_limit_reached' => $targetColumn->isAtWipLimit(),
-                        'not_allowed_transition' => !empty($task->boardColumn->allowed_transitions) &&
-                            !in_array($targetColumn->id, $task->boardColumn->allowed_transitions ?? [])
+                        'wip_limit_reached' => $isWipLimitReached,
+                        'not_allowed_transition' => $isNotAllowedTransition
                     ]
                 ], 422);
             }

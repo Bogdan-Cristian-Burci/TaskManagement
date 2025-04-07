@@ -16,9 +16,9 @@ class DatabaseSeeder extends Seeder
             RolesAndPermissionsSeeder::class,
             ChangeTypeSeeder::class,
             PrioritySeeder::class,
-            StatusSeeder::class,
             TaskTypeSeeder::class,
-            BoardTemplateAndTypeSeeder::class
+            WorkflowSeeder::class,
+            BoardTypeSeeder::class,
         ]);
     }
 }

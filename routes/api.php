@@ -292,8 +292,8 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
 
     // Tag routes
-    Route::apiResource('tags', TagController::class);
     Route::post('tags/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
+    Route::apiResource('tags', TagController::class);
 
     // Sprint routes
     Route::apiResource('sprints', 'SprintController');

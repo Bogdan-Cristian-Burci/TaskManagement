@@ -15,7 +15,6 @@ return new class extends Migration {
             $table->integer('wip_limit')->nullable();
             $table->foreignId('board_id')->constrained('boards')->onDelete('cascade');
             $table->foreignId('maps_to_status_id')->nullable()->constrained('statuses');
-            $table->json('allowed_transitions')->nullable();
             $table->timestamps();
             $table->softDeletes();
         });

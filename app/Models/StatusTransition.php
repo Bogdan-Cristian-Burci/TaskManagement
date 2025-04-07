@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\ChangeTypeEnum;
 use App\Traits\HasAuditTrail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\SoftDeletes;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * @property integer $id
@@ -104,4 +106,35 @@ class StatusTransition extends Model
         return $this->from_status_id === $task->status_id;
     }
 
+    /**
+     * Set the change type for activity logs.
+     *
+     * @param Activity $activity
+     * @param string $eventName
+     * @return void
+     */
+    protected function tapActivity(Activity $activity, string $eventName): void
+    {
+        // Set the change type to STATUS
+        $activity->change_type_id = ChangeType::where('name', ChangeTypeEnum::STATUS->value)->value('id');
+
+        // If related to a board, add board context
+        if ($this->board) {
+            $activity->properties = $activity->properties->merge([
+                'board_name' => $this->board->name ?? 'Unknown',
+                'project_name' => $this->board->project->name ?? 'Unknown',
+            ]);
+        }
+
+        // Add status context
+        if ($this->fromStatus && $this->toStatus) {
+            $activity->properties = $activity->properties->merge([
+                'from_status' => $this->fromStatus->name ?? 'Unknown',
+                'to_status' => $this->toStatus->name ?? 'Unknown',
+            ]);
+        }
+
+        // Save the changes
+        $activity->save();
+    }
 }

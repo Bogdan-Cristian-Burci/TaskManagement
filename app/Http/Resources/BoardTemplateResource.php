@@ -86,20 +86,10 @@ class BoardTemplateResource extends JsonResource
                 }
             }
 
-            // Format allowed transitions if present
-            if (isset($column['allowed_transitions']) && is_array($column['allowed_transitions'])) {
-                // Map column indices to status names where possible
-                $column['allowed_transition_names'] = collect($column['allowed_transitions'])
-                    ->map(function($columnIndex) use ($columnsStructure) {
-                        // Adjust for zero-based index if needed
-                        $index = $columnIndex - 1;
-                        return $columnsStructure[$index]['name'] ?? "Column $columnIndex";
-                    })
-                    ->toArray();
-            }
+            // Removed allowed_transitions formatting
 
             // Default color if not set
-            if (!isset($column['color']) || empty($column['color'])) {
+            if (empty($column['color'])) {
                 $column['color'] = '#6C757D'; // Default gray
             }
 
