@@ -10,6 +10,7 @@ use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response as HttpResponse;
 
 class TagController extends Controller
@@ -200,16 +201,47 @@ class TagController extends Controller
     {
         $this->authorize('view', $project);
 
-        $query = $project->tags();
+        // Get tags directly assigned to this project
+        $projectTagsQuery = $project->tags();
+
+        // Get system tags from the organization
+        $systemTagsQuery = Tag::where('is_system', true)
+            ->where('organisation_id', $project->organisation_id)
+            ->whereNull('project_id');
+
+        // Combine both queries
+        $query = $projectTagsQuery->union($systemTagsQuery);
 
         // Filter by name if provided
         if ($request->has('name')) {
-            $query->where('name', 'LIKE', "%{$request->input('name')}%");
+            $searchTerm = "%" . $request->input('name') . "%";
+            $query = Tag::from('(' . $query->toSql() . ') as tags')
+                ->mergeBindings($query->getQuery())
+                ->where('name', 'LIKE', $searchTerm);
         }
 
         // Include task count
         if ($request->boolean('with_counts', false)) {
-            $query->withCount('tasks');
+            // Need to use a different approach for counting on a union
+            if ($request->has('name')) {
+                $query->withCount('tasks');
+            } else {
+                // For the union case, we need to load task counts separately
+                // This is more complex and might require adjusting based on your needs
+                $tags = $query->get();
+                $tagIds = $tags->pluck('id');
+                $taskCounts = DB::table('task_tag')
+                    ->select('tag_id', DB::raw('count(*) as tasks_count'))
+                    ->whereIn('tag_id', $tagIds)
+                    ->groupBy('tag_id')
+                    ->pluck('tasks_count', 'tag_id');
+
+                $tags->each(function($tag) use ($taskCounts) {
+                    $tag->tasks_count = $taskCounts[$tag->id] ?? 0;
+                });
+
+                return TagResource::collection($tags);
+            }
         }
 
         // Handle sorting
@@ -218,16 +250,28 @@ class TagController extends Controller
         $validColumns = ['name', 'color', 'created_at'];
 
         if (in_array($sortColumn, $validColumns)) {
-            $query->orderBy($sortColumn, $sortDirection);
+            if ($request->has('name')) {
+                $query->orderBy($sortColumn, $sortDirection);
+            } else {
+                // For the union case, we need to use raw SQL for ordering
+                $query = Tag::from('(' . $query->toSql() . ') as tags')
+                    ->mergeBindings($query->getQuery())
+                    ->orderBy($sortColumn, $sortDirection);
+            }
         } else {
-            $query->orderBy('name', 'asc');
+            if ($request->has('name')) {
+                $query->orderBy('name', 'asc');
+            } else {
+                $query = Tag::from('(' . $query->toSql() . ') as tags')
+                    ->mergeBindings($query->getQuery())
+                    ->orderBy('name', 'asc');
+            }
         }
 
         $tags = $query->get();
 
         return TagResource::collection($tags);
     }
-
     /**
      * Batch create multiple tags for a project.
      *

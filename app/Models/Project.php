@@ -175,6 +175,17 @@ class Project extends Model
         return $this->hasMany(Tag::class);
     }
 
+    public function getAllAvailableTags()
+    {
+        $projectTags = $this->tags;
+
+        $systemTags = Tag::where('is_system', true)
+            ->whereNull('project_id')
+            ->get();
+
+        return $projectTags->concat($systemTags);
+    }
+
     /**
      * Get the user responsible for this project.
      *

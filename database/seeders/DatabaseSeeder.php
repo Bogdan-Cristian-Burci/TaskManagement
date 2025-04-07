@@ -19,6 +19,7 @@ class DatabaseSeeder extends Seeder
             TaskTypeSeeder::class,
             WorkflowSeeder::class,
             BoardTypeSeeder::class,
+            SystemTagsSeeder::class,
         ]);
     }
 }
