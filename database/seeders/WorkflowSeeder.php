@@ -130,10 +130,11 @@ class WorkflowSeeder extends Seeder
      *
      * @param array $statusMap Map of status names to IDs
      * @param array $templateConfigs Board template configurations
+     * @param array $globalTransitions Global transitions to apply to each template
      * @return void
      * @throws \Throwable
      */
-    protected function setupBoardTemplates(array $statusMap, array $templateConfigs,array $globalTransitions): void
+    protected function setupBoardTemplates(array $statusMap, array $templateConfigs, array $globalTransitions): void
     {
         $this->command->info('Setting up board templates and their transitions...');
 
@@ -141,173 +142,195 @@ class WorkflowSeeder extends Seeder
         DB::beginTransaction();
 
         try {
-        // Clear the cache for board templates
-        BoardTemplate::clearCaches();
+            // Clear the cache for board templates
+            BoardTemplate::clearCaches();
 
-        $templatesCount = 0;
-        $transitionsCount = 0;
+            $templatesCount = 0;
+            $transitionsCount = 0;
 
-        // Get category map for category-based transitions
-        $categoryMap = [];
-        foreach (Status::all() as $status) {
-            if (!isset($categoryMap[$status->category])) {
-                $categoryMap[$status->category] = [];
+            // Get category map for category-based transitions
+            $categoryMap = [];
+            foreach (Status::all() as $status) {
+                if (!isset($categoryMap[$status->category])) {
+                    $categoryMap[$status->category] = [];
+                }
+                $categoryMap[$status->category][] = $status->id;
             }
-            $categoryMap[$status->category][] = $status->id;
-        }
 
-        foreach ($templateConfigs as $key => $config) {
-            // Process columns to map status names to IDs
-            $columnsStructure = [];
-            $statusIdsByColumn = []; // Store which status ID is used by which column
+            foreach ($templateConfigs as $key => $config) {
+                // Process columns to map status names to IDs
+                $columnsStructure = [];
+                $statusIdsByColumn = []; // Store which status ID is used by which column
 
-            foreach ($config['columns'] as $index => $column) {
-                // Get status ID from the nested structure
-                $statusName = $column['status']['name'] ?? null;
-                $statusId = $statusMap[$statusName] ?? null;
+                foreach ($config['columns'] as $index => $column) {
+                    // Get status ID from the nested structure
+                    $statusName = $column['status']['name'] ?? null;
+                    $statusId = $statusMap[$statusName] ?? null;
 
-                if (!$statusId) {
-                    // If the specific status doesn't exist, we need to create it
-                    $statusCategory = $column['status']['category'] ?? 'to_do';
+                    if (!$statusId) {
+                        // If the specific status doesn't exist, we need to create it
+                        $statusCategory = $column['status']['category'] ?? 'to_do';
 
-                    $newStatus = Status::create([
-                        'name' => $statusName,
-                        'description' => "Auto-created for {$config['name']} template",
+                        $newStatus = Status::create([
+                            'name' => $statusName,
+                            'description' => "Auto-created for {$config['name']} template",
+                            'color' => $column['color'] ?? '#6C757D',
+                            'icon' => 'circle',
+                            'is_default' => false,
+                            'position' => 100 + $index, // Give it a high position number
+                            'category' => $statusCategory,
+                            'created_at' => now(),
+                            'updated_at' => now(),
+                        ]);
+
+                        $statusId = $newStatus->id;
+                        $statusMap[$statusName] = $statusId;
+
+                        // Add to category map
+                        if (!isset($categoryMap[$statusCategory])) {
+                            $categoryMap[$statusCategory] = [];
+                        }
+                        $categoryMap[$statusCategory][] = $statusId;
+
+                        $this->command->info("Created new status '{$statusName}' with ID {$statusId}");
+                    }
+
+                    $columnsStructure[] = [
+                        'name' => $column['name'],
                         'color' => $column['color'] ?? '#6C757D',
-                        'icon' => 'circle',
-                        'is_default' => false,
-                        'position' => 100 + $index, // Give it a high position number
-                        'category' => $statusCategory,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
+                        'wip_limit' => $column['wip_limit'] ?? null,
+                        'status_id' => $statusId,
+                    ];
 
-                    $statusId = $newStatus->id;
-                    $statusMap[$statusName] = $statusId;
-
-                    // Add to category map
-                    if (!isset($categoryMap[$statusCategory])) {
-                        $categoryMap[$statusCategory] = [];
-                    }
-                    $categoryMap[$statusCategory][] = $statusId;
-
-                    $this->command->info("Created new status '{$statusName}' with ID {$statusId}");
+                    $statusIdsByColumn[$column['name']] = $statusId;
                 }
 
-                $columnsStructure[] = [
-                    'name' => $column['name'],
-                    'color' => $column['color'] ?? '#6C757D',
-                    'wip_limit' => $column['wip_limit'] ?? null,
-                    'status_id' => $statusId,
-                ];
+                // Create or update the board template
+                $template = BoardTemplate::withoutGlobalScope('withoutSystem')
+                    ->withoutGlobalScope('OrganizationScope')
+                    ->updateOrCreate(
+                        ['key' => $key],
+                        [
+                            'name' => $config['name'],
+                            'description' => $config['description'] ?? null,
+                            'columns_structure' => $columnsStructure,
+                            'settings' => $config['settings'] ?? [],
+                            'is_system' => true,
+                            'is_active' => true,
+                            'organisation_id' => null
+                        ]
+                    );
 
-                $statusIdsByColumn[$column['name']] = $statusId;
-            }
+                $templatesCount++;
 
-            // Create or update the board template
-            $template = BoardTemplate::withoutGlobalScope('withoutSystem')
-                ->withoutGlobalScope('OrganizationScope')
-                ->updateOrCreate(
-                    ['key' => $key],
-                    [
-                        'name' => $config['name'],
-                        'description' => $config['description'] ?? null,
-                        'columns_structure' => $columnsStructure,
-                        'settings' => $config['settings'] ?? [],
-                        'is_system' => true,
-                        'is_active' => true,
-                        'organisation_id' => null
-                    ]
-                );
+                // Now create transitions for this template
 
-            $templatesCount++;
+                // First, delete existing transitions for this template
+                StatusTransition::where('board_template_id', $template->id)->delete();
 
-            // Now create transitions for this template
+                // Apply global transitions to this template
+                foreach ($globalTransitions as $transition) {
+                    $created = $this->createTransitionIfNotExists(
+                        $transition['from_status_id'],
+                        $transition['to_status_id'],
+                        $template->id,
+                        $transition['name']
+                    );
 
-            // First, delete existing transitions for this template
-            StatusTransition::where('board_template_id', $template->id)->delete();
-
-            // Create global category-based transitions for this template
-            foreach ($globalTransitions as $transition) {
-                $fromStatusIds = $categoryMap[$transition['from_category']] ?? [];
-                $toStatusIds = $categoryMap[$transition['to_category']] ?? [];
-
-                foreach ($fromStatusIds as $fromId) {
-                    StatusTransition::create([
-                        'name' => $transition['name'],
-                        'from_status_id' => $transition['from_status_id'],
-                        'to_status_id' => $transition['to_status_id'],
-                        'board_template_id' => $template->id,
-                        'created_at' => now(),
-                        'updated_at' => now(),
-                    ]);
-                    $transitionsCount++;
+                    if ($created) {
+                        $transitionsCount++;
+                    }
                 }
-            }
 
-            // Now add board-specific transitions if defined
-            if (isset($config['board_specific_transitions']) && is_array($config['board_specific_transitions'])) {
-                foreach ($config['board_specific_transitions'] as $transition) {
-                    // Handle direct status name transitions
-                    if (isset($transition['from']) && isset($transition['to'])) {
-                        $fromStatusId = $statusMap[$transition['from']] ?? null;
-                        $toStatusId = $statusMap[$transition['to']] ?? null;
+                // Create category-based transitions for this template
+                foreach ($this->getCategoryTransitions() as $catTransition) {
+                    $fromStatusIds = $categoryMap[$catTransition['from_category']] ?? [];
+                    $toStatusIds = $categoryMap[$catTransition['to_category']] ?? [];
 
-                        if ($fromStatusId && $toStatusId) {
-                            StatusTransition::create([
-                                'name' => $transition['name'] ?? "{$transition['from']} to {$transition['to']}",
-                                'from_status_id' => $fromStatusId,
-                                'to_status_id' => $toStatusId,
-                                'board_template_id' => $template->id,
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ]);
-                            $transitionsCount++;
-                        }
-                    }
-                    // Handle column name transitions (which map to statuses)
-                    else if (isset($transition['from_column']) && isset($transition['to_column'])) {
-                        $fromStatusId = $statusIdsByColumn[$transition['from_column']] ?? null;
-                        $toStatusId = $statusIdsByColumn[$transition['to_column']] ?? null;
+                    foreach ($fromStatusIds as $fromId) {
+                        foreach ($toStatusIds as $toId) {
+                            if ($fromId !== $toId) {
+                                $created = $this->createTransitionIfNotExists(
+                                    $fromId,
+                                    $toId,
+                                    $template->id,
+                                    $catTransition['name']
+                                );
 
-                        if ($fromStatusId && $toStatusId) {
-                            StatusTransition::create([
-                                'name' => $transition['name'] ?? "{$transition['from_column']} to {$transition['to_column']}",
-                                'from_status_id' => $fromStatusId,
-                                'to_status_id' => $toStatusId,
-                                'board_template_id' => $template->id,
-                                'created_at' => now(),
-                                'updated_at' => now(),
-                            ]);
-                            $transitionsCount++;
-                        }
-                    }
-                    // Handle category-based transitions
-                    else if (isset($transition['from_category']) && isset($transition['to_category'])) {
-                        $fromStatusIds = $categoryMap[$transition['from_category']] ?? [];
-                        $toStatusIds = $categoryMap[$transition['to_category']] ?? [];
-
-                        foreach ($fromStatusIds as $fromId) {
-                            foreach ($toStatusIds as $toId) {
-                                if ($fromId !== $toId) {
-                                    StatusTransition::create([
-                                        'name' => $transition['name'] ?? "{$transition['from_category']} to {$transition['to_category']}",
-                                        'from_status_id' => $fromId,
-                                        'to_status_id' => $toId,
-                                        'board_template_id' => $template->id,
-                                        'created_at' => now(),
-                                        'updated_at' => now(),
-                                    ]);
+                                if ($created) {
                                     $transitionsCount++;
                                 }
                             }
                         }
                     }
                 }
-            }
-        }
 
-        $this->command->info("Created or updated {$templatesCount} board templates with {$transitionsCount} transitions.");
+                // Now add board-specific transitions if defined
+                if (isset($config['board_specific_transitions']) && is_array($config['board_specific_transitions'])) {
+                    foreach ($config['board_specific_transitions'] as $transition) {
+                        // Handle direct status name transitions
+                        if (isset($transition['from']) && isset($transition['to'])) {
+                            $fromStatusId = $statusMap[$transition['from']] ?? null;
+                            $toStatusId = $statusMap[$transition['to']] ?? null;
+
+                            if ($fromStatusId && $toStatusId) {
+                                $created = $this->createTransitionIfNotExists(
+                                    $fromStatusId,
+                                    $toStatusId,
+                                    $template->id,
+                                    $transition['name'] ?? "{$transition['from']} to {$transition['to']}"
+                                );
+
+                                if ($created) {
+                                    $transitionsCount++;
+                                }
+                            }
+                        }
+                        // Handle column name transitions (which map to statuses)
+                        else if (isset($transition['from_column']) && isset($transition['to_column'])) {
+                            $fromStatusId = $statusIdsByColumn[$transition['from_column']] ?? null;
+                            $toStatusId = $statusIdsByColumn[$transition['to_column']] ?? null;
+
+                            if ($fromStatusId && $toStatusId) {
+                                $created = $this->createTransitionIfNotExists(
+                                    $fromStatusId,
+                                    $toStatusId,
+                                    $template->id,
+                                    $transition['name'] ?? "{$transition['from_column']} to {$transition['to_column']}"
+                                );
+
+                                if ($created) {
+                                    $transitionsCount++;
+                                }
+                            }
+                        }
+                        // Handle category-based transitions
+                        else if (isset($transition['from_category']) && isset($transition['to_category'])) {
+                            $fromStatusIds = $categoryMap[$transition['from_category']] ?? [];
+                            $toStatusIds = $categoryMap[$transition['to_category']] ?? [];
+
+                            foreach ($fromStatusIds as $fromId) {
+                                foreach ($toStatusIds as $toId) {
+                                    if ($fromId !== $toId) {
+                                        $created = $this->createTransitionIfNotExists(
+                                            $fromId,
+                                            $toId,
+                                            $template->id,
+                                            $transition['name'] ?? "{$transition['from_category']} to {$transition['to_category']}"
+                                        );
+
+                                        if ($created) {
+                                            $transitionsCount++;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            $this->command->info("Created or updated {$templatesCount} board templates with {$transitionsCount} transitions.");
             // Commit this transaction
             DB::commit();
         } catch (\Exception $e) {
@@ -334,5 +357,41 @@ class WorkflowSeeder extends Seeder
             ['from_category' => 'in_progress', 'to_category' => 'canceled', 'name' => 'Cancel Work'],
             ['from_category' => 'done', 'to_category' => 'canceled', 'name' => 'Withdraw Completion'],
         ];
+    }
+
+    /**
+     * Helper function to create a transition if it doesn't already exist
+     *
+     * @param int $fromStatusId
+     * @param int $toStatusId
+     * @param int $boardTemplateId
+     * @param string $name
+     * @return bool Whether the transition was created
+     */
+    protected function createTransitionIfNotExists(
+        int $fromStatusId,
+        int $toStatusId,
+        int $boardTemplateId,
+        string $name
+    ): bool {
+        // Check if the transition already exists
+        $exists = StatusTransition::where('from_status_id', $fromStatusId)
+            ->where('to_status_id', $toStatusId)
+            ->where('board_template_id', $boardTemplateId)
+            ->exists();
+
+        if (!$exists) {
+            StatusTransition::create([
+                'name' => $name,
+                'from_status_id' => $fromStatusId,
+                'to_status_id' => $toStatusId,
+                'board_template_id' => $boardTemplateId,
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            return true;
+        }
+
+        return false;
     }
 }
