@@ -30,7 +30,7 @@ class StatusTransitionRequest extends FormRequest
             'name' => ['nullable', 'string', 'max:255'],
             'from_status_id' => ['required', 'integer', 'exists:statuses,id'],
             'to_status_id' => ['required', 'integer', 'exists:statuses,id', 'different:from_status_id'],
-            'board_id' => ['nullable', 'integer', 'exists:boards,id'],
+            'board_template_id' => ['nullable', 'integer', 'exists:board_templates,id'],
         ];
 
         // Prevent duplicate transitions
@@ -38,7 +38,7 @@ class StatusTransitionRequest extends FormRequest
             $rules['to_status_id'][] = function ($attribute, $value, $fail) {
                 $exists = StatusTransition::where('from_status_id', $this->from_status_id)
                     ->where('to_status_id', $value)
-                    ->where('board_id', $this->board_id)
+                    ->where('board_template_id', $this->board_template_id)
                     ->exists();
 
                 if ($exists) {

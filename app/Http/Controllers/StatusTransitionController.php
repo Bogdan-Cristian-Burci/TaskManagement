@@ -46,6 +46,8 @@ class StatusTransitionController extends Controller
 
         if ($request->has('board_id')) {
             $transitions = $this->statusTransitionRepository->findForBoard($request->board_id);
+        } else if ($request->has('board_template_id')) {
+            $transitions = $this->statusTransitionRepository->findForBoardTemplate($request->board_template_id);
         } else {
             $transitions = $this->statusTransitionRepository->all();
         }
@@ -80,7 +82,7 @@ class StatusTransitionController extends Controller
     {
         $this->authorize('manage', Status::class);
 
-        $statusTransition->load(['fromStatus', 'toStatus', 'board']);
+        $statusTransition->load(['fromStatus', 'toStatus', 'boardTemplate']);
 
         return new StatusTransitionResource($statusTransition);
     }
@@ -100,7 +102,7 @@ class StatusTransitionController extends Controller
 
         // Get a fresh instance with updated data
         $statusTransition = $this->statusTransitionRepository->find($statusTransition->id);
-        $statusTransition->load(['fromStatus', 'toStatus', 'board']);
+        $statusTransition->load(['fromStatus', 'toStatus', 'boardTemplate']);
 
         return new StatusTransitionResource($statusTransition);
     }

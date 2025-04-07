@@ -78,7 +78,7 @@ class BoardColumn extends Model
 
     /**
      * Get the columns this column can transition tasks to.
-     * Uses StatusTransition model to determine valid transitions.
+     * Uses StatusTransition model to determine valid transitions based on template.
      *
      * @return \Illuminate\Support\Collection
      */
@@ -88,12 +88,17 @@ class BoardColumn extends Model
             return collect();
         }
 
-        // Get status transitions for this column's status
+        // Get the board and its template
+        $board = $this->board;
+        $templateId = $board->board_type->template_id ?? null;
+
+        if (!$templateId) {
+            return collect();
+        }
+
+        // Get status transitions for this column's status based on template
         $statusTransitions = StatusTransition::where('from_status_id', $this->maps_to_status_id)
-            ->where(function($query) {
-                $query->where('board_id', $this->board_id)
-                    ->orWhereNull('board_id'); // Include global transitions
-            })
+            ->where('board_template_id', $templateId)
             ->get();
 
         // Map to columns in this board with matching status IDs

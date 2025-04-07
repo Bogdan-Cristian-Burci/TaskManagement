@@ -16,7 +16,7 @@ use Spatie\Activitylog\Models\Activity;
  * @property string $name
  * @property integer $from_status_id
  * @property integer $to_status_id
- * @property integer|null $board_id
+ * @property integer|null $board_template_id
  * @property string $created_at
  * @property string $updated_at
  * @property string $deleted_at
@@ -32,7 +32,7 @@ class StatusTransition extends Model
         'name',
         'from_status_id',
         'to_status_id',
-        'board_id',
+        'board_template_id',
     ];
 
     /**
@@ -43,7 +43,7 @@ class StatusTransition extends Model
     protected $casts = [
         'from_status_id' => 'integer',
         'to_status_id' => 'integer',
-        'board_id' => 'integer',
+        'board_template_id' => 'integer',
         'deleted_at' => 'datetime',
     ];
 
@@ -72,21 +72,21 @@ class StatusTransition extends Model
      *
      * @return BelongsTo
      */
-    public function board(): BelongsTo
+    public function boardTemplate(): BelongsTo
     {
-        return $this->belongsTo(Board::class);
+        return $this->belongsTo(BoardTemplate::class);
     }
 
     /**
      * Scope a query to transitions for a specific board.
      *
      * @param Builder $query
-     * @param int $boardId
+     * @param int $boardTemplateId
      * @return Builder
      */
-    public function scopeForBoard($query, int $boardId): Builder
+    public function scopeForBoardTemplate(Builder $query, int $boardTemplateId): Builder
     {
-        return $query->where('board_id', $boardId);
+        return $query->where('board_template_id', $boardTemplateId);
     }
 
     /**
@@ -97,8 +97,11 @@ class StatusTransition extends Model
      */
     public function isValidFor(Task $task): bool
     {
-        // Check if the board matches (or is null for global transitions)
-        if ($this->board_id !== null && $this->board_id !== $task->board_id) {
+        // Get the board's template ID
+        $boardTemplateId = $task->board?->board_type?->template_id;
+
+        // Check if the board template matches
+        if ($this->board_template_id !== null && $this->board_template_id !== $boardTemplateId) {
             return false;
         }
 
@@ -118,11 +121,10 @@ class StatusTransition extends Model
         // Set the change type to STATUS
         $activity->change_type_id = ChangeType::where('name', ChangeTypeEnum::STATUS->value)->value('id');
 
-        // If related to a board, add board context
-        if ($this->board) {
+        // If related to a board template, add context
+        if ($this->boardTemplate) {
             $activity->properties = $activity->properties->merge([
-                'board_name' => $this->board->name ?? 'Unknown',
-                'project_name' => $this->board->project->name ?? 'Unknown',
+                'board_template_name' => $this->boardTemplate->name ?? 'Unknown',
             ]);
         }
 

@@ -22,14 +22,14 @@ class StatusTransitionResource extends JsonResource
             'name' => $this->name,
             'from_status_id' => $this->from_status_id,
             'to_status_id' => $this->to_status_id,
-            'board_id' => $this->board_id,
+            'board_template_id' => $this->board_template_id,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
             // Include related resources when loaded
             'from_status' => new StatusResource($this->whenLoaded('fromStatus')),
             'to_status' => new StatusResource($this->whenLoaded('toStatus')),
-            'board' => new BoardResource($this->whenLoaded('board')),
+            'board_template' => new BoardTemplateResource($this->whenLoaded('boardTemplate')),
 
             // Links for better HATEOAS support
             'links' => [

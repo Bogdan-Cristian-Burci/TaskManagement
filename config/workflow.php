@@ -181,7 +181,7 @@ return [
                     'color' => '#95A5A6', // Gray
                     'wip_limit' => null,
                     'status' => [
-                        'name'=>'Backlog',
+                        'name'=>'To Do',
                         'category'=>'to_do'
                     ],
                 ],
@@ -190,7 +190,7 @@ return [
                     'color' => '#3498DB', // Blue
                     'wip_limit' => null,
                     'status' => [
-                        'name'=>'Sprint Backlog',
+                        'name'=>'To Do',
                         'category'=>'to_do'
                     ],
                 ],

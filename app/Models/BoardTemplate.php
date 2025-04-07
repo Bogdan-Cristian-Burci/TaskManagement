@@ -116,7 +116,7 @@ class BoardTemplate extends Model
 
         // Create columns based on template
         $position = 0;
-        $statusIdMap = [];
+        $columnsByStatusId = [];
 
         // Create the columns based on the template
         if (!empty($this->columns_structure)) {
@@ -128,32 +128,20 @@ class BoardTemplate extends Model
                     'color' => $column['color'] ?? '#6C757D',
                     'wip_limit' => $column['wip_limit'] ?? null,
                     'maps_to_status_id' => $column['status_id'] ?? null,
-                    // Removed allowed_transitions
                 ]);
 
-                // Store the status ID mapping for transitions
-                if (!empty($column['status_id'])) {
-                    $statusIdMap[$column['status_id']] = $newColumn->id;
+                // Store the column by its status ID for easier transition handling
+                if ($column['status_id']) {
+                    $columnsByStatusId[$column['status_id']] = $newColumn->id;
                 }
             }
         }
 
-        // Create board-specific status transitions
-        if (!empty($this->settings['transitions'])) {
-            foreach ($this->settings['transitions'] as $transition) {
-                // Skip if missing required fields
-                if (empty($transition['from_status_id']) || empty($transition['to_status_id'])) {
-                    continue;
-                }
+        // Get transitions from the template
+        $templateTransitions = StatusTransition::where('board_template_id', $this->id)->get();
 
-                StatusTransition::create([
-                    'name' => $transition['name'] ?? 'Status Transition',
-                    'from_status_id' => $transition['from_status_id'],
-                    'to_status_id' => $transition['to_status_id'],
-                    'board_id' => $board->id,
-                ]);
-            }
-        }
+        // We don't create board-specific transitions anymore since we're
+        // now referencing the template-level transitions directly
 
         return $board->refresh();
     }

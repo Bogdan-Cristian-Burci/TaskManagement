@@ -121,13 +121,30 @@ class StatusTransitionRepository implements StatusTransitionRepositoryInterface
     /**
      * {@inheritdoc}
      */
+    public function findForBoardTemplate(int $boardTemplateId): Collection
+    {
+        return Cache::remember("status_transitions:template:{$boardTemplateId}", $this->cacheTime, function () use ($boardTemplateId) {
+            return $this->model->with(['fromStatus', 'toStatus'])
+                ->where('board_template_id', $boardTemplateId)
+                ->get();
+        });
+    }
+
+    /**
+     * {@inheritdoc}
+     */
     public function findForBoard(int $boardId): Collection
     {
         return Cache::remember("status_transitions:board:{$boardId}", $this->cacheTime, function () use ($boardId) {
-            return $this->model->with(['fromStatus', 'toStatus'])
-                ->where('board_id', $boardId)
-                ->orWhereNull('board_id')
-                ->get();
+            // First get the board's template ID
+            $board = \App\Models\Board::with('board_type')->find($boardId);
+            $templateId = $board?->board_type?->template_id;
+
+            if (!$templateId) {
+                return collect();
+            }
+
+            return $this->findForBoardTemplate($templateId);
         });
     }
 
@@ -146,9 +163,13 @@ class StatusTransitionRepository implements StatusTransitionRepositoryInterface
                 ->where('to_status_id', $toStatusId);
 
             if ($boardId !== null) {
-                $query->where(function ($q) use ($boardId) {
-                    $q->where('board_id', $boardId)->orWhereNull('board_id');
-                });
+                // Get the board's template ID
+                $board = \App\Models\Board::with('board_type')->find($boardId);
+                $templateId = $board?->board_type?->template_id;
+
+                if ($templateId) {
+                    $query->where('board_template_id', $templateId);
+                }
             }
 
             return $query->first();
@@ -170,9 +191,13 @@ class StatusTransitionRepository implements StatusTransitionRepositoryInterface
                 ->where('from_status_id', $fromStatusId);
 
             if ($boardId !== null) {
-                $query->where(function ($q) use ($boardId) {
-                    $q->where('board_id', $boardId)->orWhereNull('board_id');
-                });
+                // Get the board's template ID
+                $board = \App\Models\Board::with('board_type')->find($boardId);
+                $templateId = $board?->board_type?->template_id;
+
+                if ($templateId) {
+                    $query->where('board_template_id', $templateId);
+                }
             }
 
             return $query->get();
@@ -186,26 +211,32 @@ class StatusTransitionRepository implements StatusTransitionRepositoryInterface
     {
         Cache::forget('status_transitions:all');
 
+        // Clear board template-specific caches
+        $templateIds = $this->model->distinct()->pluck('board_template_id')->filter();
+        foreach ($templateIds as $templateId) {
+            Cache::forget("status_transitions:template:{$templateId}");
+        }
+
         // Clear board-specific caches
-        $boardIds = $this->model->distinct()->pluck('board_id')->filter();
-        foreach ($boardIds as $boardId) {
-            Cache::forget("status_transitions:board:{$boardId}");
+        $boards = \App\Models\Board::with('board_type')->get();
+        foreach ($boards as $board) {
+            Cache::forget("status_transitions:board:{$board->id}");
         }
 
         // Clear transition caches
-        $transitions = $this->model->select(['id', 'from_status_id', 'to_status_id', 'board_id'])->get();
+        $transitions = $this->model->select(['id', 'from_status_id', 'to_status_id', 'board_template_id'])->get();
         foreach ($transitions as $transition) {
             Cache::forget("status_transitions:id:{$transition->id}");
 
             $cacheKey = "status_transitions:from:{$transition->from_status_id}:to:{$transition->to_status_id}";
-            if ($transition->board_id !== null) {
-                Cache::forget($cacheKey . ":board:{$transition->board_id}");
+            if ($transition->board_template_id !== null) {
+                Cache::forget($cacheKey . ":template:{$transition->board_template_id}");
             }
             Cache::forget($cacheKey);
 
             Cache::forget("status_transitions:from:{$transition->from_status_id}");
-            if ($transition->board_id !== null) {
-                Cache::forget("status_transitions:from:{$transition->from_status_id}:board:{$transition->board_id}");
+            if ($transition->board_template_id !== null) {
+                Cache::forget("status_transitions:from:{$transition->from_status_id}:template:{$transition->board_template_id}");
             }
         }
     }

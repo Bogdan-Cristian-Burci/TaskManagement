@@ -12,7 +12,7 @@ return new class extends Migration {
             $table->string('name')->nullable();
             $table->foreignId('from_status_id')->constrained('statuses');
             $table->foreignId('to_status_id')->constrained('statuses');
-            $table->foreignId('board_id')->constrained('boards');
+            $table->foreignId('board_template_id')->constrained('boards_templates');
             $table->softDeletes();
             $table->timestamps();
 

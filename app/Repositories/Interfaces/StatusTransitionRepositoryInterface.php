@@ -16,6 +16,14 @@ interface StatusTransitionRepositoryInterface extends RepositoryInterface
     public function findForBoard(int $boardId): Collection;
 
     /**
+     * Find transitions for a specific board template.
+     *
+     * @param int $boardTemplateId
+     * @return Collection
+     */
+    public function findForBoardTemplate(int $boardTemplateId): Collection;
+
+    /**
      * Find transitions between two specific statuses.
      *
      * @param int $fromStatusId
