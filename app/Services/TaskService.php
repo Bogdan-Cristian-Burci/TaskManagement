@@ -358,25 +358,21 @@ class TaskService
         }
 
         return DB::transaction(function() use ($project, $taskCount) {
-            // Delete all task-related data
-            foreach ($project->tasks as $task) {
-                // Delete comments, attachments, and history for each task
-                $task->comments()->delete();
-                $task->attachments()->delete();
-                $task->history()->delete();
-
-                // Detach from sprints if applicable
-                if (method_exists($task, 'sprints')) {
-                    $task->sprints()->detach();
-                }
-
-                // Detach tags if applicable
-                if (method_exists($task, 'tags')) {
-                    $task->tags()->detach();
-                }
+            // Get all task IDs in a single query
+            $taskIds = $project->tasks()->pluck('id');
+            
+            if ($taskIds->isNotEmpty()) {
+                // Bulk delete all related data in a single query for each type
+                DB::table('comments')->whereIn('task_id', $taskIds)->delete();
+                DB::table('attachments')->whereIn('task_id', $taskIds)->delete();
+                DB::table('task_histories')->whereIn('task_id', $taskIds)->delete();
+                
+                // Detach from sprints and tags in bulk
+                DB::table('sprint_task')->whereIn('task_id', $taskIds)->delete();
+                DB::table('task_tag')->whereIn('task_id', $taskIds)->delete();
             }
-
-            // Delete the tasks
+            
+            // Delete the tasks with a single query
             $project->tasks()->delete();
 
             Log::info("Deleted {$taskCount} tasks from project {$project->id} ({$project->name})");
@@ -419,39 +415,41 @@ class TaskService
         $targetColumnId = $targetBoard?->columns()->first()?->id;
 
         return DB::transaction(function() use ($sourceProject, $targetProject, $targetBoardId, $targetColumnId, $taskCount) {
-            // Process tasks in chunks to avoid memory issues
-            $sourceProject->tasks()->chunkById(100, function ($tasks) use ($sourceProject, $targetProject, $targetBoardId, $targetColumnId) {
-                foreach ($tasks as $task) {
-                    // Update task with new project and board information
-                    $taskUpdateData = [
-                        'project_id' => $targetProject->id,
-                        'board_id' => $targetBoardId,
-                        'board_column_id' => $targetColumnId,
-                    ];
-
-                    // Update the task
-                    $task->update($taskUpdateData);
-
-                    // Record history if available
-                    if (method_exists($task, 'recordHistory')) {
-                        $task->recordHistory('moved', [
+            // Bulk update all tasks at once for better performance
+            $sourceProject->tasks()->update([
+                'project_id' => $targetProject->id,
+                'board_id' => $targetBoardId,
+                'board_column_id' => $targetColumnId,
+            ]);
+            
+            // Get all moved tasks for history records
+            $taskIds = $sourceProject->tasks()->pluck('id')->toArray();
+            
+            if (!empty($taskIds)) {
+                // Create history records in bulk
+                $historyRecords = [];
+                $now = now();
+                $userId = auth()->id() ?? 0;
+                
+                foreach ($taskIds as $taskId) {
+                    $historyRecords[] = [
+                        'task_id' => $taskId,
+                        'action' => 'moved',
+                        'user_id' => $userId,
+                        'details' => json_encode([
                             'from_project_id' => $sourceProject->id,
-                            'to_project_id' => $targetProject->id,
-                            'by_user_id' => auth()->id() ?? 0
-                        ]);
-                    } else if (method_exists($task, 'history')) {
-                        // Create history record directly
-                        $task->history()->create([
-                            'action' => 'moved',
-                            'user_id' => auth()->id() ?? 0,
-                            'details' => json_encode([
-                                'from_project_id' => $sourceProject->id,
-                                'to_project_id' => $targetProject->id
-                            ])
-                        ]);
-                    }
+                            'to_project_id' => $targetProject->id
+                        ]),
+                        'created_at' => $now,
+                        'updated_at' => $now,
+                    ];
                 }
-            });
+                
+                // Bulk insert all history records
+                if (!empty($historyRecords)) {
+                    DB::table('task_histories')->insert($historyRecords);
+                }
+            }
 
             Log::info("Moved {$taskCount} tasks from project {$sourceProject->id} to project {$targetProject->id}");
 

@@ -90,17 +90,23 @@ trait HasPermissions
             }
 
 
-        // Check permissions through roles/templates
-        return DB::table('permissions')
-            ->join('template_has_permissions', 'permissions.id', '=', 'template_has_permissions.permission_id')
-            ->join('role_templates', 'template_has_permissions.role_template_id', '=', 'role_templates.id')
-            ->join('roles', 'role_templates.id', '=', 'roles.template_id')
-            ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
-            ->where('permissions.name', $permissionName)
-            ->where('model_has_roles.model_id', $this->id)
-            ->where('model_has_roles.model_type', static::class)
-            ->where('model_has_roles.organisation_id', $organisationId)
-            ->exists();
+        // Define a cache key for this specific permission check
+        $cacheKey = "permission_{$this->id}_" . static::class . "_{$permissionName}_{$organisationId}";
+        
+        // Check cache first before hitting the database
+        return cache()->remember($cacheKey, now()->addMinutes(10), function() use ($permissionName, $organisationId) {
+            // Check permissions through roles/templates with optimized query
+            return DB::table('permissions')
+                ->join('template_has_permissions', 'permissions.id', '=', 'template_has_permissions.permission_id')
+                ->join('role_templates', 'template_has_permissions.role_template_id', '=', 'role_templates.id')
+                ->join('roles', 'role_templates.id', '=', 'roles.template_id')
+                ->join('model_has_roles', 'roles.id', '=', 'model_has_roles.role_id')
+                ->where('permissions.name', $permissionName)
+                ->where('model_has_roles.model_id', $this->id)
+                ->where('model_has_roles.model_type', static::class)
+                ->where('model_has_roles.organisation_id', $organisationId)
+                ->exists();
+        });
     }
 
     /**

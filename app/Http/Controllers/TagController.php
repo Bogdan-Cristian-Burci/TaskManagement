@@ -100,9 +100,9 @@ class TagController extends Controller
      */
     public function store(TagRequest $request): TagResource
     {
-        $project = Project::findOrFail($request->input('project_id'));
+        $projectId = $request->input('project_id');
 
-        $this->authorize('create', $project->id);
+        $this->authorize('create', [Tag::class, $projectId]);
 
         $tag = Tag::create($request->validated());
 
@@ -202,76 +202,40 @@ class TagController extends Controller
     public function forProject(Request $request, Project $project): AnonymousResourceCollection
     {
         $this->authorize('view', $project);
-
-        // Get tags directly assigned to this project
-        $projectTagsQuery = $project->tags();
-
-        // Get system tags from the organization
-        $systemTagsQuery = Tag::where('is_system', true)
-            ->where('organisation_id', $project->organisation_id)
-            ->whereNull('project_id');
-
-        // Combine both queries
-        $query = $projectTagsQuery->union($systemTagsQuery);
-
+        
+        // Use a more efficient query approach instead of union
+        $query = Tag::where(function($q) use ($project) {
+            // Project-specific tags
+            $q->where('project_id', $project->id)
+            // Or system tags for this organization  
+            ->orWhere(function($q) use ($project) {
+                $q->where('is_system', true)
+                  ->where('organisation_id', $project->organisation_id)
+                  ->whereNull('project_id');
+            });
+        });
+        
         // Filter by name if provided
         if ($request->has('name')) {
             $searchTerm = "%" . $request->input('name') . "%";
-            $query = Tag::from('(' . $query->toSql() . ') as tags')
-                ->mergeBindings($query->getQuery())
-                ->where('name', 'LIKE', $searchTerm);
+            $query->where('name', 'LIKE', $searchTerm);
         }
-
-        // Include task count
-        if ($request->boolean('with_counts', false)) {
-            // Need to use a different approach for counting on a union
-            if ($request->has('name')) {
-                $query->withCount('tasks');
-            } else {
-                // For the union case, we need to load task counts separately
-                // This is more complex and might require adjusting based on your needs
-                $tags = $query->get();
-                $tagIds = $tags->pluck('id');
-                $taskCounts = DB::table('task_tag')
-                    ->select('tag_id', DB::raw('count(*) as tasks_count'))
-                    ->whereIn('tag_id', $tagIds)
-                    ->groupBy('tag_id')
-                    ->pluck('tasks_count', 'tag_id');
-
-                $tags->each(function($tag) use ($taskCounts) {
-                    $tag->tasks_count = $taskCounts[$tag->id] ?? 0;
-                });
-
-                return TagResource::collection($tags);
-            }
-        }
-
-        // Handle sorting
+        
+        // Handle sorting with a single approach
         $sortColumn = $request->input('sort', 'name');
         $sortDirection = $request->input('direction', 'asc');
         $validColumns = ['name', 'color', 'created_at'];
-
-        if (in_array($sortColumn, $validColumns)) {
-            if ($request->has('name')) {
-                $query->orderBy($sortColumn, $sortDirection);
-            } else {
-                // For the union case, we need to use raw SQL for ordering
-                $query = Tag::from('(' . $query->toSql() . ') as tags')
-                    ->mergeBindings($query->getQuery())
-                    ->orderBy($sortColumn, $sortDirection);
-            }
-        } else {
-            if ($request->has('name')) {
-                $query->orderBy('name', 'asc');
-            } else {
-                $query = Tag::from('(' . $query->toSql() . ') as tags')
-                    ->mergeBindings($query->getQuery())
-                    ->orderBy('name', 'asc');
-            }
+        
+        $query->orderBy(in_array($sortColumn, $validColumns) ? $sortColumn : 'name', $sortDirection);
+        
+        // Eager load task counts when requested to avoid N+1 issues
+        if ($request->boolean('with_counts', false)) {
+            $query->withCount('tasks');
         }
-
+        
+        // Get the tags with a single efficient query
         $tags = $query->get();
-
+        
         return TagResource::collection($tags);
     }
     /**

@@ -157,46 +157,63 @@ class Task extends Model
         return $this->belongsTo(User::class, 'reporter_id');
     }
 
-    /// Scope methods with cached status IDs
+    /**
+     * Status ID cache for all scope methods
+     */
+    protected static $statusIdCache = [];
+    
+    /**
+     * Get status ID from cache or database
+     */
+    protected static function getStatusId(string $name = null, string $category = null): ?int 
+    {
+        $cacheKey = $name ? "name:$name" : "category:$category";
+        
+        if (!isset(self::$statusIdCache[$cacheKey])) {
+            $query = Status::query();
+            
+            if ($name) {
+                $query->where('name', $name);
+            } elseif ($category) {
+                $query->where('category', $category);
+            }
+            
+            $status = $query->first();
+            self::$statusIdCache[$cacheKey] = $status ? $status->id : 0;
+        }
+        
+        return self::$statusIdCache[$cacheKey] ?: null;
+    }
+    
+    /**
+     * Scope for active tasks
+     */
     public function scopeActive($query)
     {
-        static $closedStatusId = null;
-        if ($closedStatusId === null) {
-            $closedStatusId = Status::where('name', 'Closed')->first()->id;
-        }
+        $closedStatusId = self::getStatusId(name: 'Closed');
         return $query->where('status_id', '!=', $closedStatusId);
     }
 
+    /**
+     * Scope for overdue tasks
+     */
     public function scopeOverdue($query)
     {
-        static $completedStatusId = null;
-        static $closedStatusId = null;
-
-        if ($completedStatusId === null) {
-            $completedStatusId = Status::where('name', 'Completed')->first()->id;
-        }
-
-        if ($closedStatusId === null) {
-            $closedStatusId = Status::where('name', 'Closed')->first()->id;
-        }
+        $completedStatusId = self::getStatusId(name: 'Completed');
+        $closedStatusId = self::getStatusId(name: 'Closed');
 
         return $query->whereNotNull('due_date')
             ->where('due_date', '<', now())
             ->whereNotIn('status_id', [$completedStatusId, $closedStatusId]);
     }
 
+    /**
+     * Check if task is overdue
+     */
     public function isOverdue(): bool
     {
-        static $completedStatusId = null;
-        static $closedStatusId = null;
-
-        if ($completedStatusId === null) {
-            $completedStatusId = Status::where('category', 'done')->first()->id;
-        }
-
-        if ($closedStatusId === null) {
-            $closedStatusId = Status::where('category', 'canceled')->first()->id;
-        }
+        $completedStatusId = self::getStatusId(category: 'done');
+        $closedStatusId = self::getStatusId(category: 'canceled');
 
         return $this->due_date && $this->due_date < now() &&
             !in_array($this->status_id, [$completedStatusId, $closedStatusId]);
@@ -207,18 +224,13 @@ class Task extends Model
         return $this->belongsToMany(Sprint::class, 'sprint_task', 'task_id', 'sprint_id');
     }
 
+    /**
+     * Scope for incomplete tasks
+     */
     public function scopeIncomplete($query)
     {
-        static $doneStatusId = null;
-        static $canceledStatusId = null;
-
-        if ($doneStatusId === null) {
-            $doneStatusId = Status::where('name', 'Done')->first()->id ?? 0;
-        }
-
-        if ($canceledStatusId === null) {
-            $canceledStatusId = Status::where('name', 'Canceled')->first()->id ?? 0;
-        }
+        $doneStatusId = self::getStatusId(name: 'Done');
+        $canceledStatusId = self::getStatusId(name: 'Canceled');
 
         return $query->whereNotIn('status_id', [$doneStatusId, $canceledStatusId]);
     }

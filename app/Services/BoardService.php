@@ -248,29 +248,52 @@ class BoardService
      */
     public function getBoardStatistics(Board $board): array
     {
-        // Load relationships for statistics
-        $board->load(['columns.tasks', 'tasks.status', 'tasks.assignee']);
-
+        // Use query builder for more efficient counting
+        $totalTasks = $board->tasks()->count();
+        $completedTasks = $board->completedTasks()->count();
+        $columnsCount = $board->columns()->count();
+        $overdueTasks = $board->tasks()->overdue()->count();
+        
+        // Calculate completion percentage
+        $completionPercentage = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100, 1) : 0;
+        
+        // Load minimal relationships needed for the task grouping
+        $board->load([
+            'columns:id,name,board_id',
+            'activeSprint',
+        ]);
+        
+        // Get counts by column using query builder for efficiency
+        $tasksByColumn = $board->columns->mapWithKeys(function ($column) {
+            return [$column->name => $column->tasks()->count()];
+        });
+        
+        // Get counts by status using a single query
+        $tasksByStatus = DB::table('tasks')
+            ->join('statuses', 'tasks.status_id', '=', 'statuses.id')
+            ->where('tasks.board_id', $board->id)
+            ->select('statuses.name', DB::raw('count(*) as count'))
+            ->groupBy('statuses.name')
+            ->pluck('count', 'name');
+            
+        // Get counts by assignee using a single query
+        $tasksByAssignee = DB::table('tasks')
+            ->leftJoin('users', 'tasks.assignee_id', '=', 'users.id')
+            ->where('tasks.board_id', $board->id)
+            ->select('users.name', DB::raw('count(*) as count'))
+            ->groupBy('users.name')
+            ->pluck('count', 'name');
+        
         return [
-            'total_tasks' => $board->tasks->count(),
-            'completed_tasks' => $board->completed_tasks_count,
-            'completion_percentage' => $board->completion_percentage,
-            'tasks_by_column' => $board->columns->mapWithKeys(function ($column) {
-                return [$column->name => $column->tasks->count()];
-            }),
-            'tasks_by_status' => $board->tasks->groupBy('status.name')
-                ->map(function ($tasks) {
-                    return $tasks->count();
-                }),
-            'tasks_by_assignee' => $board->tasks->groupBy('assignee.name')
-                ->map(function ($tasks) {
-                    return $tasks->count();
-                }),
+            'total_tasks' => $totalTasks,
+            'completed_tasks' => $completedTasks,
+            'completion_percentage' => $completionPercentage,
+            'tasks_by_column' => $tasksByColumn,
+            'tasks_by_status' => $tasksByStatus,
+            'tasks_by_assignee' => $tasksByAssignee,
             'active_sprint' => $board->activeSprint,
-            'columns_count' => $board->columns->count(),
-            'overdue_tasks' => $board->tasks->filter(function($task) {
-                return $task->isOverdue();
-            })->count(),
+            'columns_count' => $columnsCount,
+            'overdue_tasks' => $overdueTasks,
         ];
     }
 
@@ -284,25 +307,30 @@ class BoardService
     public function deleteBoard(Board $board, bool $cascadeDelete = false): bool
     {
         return DB::transaction(function() use ($board, $cascadeDelete) {
-            // Handle related sprints
-            foreach ($board->sprints as $sprint) {
-                $sprint->tasks()->detach();
-                $sprint->delete();
+            // Bulk detach sprint tasks and delete sprints with a more efficient approach
+            $sprintIds = $board->sprints()->pluck('id');
+            if ($sprintIds->isNotEmpty()) {
+                // Detach all tasks from all sprints in this board at once
+                DB::table('sprint_task')
+                    ->whereIn('sprint_id', $sprintIds)
+                    ->delete();
+                    
+                // Delete all sprints at once
+                $board->sprints()->delete();
             }
 
             if ($cascadeDelete) {
-                // Delete tasks in this board
-                foreach ($board->tasks as $task) {
-                    $task->delete();
-                }
+                // Bulk delete all tasks in this board
+                $board->tasks()->delete();
             } else {
-                // Detach tasks from columns
-                foreach ($board->tasks as $task) {
-                    $task->update(['board_column_id' => null, 'board_id' => null]);
-                }
+                // Bulk update all tasks to detach them from the board and columns
+                $board->tasks()->update([
+                    'board_column_id' => null,
+                    'board_id' => null
+                ]);
             }
 
-            // Delete columns
+            // Delete all columns at once
             $board->columns()->delete();
 
             // Delete the board

@@ -32,36 +32,43 @@ class TaskController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = [];
-        $with = ['project', 'board', 'boardColumn', 'status',
-            'priority', 'taskType', 'responsible', 'reporter'];
-
-        // Build filters from request parameters
+        
+        // Build the relationships to load based on the requested filters
+        // Only load relationships that are needed to improve performance
+        $with = ['status']; // Always include status for permission checks
+        
         if ($request->has('project_id')) {
             $filters['project_id'] = $request->project_id;
+            $with[] = 'project';
         }
-
+        
         if ($request->has('board_id')) {
             $filters['board_id'] = $request->board_id;
+            $with[] = 'board';
+            $with[] = 'boardColumn';
         }
-
-        if ($request->has('status_id')) {
-            $filters['status_id'] = $request->status_id;
-        }
-
+        
         if ($request->has('responsible_id')) {
             $filters['responsible_id'] = $request->responsible_id;
+            $with[] = 'responsible';
         }
-
+        
+        // Add other common relations that are frequently needed
+        if ($request->boolean('with_all_relations', false)) {
+            $with = array_merge($with, ['priority', 'taskType', 'reporter']);
+        }
+        
         if ($request->boolean('overdue')) {
             $filters['overdue'] = true;
         }
-
+        
         // Apply sorting
         $filters['sort_by'] = $request->get('sort_by', 'created_at');
         $filters['sort_direction'] = $request->get('sort_direction', 'desc');
-
-        $tasks = $this->taskService->getTasks($filters, $with);
-
+        
+        // Get tasks with optimized relations
+        $tasks = $this->taskService->getTasks($filters, array_unique($with));
+        
         return TaskResource::collection($tasks);
     }
 
