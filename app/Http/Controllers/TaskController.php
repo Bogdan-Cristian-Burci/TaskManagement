@@ -3,14 +3,17 @@
 namespace App\Http\Controllers;
 
 use App\Http\Requests\TaskRequest;
+use App\Http\Requests\TaskTagRequest;
 use App\Http\Resources\TaskResource;
 use App\Models\BoardColumn;
 use App\Models\StatusTransition;
+use App\Models\Tag;
 use App\Models\Task;
 use App\Services\TaskService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
+use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpFoundation\Response;
 
 class TaskController extends Controller
@@ -32,43 +35,43 @@ class TaskController extends Controller
     public function index(Request $request): AnonymousResourceCollection
     {
         $filters = [];
-        
+
         // Build the relationships to load based on the requested filters
         // Only load relationships that are needed to improve performance
         $with = ['status']; // Always include status for permission checks
-        
+
         if ($request->has('project_id')) {
             $filters['project_id'] = $request->project_id;
             $with[] = 'project';
         }
-        
+
         if ($request->has('board_id')) {
             $filters['board_id'] = $request->board_id;
             $with[] = 'board';
             $with[] = 'boardColumn';
         }
-        
+
         if ($request->has('responsible_id')) {
             $filters['responsible_id'] = $request->responsible_id;
             $with[] = 'responsible';
         }
-        
+
         // Add other common relations that are frequently needed
         if ($request->boolean('with_all_relations', false)) {
             $with = array_merge($with, ['priority', 'taskType', 'reporter']);
         }
-        
+
         if ($request->boolean('overdue')) {
             $filters['overdue'] = true;
         }
-        
+
         // Apply sorting
         $filters['sort_by'] = $request->get('sort_by', 'created_at');
         $filters['sort_direction'] = $request->get('sort_direction', 'desc');
-        
+
         // Get tasks with optimized relations
         $tasks = $this->taskService->getTasks($filters, array_unique($with));
-        
+
         return TaskResource::collection($tasks);
     }
 
@@ -320,5 +323,73 @@ class TaskController extends Controller
         $tasks = $this->taskService->searchTasks($filters, $with);
 
         return TaskResource::collection($tasks);
+    }
+
+    /**
+     * Assign tags to a task.
+     *
+     * @param TaskTagRequest $request
+     * @param Task $task
+     * @return TaskResource|JsonResponse
+     */
+    public function assignTags(TaskTagRequest $request, Task $task)
+    {
+        $tagIds = $request->input('tag_ids');
+
+        try {
+            DB::beginTransaction();
+
+            // Remove existing tags
+            if ($request->input('replace', true)) {
+                $task->tags()->detach();
+            }
+
+            // Add new tags
+            if (!empty($tagIds)) {
+                $task->tags()->attach($tagIds);
+            }
+
+            DB::commit();
+
+            // Load the task with its new tags
+            $task->load('tags');
+
+            return new TaskResource($task);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Failed to assign tags: ' . $e->getMessage(),
+            ], 500);
+        }
+    }
+
+    /**
+     * Remove a tag from a task.
+     *
+     * @param Task $task
+     * @param Tag $tag
+     * @return TaskResource|JsonResponse
+     */
+    public function removeTag(Task $task, Tag $tag)
+    {
+        try {
+            // Check if the tag is currently assigned to the task
+            if (!$task->tags->contains($tag->id)) {
+                return response()->json([
+                    'message' => 'Tag is not assigned to this task.',
+                ], 400);
+            }
+
+            $task->tags()->detach($tag->id);
+
+            // Reload the task with updated tags
+            $task->load('tags');
+
+            return new TaskResource($task);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to remove tag: ' . $e->getMessage(),
+            ], 500);
+        }
     }
 }

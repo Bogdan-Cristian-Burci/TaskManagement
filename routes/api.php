@@ -222,6 +222,9 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::patch('tasks/{task}/change-status', [TaskController::class, 'changeStatus']);
     Route::patch('tasks/{task}/assign', [TaskController::class, 'assignTask']);
 
+    Route::post('tasks/{task}/tags', [TaskController::class, 'assignTags'])->name('tasks.tags.assign');
+    Route::delete('tasks/{task}/tags/{tag}', [TaskController::class, 'removeTag'])->name('tasks.tags.remove');
+
     Route::apiResource('tasks', TaskController::class);
 
     Route::post('task-types/find-by-name', [TaskTypeController::class, 'findByName']);
