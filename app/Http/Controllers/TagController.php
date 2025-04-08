@@ -7,6 +7,9 @@ use App\Http\Resources\TagResource;
 use App\Models\Project;
 use App\Models\Tag;
 use Illuminate\Auth\Access\AuthorizationException;
+use Illuminate\Contracts\Database\Query\Builder;
+use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
@@ -202,40 +205,40 @@ class TagController extends Controller
     public function forProject(Request $request, Project $project): AnonymousResourceCollection
     {
         $this->authorize('view', $project);
-        
+
         // Use a more efficient query approach instead of union
         $query = Tag::where(function($q) use ($project) {
             // Project-specific tags
             $q->where('project_id', $project->id)
-            // Or system tags for this organization  
+            // Or system tags for this organization
             ->orWhere(function($q) use ($project) {
                 $q->where('is_system', true)
                   ->where('organisation_id', $project->organisation_id)
                   ->whereNull('project_id');
             });
         });
-        
+
         // Filter by name if provided
         if ($request->has('name')) {
             $searchTerm = "%" . $request->input('name') . "%";
             $query->where('name', 'LIKE', $searchTerm);
         }
-        
+
         // Handle sorting with a single approach
         $sortColumn = $request->input('sort', 'name');
         $sortDirection = $request->input('direction', 'asc');
         $validColumns = ['name', 'color', 'created_at'];
-        
+
         $query->orderBy(in_array($sortColumn, $validColumns) ? $sortColumn : 'name', $sortDirection);
-        
+
         // Eager load task counts when requested to avoid N+1 issues
         if ($request->boolean('with_counts', false)) {
             $query->withCount('tasks');
         }
-        
+
         // Get the tags with a single efficient query
         $tags = $query->get();
-        
+
         return TagResource::collection($tags);
     }
     /**
@@ -278,6 +281,237 @@ class TagController extends Controller
         return TagResource::collection(collect($tags));
     }
 
+    /**
+     * Get all available tags that a user can import across organizations.
+     * This returns tags from all projects in all organizations the user has access to.
+     *
+     * @param Request $request
+     * @return JsonResponse
+     */
+    public function getAvailableTagsForImport(Request $request)
+    {
+        // Get the user's organizations with proper permissions
+        $user = $request->user();
+        $organisations = $user->getAccessibleOrganisations('tag.view');
+
+        if ($organisations->isEmpty()) {
+            return response()->json([
+                'message' => 'No organizations found with tag view permissions.',
+                'tags' => []
+            ]);
+        }
+
+        // Get project ID if filtering by project
+        $excludeProjectId = $request->input('exclude_project_id');
+
+        // Get the organization IDs
+        $organizationIds = $organisations->pluck('id')->toArray();
+
+        // Query to get all tags from these organizations
+        $tagsQuery = Tag::query()
+            ->whereIn('organisation_id', $organizationIds)
+            ->where(function (Builder $query) {
+                // Include both project-specific tags and system tags
+                $query->whereNotNull('project_id')
+                    ->orWhere('is_system', true);
+            });
+
+        // Exclude tags from a specific project if requested
+        if ($excludeProjectId) {
+            $tagsQuery->where(function (Builder $query) use ($excludeProjectId) {
+                $query->where('project_id', '!=', $excludeProjectId)
+                    ->orWhereNull('project_id'); // Still include system tags
+            });
+        }
+
+        // Apply filters if provided
+        if ($request->has('name')) {
+            $tagsQuery->where('name', 'LIKE', '%' . $request->input('name') . '%');
+        }
+
+        if ($request->has('color')) {
+            $color = ltrim($request->input('color'), '#');
+            $tagsQuery->where('color', 'LIKE', '%' . $color . '%');
+        }
+
+        // Include relationships
+        $tagsQuery->with(['project:id,name,organisation_id', 'organisation:id,name']);
+
+        // Apply sorting
+        $sortColumn = $request->input('sort', 'name');
+        $sortDirection = $request->input('direction', 'asc');
+        $validColumns = ['name', 'color', 'created_at'];
+
+        if (in_array($sortColumn, $validColumns)) {
+            $tagsQuery->orderBy($sortColumn, $sortDirection);
+        } else {
+            $tagsQuery->orderBy('name', 'asc');
+        }
+
+        // Group by organization and project for better frontend display
+        $tags = $tagsQuery->get();
+
+        // Transform tags into a grouped structure
+        $groupedTags = $this->groupTagsByOrganizationAndProject($tags);
+
+        return response()->json([
+            'organizations' => $groupedTags
+        ]);
+    }
+
+    /**
+     * Import multiple tags from any organization/project to a target project.
+     *
+     * @param Request $request
+     * @param Project $targetProject
+     * @return JsonResponse
+     */
+    public function batchImportTags(Request $request, Project $targetProject)
+    {
+        $this->authorize('update', $targetProject);
+
+        $request->validate([
+            'tag_ids' => 'required|array',
+            'tag_ids.*' => 'exists:tags,id'
+        ]);
+
+        $tagIds = $request->input('tag_ids');
+
+        // Get all requested tags
+        $tagsToImport = Tag::whereIn('id', $tagIds)->get();
+
+        // Verify user has access to all source projects
+        $sourceProjectIds = $tagsToImport->pluck('project_id')->filter()->unique();
+        $sourceProjects = Project::whereIn('id', $sourceProjectIds)->get();
+
+        foreach ($sourceProjects as $project) {
+            if (!$request->user()->can('view', $project)) {
+                return response()->json([
+                    'message' => 'You do not have permission to access one or more source projects.',
+                ], 403);
+            }
+        }
+
+        // Check for any system tags from organizations other than the target
+        $systemTags = $tagsToImport->where('is_system', true)->where('organisation_id', '!=', $targetProject->organisation_id);
+        if ($systemTags->isNotEmpty()) {
+            return response()->json([
+                'message' => 'System tags can only be imported from the same organization.',
+                'invalid_tag_ids' => $systemTags->pluck('id')
+            ], 422);
+        }
+
+        $importedTags = [];
+        $skippedTags = [];
+
+        DB::beginTransaction();
+
+        try {
+            foreach ($tagsToImport as $sourceTag) {
+                // For system tags in the same organization, just return them as already "imported"
+                if ($sourceTag->is_system && $sourceTag->organisation_id === $targetProject->organisation_id) {
+                    $importedTags[] = $sourceTag;
+                    continue;
+                }
+
+                // Check if a tag with the same name already exists in the target project
+                $existingTag = Tag::where('name', $sourceTag->name)
+                    ->where('project_id', $targetProject->id)
+                    ->first();
+
+                if ($existingTag) {
+                    $skippedTags[] = [
+                        'id' => $sourceTag->id,
+                        'name' => $sourceTag->name,
+                        'reason' => 'Tag with the same name already exists in the target project',
+                        'existing_tag' => $existingTag
+                    ];
+                    continue;
+                }
+
+                // Create a new tag in the target project
+                $newTag = Tag::create([
+                    'name' => $sourceTag->name,
+                    'color' => $sourceTag->color,
+                    'project_id' => $targetProject->id,
+                    'organisation_id' => $targetProject->organisation_id,
+                    'is_system' => false, // Imported tags are never system tags
+                ]);
+
+                $importedTags[] = $newTag;
+            }
+
+            DB::commit();
+
+            return response()->json([
+                'message' => 'Tags imported successfully',
+                'imported' => TagResource::collection(collect($importedTags)),
+                'skipped' => $skippedTags,
+                'target_project_id' => $targetProject->id
+            ]);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+
+            return response()->json([
+                'message' => 'Failed to import tags: ' . $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Helper method to group tags by organization and project for better display.
+     *
+     * @param Collection $tags
+     * @return array
+     */
+    protected function groupTagsByOrganizationAndProject(Collection $tags): array
+    {
+        $groupedTags = [];
+
+        foreach ($tags as $tag) {
+            $orgId = $tag->organisation_id;
+            $orgName = $tag->organisation->name;
+            $projectId = $tag->project_id;
+            $projectName = $tag->project ? $tag->project->name : 'System Tags';
+
+            // Initialize organization if not exists
+            if (!isset($groupedTags[$orgId])) {
+                $groupedTags[$orgId] = [
+                    'id' => $orgId,
+                    'name' => $orgName,
+                    'projects' => []
+                ];
+            }
+
+            // Initialize project if not exists
+            $projectKey = $projectId ?: 'system';
+            if (!isset($groupedTags[$orgId]['projects'][$projectKey])) {
+                $groupedTags[$orgId]['projects'][$projectKey] = [
+                    'id' => $projectId,
+                    'name' => $projectName,
+                    'is_system' => ($projectId === null),
+                    'tags' => []
+                ];
+            }
+
+            // Add the tag to the project
+            $groupedTags[$orgId]['projects'][$projectKey]['tags'][] = new TagResource($tag);
+        }
+
+        // Convert to indexed arrays for JSON
+        $result = [];
+        foreach ($groupedTags as $org) {
+            $projectsArray = [];
+            foreach ($org['projects'] as $project) {
+                $projectsArray[] = $project;
+            }
+            $org['projects'] = $projectsArray;
+            $result[] = $org;
+        }
+
+        return $result;
+    }
     /**
      * Import tags from another project to the current project.
      *

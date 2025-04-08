@@ -40,6 +40,7 @@ class TaskResource extends JsonResource
             'task_type_id' => $this->task_type_id,
             'responsible_id' => $this->responsible_id,
             'reporter_id' => $this->reporter_id,
+            'tag_ids' => $this->tags()->pluck('tag_id')->toArray(),
 
             'project' => new ProjectResource($this->whenLoaded('project')),
             'board' => new BoardResource($this->whenLoaded('board')),

@@ -42,7 +42,7 @@ class TaskTagRequest extends FormRequest
                     }
 
                     // Allow system tags from the task's organization
-                    if ($tag->is_system && $tag->organisation_id === $task->project->organisation_id) {
+                    if ($tag->is_system) {
                         return;
                     }
 

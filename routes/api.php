@@ -298,10 +298,17 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // Tag routes
     Route::post('tags/{id}/restore', [TagController::class, 'restore'])->name('tags.restore');
+    // Get all tags available for import across organizations
+    Route::get('tags/import/available', [TagController::class, 'getAvailableTagsForImport'])
+        ->name('tags.import.available');
+    // Batch import multiple tags from any project/org to a target project
+    Route::post('tags/projects/{project}/import/batch', [TagController::class, 'batchImportTags'])
+        ->name('tags.import.batch');
     Route::apiResource('tags', TagController::class);
 
     // Sprint routes
-    Route::apiResource('sprints', 'SprintController');
+    Route::apiResource('sprints', SprintController::class);
+
     Route::prefix('sprints')->group(function () {
         Route::post('/{id}/restore', [SprintController::class, 'restore'])->name('sprints.restore');
 

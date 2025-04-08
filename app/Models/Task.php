@@ -158,33 +158,43 @@ class Task extends Model
     }
 
     /**
+     * Get the tags associated with the task.
+     *
+     * @return BelongsToMany
+     */
+    public function tags(): BelongsToMany
+    {
+        return $this->belongsToMany(Tag::class, 'task_tag', 'task_id', 'tag_id')
+            ->withTimestamps();
+    }
+    /**
      * Status ID cache for all scope methods
      */
     protected static $statusIdCache = [];
-    
+
     /**
      * Get status ID from cache or database
      */
-    protected static function getStatusId(string $name = null, string $category = null): ?int 
+    protected static function getStatusId(string $name = null, string $category = null): ?int
     {
         $cacheKey = $name ? "name:$name" : "category:$category";
-        
+
         if (!isset(self::$statusIdCache[$cacheKey])) {
             $query = Status::query();
-            
+
             if ($name) {
                 $query->where('name', $name);
             } elseif ($category) {
                 $query->where('category', $category);
             }
-            
+
             $status = $query->first();
             self::$statusIdCache[$cacheKey] = $status ? $status->id : 0;
         }
-        
+
         return self::$statusIdCache[$cacheKey] ?: null;
     }
-    
+
     /**
      * Scope for active tasks
      */
