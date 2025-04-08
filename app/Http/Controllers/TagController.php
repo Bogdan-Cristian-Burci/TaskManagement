@@ -100,7 +100,9 @@ class TagController extends Controller
      */
     public function store(TagRequest $request): TagResource
     {
-        $this->authorize('create');
+        $project = Project::findOrFail($request->input('project_id'));
+
+        $this->authorize('create', $project->id);
 
         $tag = Tag::create($request->validated());
 
