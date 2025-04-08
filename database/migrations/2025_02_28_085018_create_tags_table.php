@@ -17,7 +17,7 @@ return new class extends Migration {
             $table->softDeletes();
             $table->timestamps();
 
-            $table->index(['organization_id', 'is_system']);
+            $table->index(['organisation_id', 'is_system']);
         });
     }
 

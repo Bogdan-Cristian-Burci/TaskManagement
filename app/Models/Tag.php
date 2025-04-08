@@ -70,7 +70,7 @@ class Tag extends Model
      */
     public function tasks(): BelongsToMany
     {
-        return $this->belongsToMany(Task::class, 'tag_task', 'tag_id', 'task_id')
+        return $this->belongsToMany(Task::class, 'task_tag', 'tag_id', 'task_id')
             ->withTimestamps();
     }
     /**
