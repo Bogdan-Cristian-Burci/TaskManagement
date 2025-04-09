@@ -308,6 +308,13 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // Sprint routes
 
+    // Nested resource routes (sprints under boards)
+    Route::prefix('boards/{board}')->group(function () {
+        Route::get('/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
+        Route::post('/sprints', [SprintController::class, 'storeForBoard'])->name('boards.sprints.store');
+    });
+
+    // Keep the non-nested routes for backward compatibility and convenience
 
     Route::prefix('sprints')->group(function () {
         Route::post('/{id}/restore', [SprintController::class, 'restore'])->name('sprints.restore');
@@ -323,9 +330,9 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
         // Sprint statistics
         Route::get('/{sprint}/statistics', [SprintController::class, 'statistics'])->name('sprints.statistics');
+        Route::get('/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
     });
-
-    Route::apiResource('sprints', SprintController::class);
+    Route::apiResource('sprints', SprintController::class)->except(['index']);
     // Your other API endpoints go here...
 
 

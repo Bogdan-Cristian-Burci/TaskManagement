@@ -103,6 +103,108 @@ class SprintService
     }
 
     /**
+     * Get sprints for a board with optional filters.
+     *
+     * @param Board $board
+     * @param array $filters
+     * @param array $with
+     * @return Collection
+     */
+    public function getBoardSprints(Board $board, array $filters = [], array $with = []): Collection
+    {
+        $query = $board->sprints();
+
+        // Apply status filter
+        if (isset($filters['status'])) {
+            $query->where('status', $filters['status']);
+        }
+
+        // Apply active filter
+        if (isset($filters['active']) && $filters['active']) {
+            $query->active();
+        }
+
+        // Apply overdue filter
+        if (isset($filters['overdue']) && $filters['overdue']) {
+            $query->overdue();
+        }
+
+        // Apply sorting
+        $sortColumn = $filters['sort'] ?? 'start_date';
+        $direction = $filters['direction'] ?? 'desc';
+        $query->orderBy($sortColumn, $direction);
+
+        // Load relationships
+        if (!empty($with)) {
+            $query->with($with);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Get tasks for a sprint with optional filters.
+     *
+     * @param Sprint $sprint
+     * @param array $filters
+     * @param array $with
+     * @return Collection
+     */
+    public function getSprintTasks(Sprint $sprint, array $filters = [], array $with = []): Collection
+    {
+        $query = $sprint->tasks();
+
+        // Apply status filter
+        if (isset($filters['status_id'])) {
+            $query->where('status_id', $filters['status_id']);
+        }
+
+        // Apply assignee filter
+        if (isset($filters['assignee_id'])) {
+            $query->where('assignee_id', $filters['assignee_id']);
+        }
+
+        // Apply sorting
+        $sortColumn = $filters['sort'] ?? 'created_at';
+        $direction = $filters['direction'] ?? 'desc';
+        $query->orderBy($sortColumn, $direction);
+
+        // Load relationships
+        if (!empty($with)) {
+            $query->with($with);
+        }
+
+        return $query->get();
+    }
+
+    /**
+     * Check if a sprint can be deleted.
+     *
+     * @param Sprint $sprint
+     * @return array
+     */
+    public function canDeleteSprint(Sprint $sprint): array
+    {
+        $taskCount = $sprint->tasks()->count();
+        
+        return [
+            'can_delete' => $taskCount === 0,
+            'task_count' => $taskCount
+        ];
+    }
+
+    /**
+     * Delete a sprint.
+     *
+     * @param Sprint $sprint
+     * @return bool
+     */
+    public function deleteSprint(Sprint $sprint): bool
+    {
+        return $sprint->delete();
+    }
+
+    /**
      * Get sprint statistics.
      *
      * @param Sprint $sprint

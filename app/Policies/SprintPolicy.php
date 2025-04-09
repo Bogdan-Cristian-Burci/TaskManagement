@@ -3,6 +3,7 @@
 namespace App\Policies;
 
 use App\Enums\SprintStatusEnum;
+use App\Models\Board;
 use App\Models\Sprint;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
@@ -34,7 +35,7 @@ class SprintPolicy
     {
         // User can view sprint if they can view the related board
         $board = $sprint->board;
-        return $user->hasPermission('view', $board);
+        return $user->hasPermission('project.view', $board->getOrganisationIdAttribute());
     }
 
     /**
@@ -47,7 +48,7 @@ class SprintPolicy
     public function create(User $user, ?int $boardId = null): Response|bool
     {
         // User needs general permission or board-specific permission
-        if ($user->hasPermissionTo('manage sprint')) {
+        if ($user->hasPermission('manage-projects')) {
             return true;
         }
 
@@ -92,7 +93,7 @@ class SprintPolicy
     public function update(User $user, Sprint $sprint): Response|bool
     {
         // User with general permission can update any sprint
-        if ($user->hasPermissionTo('manage sprint')) {
+        if ($user->hasPermission('manage-projects')) {
             return true;
         }
 
@@ -161,7 +162,7 @@ class SprintPolicy
      */
     public function forceDelete(User $user, Sprint $sprint): Response|bool
     {
-        return $user->hasPermissionTo('manage sprint');
+        return $user->hasPermission('manage-projects');
     }
 
     /**
@@ -208,5 +209,11 @@ class SprintPolicy
         }
 
         return $this->update($user, $sprint);
+    }
+
+    public function viewBoardSprints(User $user, Board $board): Response|bool
+    {
+        \Log::info('Checking viewBoardSprints permission for user from policy: ' . $user->id . ' on board: ' . $board->id);
+        return $user->hasPermission('project.view', $board->project->organisation_id);
     }
 }

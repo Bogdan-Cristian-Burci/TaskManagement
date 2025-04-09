@@ -31,7 +31,7 @@ class SprintController extends Controller
     }
 
     /**
-     * Display a listing of all sprints.
+     * Display a listing of all sprints. - not available since a sprint belongs to a project, that belongs to an organisation
      *
      * @param Request $request
      * @return AnonymousResourceCollection
@@ -99,7 +99,7 @@ class SprintController extends Controller
      */
     public function boardSprints(Request $request, Board $board): AnonymousResourceCollection
     {
-        $this->authorize('view', $board);
+        $this->authorize('viewBoardSprints', $board);
 
         $filters = [];
         $with = [];
