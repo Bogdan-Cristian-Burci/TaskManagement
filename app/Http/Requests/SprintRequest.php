@@ -19,10 +19,11 @@ class SprintRequest extends FormRequest
     public function rules(): array
     {
         $sprintId = $this->route('sprint') ? $this->route('sprint')->id : null;
+        $isPostRequest = $this->isMethod('post');
 
         return [
             'name' => [
-                'required',
+                $isPostRequest ? 'required' : 'sometimes',
                 'string',
                 'max:100',
                 // Ensure sprint name is unique within the board
@@ -31,7 +32,7 @@ class SprintRequest extends FormRequest
                     ->ignore($sprintId)
             ],
             'start_date' => [
-                'required',
+                $isPostRequest ? 'required' : 'sometimes',
                 'date',
                 function ($attribute, $value, $fail) {
                     // If updating an existing sprint and the sprint is active or completed,
@@ -44,18 +45,23 @@ class SprintRequest extends FormRequest
                 }
             ],
             'end_date' => [
-                'required',
+                $isPostRequest ? 'required' : 'sometimes',
                 'date',
                 'after_or_equal:start_date',
             ],
             'board_id' => [
-                'required',
+                $isPostRequest ? 'required' : 'sometimes',
                 'exists:boards,id',
                 function ($attribute, $value, $fail) {
                     // Check if user has access to this board
                     $board = Board::find($value);
                     if (!$board || !$this->user()->can('view', $board)) {
                         $fail('You do not have access to this board.');
+                    }
+                    
+                    // Set organisation_id if not provided
+                    if (!$this->has('organisation_id') && $board && $board->project) {
+                        $this->merge(['organisation_id' => $board->project->organisation_id]);
                     }
                 }
             ],
@@ -79,6 +85,10 @@ class SprintRequest extends FormRequest
                         }
                     }
                 },
+            ],
+            'organisation_id' => [
+                'sometimes',
+                'exists:organisations,id',
             ],
         ];
     }

@@ -27,6 +27,7 @@ use Carbon\Carbon;
  * @property Carbon|null $deleted_at
  * @property-read Board $board
  * @property-read Collection|Task[] $tasks
+ * @property Organisation $organisation
  * @property-read int|null $tasks_count
  * @property-read float $progress
  * @property-read bool $is_active
@@ -49,6 +50,7 @@ class Sprint extends Model
         'board_id',
         'goal',
         'status',
+        'organisation_id',
     ];
 
     /**
@@ -60,6 +62,7 @@ class Sprint extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'board_id' => 'integer',
+        'organisation_id' => 'integer',
         'status' => SprintStatusEnum::class,
     ];
 
@@ -83,6 +86,14 @@ class Sprint extends Model
             // Default status to planning if not specified
             if (!$sprint->status) {
                 $sprint->status = SprintStatusEnum::PLANNING;
+            }
+            
+            // Set organisation_id if not already set
+            if (!$sprint->organisation_id && $sprint->board_id) {
+                $board = Board::find($sprint->board_id);
+                if ($board && $board->project) {
+                    $sprint->organisation_id = $board->project->organisation_id;
+                }
             }
         });
 
@@ -123,20 +134,13 @@ class Sprint extends Model
     }
 
     /**
-     * Get the organisation through the board and project relationships.
+     * Get the organisation that owns the sprint.
      *
-     * @return HasOneThrough
+     * @return BelongsTo
      */
-    public function organisation(): HasOneThrough
+    public function organisation(): BelongsTo
     {
-        return $this->hasOneThrough(
-            Organisation::class,
-            Project::class,
-            'id',             // Foreign key on projects table
-            'id',             // Foreign key on organisations table
-            'board_id',        // Local key on sprints table
-            'id'               // Local key on boards table
-        );
+        return $this->belongsTo(Organisation::class, 'organisation_id');
     }
 
         /**

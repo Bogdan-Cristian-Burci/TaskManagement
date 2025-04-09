@@ -210,8 +210,6 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
 
     Route::apiResource('change-types', ChangeTypeController::class);
-    // Board sprints
-    Route::get('boards/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
 
     //Task comments
     Route::get('tasks/{task}/comments', [CommentController::class, 'index']);
@@ -306,7 +304,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         ->name('tags.import.batch');
     Route::apiResource('tags', TagController::class);
 
-    // Sprint routes
+
 
     // Nested resource routes (sprints under boards)
     Route::prefix('boards/{board}')->group(function () {
@@ -316,6 +314,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // Keep the non-nested routes for backward compatibility and convenience
 
+    // Sprint routes
     Route::prefix('sprints')->group(function () {
         Route::post('/{id}/restore', [SprintController::class, 'restore'])->name('sprints.restore');
 

@@ -191,6 +191,12 @@ class SprintPolicy
             return Response::deny('Sprint can only be started from planning status.');
         }
 
+        $organizationId = $sprint->organisation->id;
+
+        if (!$user->hasPermission('project.view', $organizationId)) {
+            return Response::deny('You do not have permission to start sprints in this organization.');
+        }
+
         return $this->update($user, $sprint);
     }
 
