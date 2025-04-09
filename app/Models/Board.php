@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SprintStatusEnum;
 use App\Models\Scopes\BoardOrganizationScope;
 use App\Traits\HasAuditTrail;
 use Illuminate\Database\Eloquent\Builder;
@@ -173,7 +174,7 @@ class Board extends Model
      */
     public function activeSprint() : HasOne
     {
-        return $this->hasOne(Sprint::class)->where('status', 'active');
+        return $this->hasOne(Sprint::class)->where('status', SprintStatusEnum::ACTIVE->value);
     }
 
     /**
@@ -281,7 +282,7 @@ class Board extends Model
     public function scopeWithActiveSprints(Builder $query): Builder
     {
         return $query->whereHas('sprints', function ($query) {
-            $query->where('status', 'active');
+            $query->where('status', SprintStatusEnum::ACTIVE->value);
         });
     }
 

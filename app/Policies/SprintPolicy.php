@@ -2,6 +2,7 @@
 
 namespace App\Policies;
 
+use App\Enums\SprintStatusEnum;
 use App\Models\Sprint;
 use App\Models\User;
 use Illuminate\Auth\Access\HandlesAuthorization;
@@ -185,7 +186,7 @@ class SprintPolicy
     public function start(User $user, Sprint $sprint): Response|bool
     {
         // Can only start sprints in planning status
-        if ($sprint->status !== 'planning') {
+        if ($sprint->status !== SprintStatusEnum::PLANNING) {
             return Response::deny('Sprint can only be started from planning status.');
         }
 
@@ -202,7 +203,7 @@ class SprintPolicy
     public function complete(User $user, Sprint $sprint): Response|bool
     {
         // Can only complete active sprints
-        if ($sprint->status !== 'active') {
+        if ($sprint->status !== SprintStatusEnum::ACTIVE) {
             return Response::deny('Only active sprints can be completed.');
         }
 

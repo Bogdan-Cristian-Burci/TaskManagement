@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\SprintStatusEnum;
 use App\Http\Requests\SprintRequest;
 use App\Http\Requests\SprintTaskRequest;
 use App\Http\Resources\SprintResource;

@@ -307,7 +307,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
     Route::apiResource('tags', TagController::class);
 
     // Sprint routes
-    Route::apiResource('sprints', SprintController::class);
+
 
     Route::prefix('sprints')->group(function () {
         Route::post('/{id}/restore', [SprintController::class, 'restore'])->name('sprints.restore');
@@ -324,6 +324,8 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         // Sprint statistics
         Route::get('/{sprint}/statistics', [SprintController::class, 'statistics'])->name('sprints.statistics');
     });
+
+    Route::apiResource('sprints', SprintController::class);
     // Your other API endpoints go here...
 
 

@@ -2,6 +2,7 @@
 
 namespace App\Http\Requests;
 
+use App\Enums\SprintStatusEnum;
 use App\Models\Board;
 use App\Models\Sprint;
 use Carbon\Carbon;
@@ -66,21 +67,15 @@ class SprintRequest extends FormRequest
             'status' => [
                 'sometimes',
                 'string',
-                Rule::in(['planning', 'active', 'completed']),
+                Rule::in(SprintStatusEnum::values()),
                 function ($attribute, $value, $fail) {
                     // For existing sprints, validate status transitions
                     if ($this->route('sprint')) {
                         $currentStatus = $this->route('sprint')->status;
-
-                        // Define valid transitions
-                        $validTransitions = [
-                            'planning' => ['planning', 'active'],
-                            'active' => ['active', 'completed'],
-                            'completed' => ['completed']
-                        ];
-
-                        if (!in_array($value, $validTransitions[$currentStatus])) {
-                            $fail("Cannot change status from '{$currentStatus}' to '{$value}'.");
+                        $newStatus = SprintStatusEnum::from($value);
+                        
+                        if (!$currentStatus->canTransitionTo($newStatus)) {
+                            $fail("Cannot change status from '{$currentStatus->value}' to '{$value}'.");
                         }
                     }
                 },

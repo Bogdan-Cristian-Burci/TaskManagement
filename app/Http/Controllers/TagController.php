@@ -363,11 +363,29 @@ class TagController extends Controller
      * Import multiple tags from any organization/project to a target project.
      *
      * @param Request $request
-     * @param Project $targetProject
+     * @param $projectId
      * @return JsonResponse
+     * @throws \Throwable
      */
-    public function batchImportTags(Request $request, Project $targetProject)
+    public function batchImportTags(Request $request, $projectId)
     {
+
+        // Validate the project ID
+        if (!is_numeric($projectId)) {
+            return response()->json([
+                'message' => 'Invalid project ID format'
+            ], 400);
+        }
+
+        // Find the project
+        $targetProject = Project::find($projectId);
+
+        if (!$targetProject) {
+            return response()->json([
+                'message' => 'Project not found'
+            ], 404);
+        }
+
         $this->authorize('update', $targetProject);
 
         $request->validate([
@@ -407,6 +425,18 @@ class TagController extends Controller
         DB::beginTransaction();
 
         try {
+
+            // Load the project with its organization
+            $targetProject->load('organisation');
+
+            // Verify we have a valid project ID
+            if (!$targetProject->exists || !$targetProject->id) {
+                throw new \Exception("Invalid target project. Project ID: " . ($targetProject->id ?? 'null'));
+            }
+
+            // Get organization context as fallback
+            $organisationId = \App\Services\OrganizationContext::getCurrentOrganizationId();
+
             foreach ($tagsToImport as $sourceTag) {
                 // For system tags in the same organization, just return them as already "imported"
                 if ($sourceTag->is_system && $sourceTag->organisation_id === $targetProject->organisation_id) {
@@ -429,25 +459,59 @@ class TagController extends Controller
                     continue;
                 }
 
-                // Create a new tag in the target project
-                $newTag = Tag::create([
-                    'name' => $sourceTag->name,
-                    'color' => $sourceTag->color,
-                    'project_id' => $targetProject->id,
-                    'organisation_id' => $targetProject->organisation_id,
-                    'is_system' => false, // Imported tags are never system tags
-                ]);
+                // If project has a valid organisation_id, use it
+                if ($targetProject->organisation_id) {
+                    $newTag = Tag::create([
+                        'name' => $sourceTag->name,
+                        'color' => $sourceTag->color,
+                        'project_id' => $targetProject->id,
+                        'organisation_id' => $targetProject->organisation_id,
+                        'is_system' => false, // Imported tags are never system tags
+                    ]);
+                }
+                // If target project has no organization_id, try to get from global context
+                else if ($organisationId) {
+                    $newTag = Tag::create([
+                        'name' => $sourceTag->name,
+                        'color' => $sourceTag->color,
+                        'project_id' => $targetProject->id,
+                        'organisation_id' => $organisationId,
+                        'is_system' => false, // Imported tags are never system tags
+                    ]);
+                }
+                // Last resort - try to get from the user's current organization
+                else {
+                    // Get the user's current organization
+                    $userOrgId = $request->user()->organisation_id;
+
+                    if (!$userOrgId) {
+                        throw new \Exception("Cannot determine organisation_id for tag creation. Please select an organization first.");
+                    }
+
+                    $newTag = Tag::create([
+                        'name' => $sourceTag->name,
+                        'color' => $sourceTag->color,
+                        'project_id' => $targetProject->id,
+                        'organisation_id' => $userOrgId,
+                        'is_system' => false, // Imported tags are never system tags
+                    ]);
+                }
 
                 $importedTags[] = $newTag;
             }
 
             DB::commit();
 
+            // Double check project ID for the response
             return response()->json([
                 'message' => 'Tags imported successfully',
                 'imported' => TagResource::collection(collect($importedTags)),
                 'skipped' => $skippedTags,
-                'target_project_id' => $targetProject->id
+                'target_project' => [
+                    'id' => $targetProject->id,
+                    'name' => $targetProject->name,
+                    'organisation_id' => $targetProject->organisation_id
+                ]
             ]);
 
         } catch (\Exception $e) {
@@ -549,7 +613,7 @@ class TagController extends Controller
                     'name' => $tag->name,
                     'color' => $tag->color,
                     'project_id' => $targetProject->id,
-                    'organization_id' => $tag->organization_id, // Preserve organization link if present
+                    'organisation_id' => $targetProject->organisation_id, // Use target project's organisation_id
                 ]);
 
                 $importedTags[] = $newTag;

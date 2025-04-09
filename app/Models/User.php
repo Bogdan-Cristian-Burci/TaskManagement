@@ -614,4 +614,24 @@ class User extends Authenticatable implements MustVerifyEmail
             // Don't log password changes
             ->dontLogIfAttributesChangedOnly(['password', 'remember_token']);
     }
+
+    /**
+     * Get all organizations that the user has access to with the specified permission.
+     *
+     * @param string $permission Permission name to check
+     * @return Collection
+     */
+    public function getAccessibleOrganisations(string $permission): Collection
+    {
+        // Get all organizations this user belongs to
+        $userOrganisations = $this->organisations;
+
+        // Filter organizations where the user has the specified permission
+        return $userOrganisations->filter(function ($organisation) use ($permission) {
+            // Switch to this organization context temporarily to check permissions
+            return $this->withOrganisation($organisation, function($user) use ($permission) {
+                return $user->hasPermission($permission);
+            });
+        });
+    }
 }

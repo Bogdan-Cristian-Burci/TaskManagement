@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\SprintStatusEnum;
 use App\Models\Board;
 use App\Models\Sprint;
 use Illuminate\Database\Eloquent\Collection;
@@ -59,7 +60,7 @@ class SprintService
         DB::transaction(function() use ($sprint, $moveIncompleteTo) {
             if ($moveIncompleteTo) {
                 $incompleteTasks = $sprint->tasks()
-                    ->where('status', '!=', 'completed')
+                    ->where('status', '!=', SprintStatusEnum::COMPLETED->value)
                     ->get();
 
                 $taskIds = $incompleteTasks->pluck('id')->toArray();

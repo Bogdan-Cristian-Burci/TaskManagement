@@ -2,3 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Improve visibility of diff highlights */
+.diff-add, .diff-remove {
+    color: black !important;
+    opacity: 1 !important;
+    font-weight: bold !important;
+}
+
+.diff-add {
+    background-color: rgba(74, 222, 128, 0.6) !important;
+}
+
+.diff-remove {
+    background-color: rgba(252, 165, 165, 0.6) !important;
+}
+

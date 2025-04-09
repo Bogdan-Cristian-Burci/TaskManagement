@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\SprintStatusEnum;
 use App\Traits\HasAuditTrail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
@@ -20,7 +21,7 @@ use Carbon\Carbon;
  * @property Carbon $end_date
  * @property int $board_id
  * @property string|null $goal
- * @property string $status
+ * @property SprintStatusEnum $status
  * @property Carbon $created_at
  * @property Carbon $updated_at
  * @property Carbon|null $deleted_at
@@ -59,6 +60,7 @@ class Sprint extends Model
         'start_date' => 'date',
         'end_date' => 'date',
         'board_id' => 'integer',
+        'status' => SprintStatusEnum::class,
     ];
 
     /**
@@ -67,7 +69,7 @@ class Sprint extends Model
      * @var array
      */
     protected $attributes = [
-        'status' => 'planning',
+        'status' => 'planning', // SprintStatusEnum::PLANNING->value
     ];
 
     /**
@@ -80,7 +82,7 @@ class Sprint extends Model
         static::creating(function (Sprint $sprint) {
             // Default status to planning if not specified
             if (!$sprint->status) {
-                $sprint->status = 'planning';
+                $sprint->status = SprintStatusEnum::PLANNING;
             }
         });
 
@@ -154,7 +156,7 @@ class Sprint extends Model
     {
         static $inProgressStatusId = null;
         if ($inProgressStatusId === null) {
-            $inProgressStatusId = Status::where('name', 'Completed')->first()->id ?? 0;
+            $inProgressStatusId = Status::where('category', 'in_progress')->first()->id ?? 0;
         }
         return $this->tasks()->where('status_id', $inProgressStatusId);
     }
@@ -182,7 +184,7 @@ class Sprint extends Model
      */
     public function getIsActiveAttribute(): bool
     {
-        return $this->status === 'active' &&
+        return $this->status === SprintStatusEnum::ACTIVE &&
             $this->start_date <= Carbon::today() &&
             $this->end_date >= Carbon::today();
     }
@@ -194,7 +196,7 @@ class Sprint extends Model
      */
     public function getIsCompletedAttribute(): bool
     {
-        return $this->status === 'completed';
+        return $this->status === SprintStatusEnum::COMPLETED;
     }
 
     /**
@@ -204,7 +206,7 @@ class Sprint extends Model
      */
     public function getIsOverdueAttribute(): bool
     {
-        return $this->status !== 'completed' &&
+        return $this->status !== SprintStatusEnum::COMPLETED &&
             $this->end_date < Carbon::today();
     }
 
@@ -249,7 +251,7 @@ class Sprint extends Model
      */
     public function scopeActive($query)
     {
-        return $query->where('status', 'active')
+        return $query->where('status', SprintStatusEnum::ACTIVE->value)
             ->where('start_date', '<=', Carbon::today())
             ->where('end_date', '>=', Carbon::today());
     }
@@ -262,7 +264,7 @@ class Sprint extends Model
      */
     public function scopeCompleted($query)
     {
-        return $query->where('status', 'completed');
+        return $query->where('status', SprintStatusEnum::COMPLETED->value);
     }
 
     /**
@@ -273,7 +275,7 @@ class Sprint extends Model
      */
     public function scopePlanning($query)
     {
-        return $query->where('status', 'planning');
+        return $query->where('status', SprintStatusEnum::PLANNING->value);
     }
 
     /**
@@ -284,7 +286,7 @@ class Sprint extends Model
      */
     public function scopeOverdue($query)
     {
-        return $query->where('status', '!=', 'completed')
+        return $query->where('status', '!=', SprintStatusEnum::COMPLETED->value)
             ->where('end_date', '<', Carbon::today());
     }
 
@@ -307,11 +309,11 @@ class Sprint extends Model
      */
     public function start(): bool
     {
-        if ($this->status !== 'planning') {
+        if ($this->status !== SprintStatusEnum::PLANNING) {
             return false;
         }
 
-        $this->status = 'active';
+        $this->status = SprintStatusEnum::ACTIVE;
         $this->start_date = Carbon::today();
         return $this->save();
     }
@@ -323,11 +325,11 @@ class Sprint extends Model
      */
     public function complete(): bool
     {
-        if ($this->status !== 'active') {
+        if ($this->status !== SprintStatusEnum::ACTIVE) {
             return false;
         }
 
-        $this->status = 'completed';
+        $this->status = SprintStatusEnum::COMPLETED;
         return $this->save();
     }
 }
