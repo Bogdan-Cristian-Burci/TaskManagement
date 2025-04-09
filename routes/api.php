@@ -330,7 +330,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
         // Sprint statistics
         Route::get('/{sprint}/statistics', [SprintController::class, 'statistics'])->name('sprints.statistics');
-        Route::get('/{board}/sprints', [SprintController::class, 'boardSprints'])->name('boards.sprints.index');
+        // Removed duplicate route that was causing conflicts
     });
     Route::apiResource('sprints', SprintController::class)->except(['index']);
     // Your other API endpoints go here...
