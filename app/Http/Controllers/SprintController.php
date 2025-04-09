@@ -16,6 +16,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
+use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
 
 class SprintController extends Controller
 {
@@ -99,8 +100,6 @@ class SprintController extends Controller
      */
     public function boardSprints(Request $request, Board $board): AnonymousResourceCollection
     {
-        $this->authorize('viewBoardSprints', $board);
-
         $filters = [];
         $with = [];
 

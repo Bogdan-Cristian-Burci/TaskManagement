@@ -47,11 +47,11 @@ class SprintResource extends JsonResource
 
             // Permission flags for the currently authenticated user
             'can' => $this->when($request->user(), [
-                'update' => $request->user() ? $request->user()->hasPermission('update', $this->resource) : false,
-                'delete' => $request->user() ? $request->user()->hasPermission('delete', $this->resource) : false,
-                'start' => $request->user() ? $request->user()->hasPermission('start', $this->resource) : false,
-                'complete' => $request->user() ? $request->user()->hasPermission('complete', $this->resource) : false,
-                'manage_tasks' => $request->user() ? $request->user()->hasPermission('manageTasks', $this->resource) : false,
+                'update' => $request->user() ? $request->user()->hasPermission('project.update', $this->resource->organisation) : false,
+                'delete' => $request->user() ? $request->user()->hasPermission('project.delete', $this->resource->organisation) : false,
+                'start' => $request->user() ? $request->user()->hasPermission('project.start', $this->resource->organisation) : false,
+                'complete' => $request->user() ? $request->user()->hasPermission('manage-projects', $this->resource->organisation) : false,
+                'manage_tasks' => $request->user() ? $request->user()->hasPermission('manage-projects', $this->resource->organisation) : false,
             ]),
 
             // HATEOAS links

@@ -122,6 +122,23 @@ class Sprint extends Model
         );
     }
 
+    /**
+     * Get the organisation through the board and project relationships.
+     *
+     * @return HasOneThrough
+     */
+    public function organisation(): HasOneThrough
+    {
+        return $this->hasOneThrough(
+            Organisation::class,
+            Project::class,
+            'id',             // Foreign key on projects table
+            'id',             // Foreign key on organisations table
+            'board_id',        // Local key on sprints table
+            'id'               // Local key on boards table
+        );
+    }
+
         /**
      * Get the tasks for the sprint.
      *
