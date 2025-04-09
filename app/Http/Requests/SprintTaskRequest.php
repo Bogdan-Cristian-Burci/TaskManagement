@@ -28,7 +28,7 @@ class SprintTaskRequest extends FormRequest
     public function authorize(): bool
     {
         $sprint = $this->route('sprint');
-        return $this->user() && $this->user()->hasPermission('manageTasks', $sprint);
+        return $this->user() && $this->user()->hasPermission('manage-projects', $sprint->organisation);
     }
 
     /**

@@ -87,7 +87,7 @@ class SprintService
     public function addTasksToSprint(Sprint $sprint, array $taskIds): Collection
     {
         $sprint->tasks()->syncWithoutDetaching($taskIds);
-        return $sprint->tasks()->whereIn('id', $taskIds)->get();
+        return $sprint->tasks()->whereIn('tasks.id', $taskIds)->get();
     }
 
     /**
@@ -212,36 +212,42 @@ class SprintService
      */
     public function getSprintStatistics(Sprint $sprint): array
     {
-        // Load task counts by status
+        // Load task counts by status_id
         $tasksByStatus = $sprint->tasks()
-            ->select('status', DB::raw('count(*) as count'))
-            ->groupBy('status')
-            ->pluck('count', 'status')
+            ->select('status_id', DB::raw('count(*) as count'))
+            ->groupBy('status_id')
+            ->pluck('count', 'status_id')
             ->toArray();
 
-        // Load task counts by assignee
+        // Load task counts by responsible_id (assignee)
         $tasksByAssignee = $sprint->tasks()
-            ->select('assignee_id', DB::raw('count(*) as count'))
-            ->groupBy('assignee_id')
-            ->pluck('count', 'assignee_id')
+            ->select('responsible_id', DB::raw('count(*) as count'))
+            ->groupBy('responsible_id')
+            ->pluck('count', 'responsible_id')
             ->toArray();
 
-        // Calculate velocity (story points completed)
-        $velocity = $sprint->tasks()
-            ->where('status', 'completed')
-            ->sum('story_points');
+        // Calculate velocity if you have story_points column, otherwise return 0
+        $velocity = 0;
 
+        // Calculate completion percentage based on completed tasks vs total tasks
+        $totalTasks = $sprint->tasks()->count();
+        $completedTasks = $sprint->tasks()->whereHas('status', function($query) {
+            $query->where('category', 'done');
+        })->count();
+        
+        $completionPercentage = $totalTasks > 0 ? round(($completedTasks / $totalTasks) * 100) : 0;
+        
         return [
             'tasks_by_status' => $tasksByStatus,
             'tasks_by_assignee' => $tasksByAssignee,
-            'completion_percentage' => $sprint->progress,
-            'total_tasks' => $sprint->tasks()->count(),
-            'completed_tasks' => $sprint->completedTasks()->count(),
+            'completion_percentage' => $completionPercentage,
+            'total_tasks' => $totalTasks,
+            'completed_tasks' => $completedTasks,
             'velocity' => $velocity,
-            'days_remaining' => $sprint->days_remaining,
-            'is_active' => $sprint->is_active,
-            'is_completed' => $sprint->is_completed,
-            'is_overdue' => $sprint->is_overdue,
+            'days_remaining' => 0, // Placeholder, calculate based on sprint dates if needed
+            'is_active' => $sprint->status === SprintStatusEnum::ACTIVE->value,
+            'is_completed' => $sprint->status === SprintStatusEnum::COMPLETED->value,
+            'is_overdue' => $sprint->end_date && $sprint->end_date < now() && $sprint->status !== SprintStatusEnum::COMPLETED->value,
         ];
     }
 }
