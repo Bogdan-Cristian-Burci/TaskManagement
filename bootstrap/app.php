@@ -27,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->api(append: [
             \App\Http\Middleware\OrganizationContextMiddleware::class,
+            \App\Http\Middleware\ContentSecurityPolicyMiddleware::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

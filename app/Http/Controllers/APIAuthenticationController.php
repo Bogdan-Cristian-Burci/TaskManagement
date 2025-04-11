@@ -20,6 +20,7 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
+use Carbon\Carbon;
 
 class APIAuthenticationController extends Controller
 {
@@ -86,7 +87,13 @@ class APIAuthenticationController extends Controller
             $this->assignAdminRoleFromTemplate($user, $organisation->id);
 
             // Create token
-            $token = $user->createToken('Registration Token', ['read-user'])->accessToken;
+            $tokenResult = $user->createToken('Registration Token', ['read-user']);
+            $token = $tokenResult->accessToken;
+            
+            // Get the refresh token ID
+            $refreshTokenId = DB::table('oauth_refresh_tokens')
+                ->where('access_token_id', $tokenResult->token->id)
+                ->value('id');
 
             // Get a fresh instance of the user to ensure we have correct data
             $freshUser = User::find($user->id);
@@ -98,6 +105,8 @@ class APIAuthenticationController extends Controller
             return response()->json([
                 'message' => 'Registration successful',
                 'token' => $token,
+                'refresh_token' => $refreshTokenId,
+                'expires_in' => config('passport.token_lifetimes.access', 60) * 60, // Convert minutes to seconds
                 'user' => new UserResource($freshUser),
             ], Response::HTTP_CREATED);
         } catch (\Exception $e) {
@@ -187,21 +196,30 @@ class APIAuthenticationController extends Controller
         }
 
         // Create new token with appropriate scopes
-        $token = $user->createToken('Login Token', ['read-user'])->accessToken;
+        $tokenResult = $user->createToken('Login Token', ['read-user']);
+        $token = $tokenResult->accessToken;
+        
+        // Get the refresh token ID
+        $refreshTokenId = DB::table('oauth_refresh_tokens')
+            ->where('access_token_id', $tokenResult->token->id)
+            ->value('id');
 
-        // Load necessary relationships - FIXED: removed 'permissions' that doesn't exist as a relationship
+        // Load necessary relationships
         $user->load(['roles', 'organisation']);
 
         // Log successful login
         Log::info('User logged in', [
             'user_id' => $user->id,
             'email' => $user->email,
-            'ip' => request()->ip()
+            'ip' => request()->ip(),
+            'token_id' => $tokenResult->token->id
         ]);
 
         return response()->json([
             'message' => 'Login successful',
             'token' => $token,
+            'refresh_token' => $refreshTokenId,
+            'expires_in' => config('passport.token_lifetimes.access', 60) * 60, // Convert minutes to seconds
             'user' => new UserResource($user),
         ], Response::HTTP_OK);
     }
@@ -246,29 +264,100 @@ class APIAuthenticationController extends Controller
     }
 
     /**
-     * Refresh the access token.
+     * Refresh the access token using a refresh token.
      *
      * @param Request $request
      * @return JsonResponse
      */
     public function refreshToken(Request $request): JsonResponse
     {
-        // Get the user from the request
-        $user = $request->user();
+        try {
+            // Validate the refresh token
+            $request->validate([
+                'refresh_token' => 'required|string',
+            ]);
 
-        // Create new token
-        $token = $user->createToken('Refreshed Token', ['read-user'])->accessToken;
-
-        // Log the token refresh (optional)
-        Log::info('Token refreshed', [
-            'user_id' => $user->id,
-            'ip' => request()->ip()
-        ]);
-
-        return response()->json([
-            'message' => 'Token refreshed successfully',
-            'token' => $token
-        ], Response::HTTP_OK);
+            $refreshToken = $request->input('refresh_token');
+            
+            // Find the token in the database
+            $tokenModel = DB::table('oauth_refresh_tokens')
+                ->where('id', $refreshToken)
+                ->first();
+                
+            if (!$tokenModel || $tokenModel->revoked || ($tokenModel->expires_at && Carbon::parse($tokenModel->expires_at)->isPast())) {
+                return response()->json([
+                    'error' => 'Invalid or expired refresh token',
+                    'code' => 'refresh_token_invalid'
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+            
+            // Get the access token associated with this refresh token
+            $accessToken = DB::table('oauth_access_tokens')
+                ->where('id', $tokenModel->access_token_id)
+                ->first();
+                
+            if (!$accessToken) {
+                return response()->json([
+                    'error' => 'Associated access token not found',
+                    'code' => 'access_token_invalid'
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+            
+            // Get the user
+            $user = User::find($accessToken->user_id);
+            
+            if (!$user) {
+                return response()->json([
+                    'error' => 'User not found',
+                    'code' => 'user_not_found'
+                ], Response::HTTP_UNAUTHORIZED);
+            }
+            
+            // Revoke old tokens
+            DB::table('oauth_access_tokens')
+                ->where('id', $accessToken->id)
+                ->update(['revoked' => true]);
+                
+            DB::table('oauth_refresh_tokens')
+                ->where('id', $refreshToken)
+                ->update(['revoked' => true]);
+            
+            // Create a new token pair
+            $tokenResult = $user->createToken('Refreshed Token', ['read-user']);
+            $newAccessToken = $tokenResult->accessToken;
+            
+            // Get the refresh token ID
+            $newRefreshTokenId = DB::table('oauth_refresh_tokens')
+                ->where('access_token_id', $tokenResult->token->id)
+                ->value('id');
+            
+            // Log the token refresh
+            Log::info('Token refreshed', [
+                'user_id' => $user->id,
+                'ip' => request()->ip(),
+                'old_token' => $accessToken->id,
+                'new_token' => $tokenResult->token->id
+            ]);
+            
+            return response()->json([
+                'message' => 'Token refreshed successfully',
+                'token' => $newAccessToken,
+                'refresh_token' => $newRefreshTokenId,
+                'expires_in' => config('passport.token_lifetimes.access', 60) * 60 // Convert minutes to seconds
+            ], Response::HTTP_OK);
+        } catch (\Exception $e) {
+            Log::error('Token refresh failed', [
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+                'ip' => request()->ip()
+            ]);
+            
+            return response()->json([
+                'error' => 'Token refresh failed',
+                'message' => $e->getMessage(),
+                'code' => 'refresh_token_error'
+            ], Response::HTTP_UNAUTHORIZED);
+        }
     }
 
     /**

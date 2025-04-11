@@ -74,7 +74,7 @@ return [
     |--------------------------------------------------------------------------
     */
     'token_lifetimes' => [
-        'access' => env('PASSPORT_ACCESS_TOKEN_TTL', 24 * 60), // 24 hours in minutes
+        'access' => env('PASSPORT_ACCESS_TOKEN_TTL', 60), // 1 hour in minutes
         'refresh' => env('PASSPORT_REFRESH_TOKEN_TTL', 30 * 24 * 60), // 30 days in minutes
         'personal_access' => env('PASSPORT_PERSONAL_ACCESS_TOKEN_TTL', 365 * 24 * 60), // 1 year in minutes
     ],

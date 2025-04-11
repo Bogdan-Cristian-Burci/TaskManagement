@@ -34,8 +34,8 @@ Route::post('/login', [APIAuthenticationController::class, 'login'])
     ->middleware('throttle-login:5,1'); // 5 attempts per minute;
 Route::post('/logout', [APIAuthenticationController::class, 'logout'])
     ->middleware('auth:api');
-Route::post('/refresh-token', [APIAuthenticationController::class, 'refreshToken'])
-    ->middleware('auth:api');
+// Refresh token endpoint doesn't need auth:api middleware since it validates the refresh token itself
+Route::post('/refresh-token', [APIAuthenticationController::class, 'refreshToken']);
 
 // Password reset routes
 Route::post('/forgot-password', [PasswordResetController::class, 'sendResetLink']);
