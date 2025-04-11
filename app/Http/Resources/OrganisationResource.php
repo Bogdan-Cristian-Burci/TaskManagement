@@ -32,6 +32,18 @@ class OrganisationResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
+            // Is this the active organisation for the current user?
+            'is_active' => $this->when($request->user(), function() use ($request) {
+                $contextUser = $request->user();
+
+                // If we're in a pivot context (within UserResource)
+                if ($this->pivot && isset($this->pivot->user_id)) {
+                    $contextUser = User::find($this->pivot->user_id);
+                }
+
+                return $contextUser && $contextUser->organisation_id === $this->id;
+            }),
+
             // Fix user_role to include pivot roles
             'user_role' => $this->when(true, function() use ($request) {
                 // Get the appropriate user based on context
