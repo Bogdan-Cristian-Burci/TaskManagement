@@ -130,9 +130,12 @@ class PermissionController extends Controller
 
                     // Only check existence if requested
                     if ($checkExistence) {
-                        $permissionData['exists'] = DB::table('permissions')
+                        $permission = DB::table('permissions')
                             ->where('name', $permissionName)
-                            ->exists();
+                            ->first();
+                        
+                        $permissionData['exists'] = $permission !== null;
+                        $permissionData['description'] = $permission->description ?? null;
                     }
 
                     $categoryPermissions[] = $permissionData;
