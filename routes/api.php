@@ -82,7 +82,7 @@ Route::middleware(['auth:api','org.context'])->group(function () {
 
     // User roles management
     Route::put('users/{user}/roles', [UserController::class, 'updateRoles'])->name('users.roles.update');
-    Route::get('roles', [UserController::class, 'roles'])->name('roles.index');
+   // Route::get('roles', [UserController::class, 'roles'])->name('roles.index');
 
     Route::get('/role-permissions/permissions', [RolePermissionController::class, 'getPermissions']);
 

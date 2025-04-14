@@ -397,6 +397,14 @@ class RoleController extends Controller
                 ->where('role_id', $role->id)
                 ->where('model_type', 'App\\Models\\User')
                 ->count(),
+            'users' => DB::table('users')
+                ->join('model_has_roles', function($join) use ($role) {
+                    $join->on('users.id', '=', 'model_has_roles.model_id')
+                        ->where('model_has_roles.model_type', 'App\\Models\\User')
+                        ->where('model_has_roles.role_id', $role->id);
+                })
+                ->select('users.id', 'users.name')
+                ->get(),
             'is_system_role' => $role->organisation_id === null
         ];
 
