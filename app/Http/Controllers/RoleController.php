@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use App\Services\RoleService;
@@ -380,19 +381,36 @@ class RoleController extends Controller
      */
     private function formatRoleResponse(Role $role): array
     {
+        // Get all permissions for this role
+        $rolePermissions = $role->getPermissions()->pluck('name')->toArray();
+        
+        // Get all permissions in the system
+        $allPermissions = Permission::all();
+        
+        // Format permissions with is_active field
+        $formattedPermissions = $allPermissions->map(function($permission) use ($rolePermissions) {
+            // Exclude pivot, guard_name, created_at, updated_at fields
+            return [
+                'id' => $permission->id,
+                'name' => $permission->name,
+                'display_name' => $permission->display_name,
+                'description' => $permission->description,
+                'category' => $permission->category,
+                'is_active' => in_array($permission->name, $rolePermissions)
+            ];
+        });
+        
         $base = [
             'id' => $role->id,
             'organisation_id' => $role->organisation_id,
             'template_id' => $role->template_id,
             'overrides_system' => $role->overrides_system,
             'system_role_id' => $role->system_role_id,
-            'created_at' => $role->created_at,
-            'updated_at' => $role->updated_at,
             'name' => $role->getName(),
             'display_name' => $role->getDisplayName(),
             'description' => $role->getDescription(),
             'level' => $role->getLevel(),
-            'permissions' => $role->getPermissions(),
+            'permissions' => $formattedPermissions,
             'users_count' => DB::table('model_has_roles')
                 ->where('role_id', $role->id)
                 ->where('model_type', 'App\\Models\\User')
