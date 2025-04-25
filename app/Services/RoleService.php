@@ -328,11 +328,11 @@ class RoleService
      */
     public function getAvailableRoles(int $organisationId): Collection
     {
-        // First, get all organization-specific roles
+        // Get all organization-specific roles
         $orgRoles = Role::where('organisation_id', $organisationId)
             ->with('template.permissions')
             ->get();
-
+        
         // Get IDs of system roles that have been overridden
         $overriddenSystemRoleIds = $orgRoles
             ->where('overrides_system', true)
@@ -345,9 +345,17 @@ class RoleService
             ->whereNotIn('id', $overriddenSystemRoleIds)
             ->with('template.permissions')
             ->get();
+            
+        // Extract template names from org roles to check for duplicates with system roles
+        $orgRoleTemplateNames = $orgRoles->pluck('template.name')->filter()->toArray();
+        
+        // Filter out system roles with the same template name as org roles
+        $filteredSystemRoles = $systemRoles->filter(function($role) use ($orgRoleTemplateNames) {
+            return !in_array($role->template->name, $orgRoleTemplateNames);
+        });
 
-        // Combine org-specific and remaining system roles
-        return $orgRoles->concat($systemRoles);
+        // Combine organization roles and filtered system roles
+        return $orgRoles->concat($filteredSystemRoles);
     }
 
     /**
