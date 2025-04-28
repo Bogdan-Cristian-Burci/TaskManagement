@@ -211,9 +211,13 @@ class RoleService
      */
     public function addPermissionsToRole(int $roleId, int $organisationId, array $permissions): Role
     {
-        // Find the role
+        // Find the role - first try with organization ID
         $role = Role::where('id', $roleId)
-            ->where('organisation_id', $organisationId)
+            ->where(function($query) use ($organisationId) {
+                // Check for either the specified organisation_id OR null for system roles
+                $query->where('organisation_id', $organisationId)
+                      ->orWhereNull('organisation_id');
+            })
             ->with('template')
             ->first();
 
@@ -267,7 +271,11 @@ class RoleService
     {
         // Find the role
         $role = Role::where('id', $roleId)
-            ->where('organisation_id', $organisationId)
+            ->where(function($query) use ($organisationId) {
+                // Check for either the specified organisation_id OR null for system roles
+                $query->where('organisation_id', $organisationId)
+                      ->orWhereNull('organisation_id');
+            })
             ->with('template')
             ->first();
 
@@ -332,7 +340,7 @@ class RoleService
         $orgRoles = Role::where('organisation_id', $organisationId)
             ->with('template.permissions')
             ->get();
-        
+
         // Get IDs of system roles that have been overridden
         $overriddenSystemRoleIds = $orgRoles
             ->where('overrides_system', true)
@@ -345,10 +353,10 @@ class RoleService
             ->whereNotIn('id', $overriddenSystemRoleIds)
             ->with('template.permissions')
             ->get();
-            
+
         // Extract template names from org roles to check for duplicates with system roles
         $orgRoleTemplateNames = $orgRoles->pluck('template.name')->filter()->toArray();
-        
+
         // Filter out system roles with the same template name as org roles
         $filteredSystemRoles = $systemRoles->filter(function($role) use ($orgRoleTemplateNames) {
             return !in_array($role->template->name, $orgRoleTemplateNames);
@@ -387,7 +395,11 @@ class RoleService
     {
         // Find the role
         $role = Role::where('id', $roleId)
-            ->where('organisation_id', $organisationId)
+            ->where(function($query) use ($organisationId) {
+                // Check for either the specified organisation_id OR null for system roles
+                $query->where('organisation_id', $organisationId)
+                      ->orWhereNull('organisation_id');
+            })
             ->with('template')
             ->first();
 

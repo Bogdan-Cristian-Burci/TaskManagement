@@ -423,13 +423,15 @@ class RoleController extends Controller
                 })
                 ->select('users.id', 'users.name')
                 ->get(),
-            'is_system_role' => $role->organisation_id === null
+            'is_system_role' => $role->template && $role->template->is_system && !$role->overrides_system
         ];
 
         // For system roles, check if they've been overridden
-        if ($role->organisation_id === null) {
+        if ($role->template && $role->template->is_system && !$role->overrides_system) {
             $base['has_override'] = Role::where('system_role_id', $role->id)
                 ->exists();
+        } else {
+            $base['has_override'] = false;
         }
 
         return $base;
