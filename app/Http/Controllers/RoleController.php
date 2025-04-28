@@ -136,6 +136,11 @@ class RoleController extends Controller
                             ->where('organisation_id', $organisationId);
                     });
             })
+            ->orWhere(function($query) use ($id) {
+                // Also include any system role (if it's explicitly requested by ID)
+                $query->where('id', $id)
+                    ->whereNull('organisation_id');
+            })
             ->with('template.permissions')
             ->first();
 

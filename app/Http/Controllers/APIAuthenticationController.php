@@ -416,6 +416,7 @@ class APIAuthenticationController extends Controller
 
     /**
      * Legacy method to assign admin role directly through DB
+     * Updated to use global system roles instead of creating organization-specific roles
      *
      * @param User $user
      * @param int $organisationId
@@ -436,35 +437,27 @@ class APIAuthenticationController extends Controller
             }
         }
 
-        // Find or create the admin role for this organization
-        $adminRole = Role::where('template_id', $adminTemplate->id)
-            ->where('organisation_id', $organisationId)
-            ->first();
-
-        // If admin role doesn't exist for this org, create it
-        if (!$adminRole) {
-            $adminRole = Role::create([
+        // Find or create the global system admin role
+        $adminRole = Role::firstOrCreate(
+            [
+                'template_id' => $adminTemplate->id,
+                'organisation_id' => null, // NULL for global system role
+            ],
+            [
                 'name' => 'admin',
                 'guard_name' => 'api',
-                'template_id' => $adminTemplate->id,
-                'organisation_id' => $organisationId,
                 'level' => $adminTemplate->level ?? 100,
                 'overrides_system' => false,
                 'system_role_id' => null
-            ]);
+            ]
+        );
 
-            Log::info("Admin role created for organization", [
-                'organisation_id' => $organisationId,
-                'role_id' => $adminRole->id
-            ]);
-        }
-
-        // Assign the role to the user using model_has_roles table
+        // Assign the global role to the user using model_has_roles table with organization context
         DB::table('model_has_roles')->updateOrInsert([
             'role_id' => $adminRole->id,
             'model_id' => $user->id,
             'model_type' => get_class($user),
-            'organisation_id' => $organisationId
+            'organisation_id' => $organisationId // Organization context remains
         ], [
             'created_at' => now(),
             'updated_at' => now()

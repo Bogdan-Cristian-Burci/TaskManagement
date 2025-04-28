@@ -270,6 +270,9 @@ class RoleManager
 
     /**
      * Assign a role to a user in an organization
+     * 
+     * This method now uses global system roles directly rather than creating
+     * organization-specific roles for each organization.
      *
      * @param User $user
      * @param string $roleName
@@ -303,11 +306,11 @@ class RoleManager
                 ]
             );
 
-            // Create or get the role based on the template
+            // Get the global system role based on this template
             $role = Role::firstOrCreate(
                 [
                     'template_id' => $template->id,
-                    'organisation_id' => $organisationId,
+                    'organisation_id' => null, // NULL for global system role
                 ],
                 [
                     'overrides_system' => false,
@@ -315,13 +318,13 @@ class RoleManager
                 ]
             );
 
-            // Assign the role to the user
+            // Assign the role to the user with organization context
             DB::table('model_has_roles')->updateOrInsert(
                 [
                     'role_id' => $role->id,
                     'model_id' => $user->id,
                     'model_type' => get_class($user),
-                    'organisation_id' => $organisationId,
+                    'organisation_id' => $organisationId, // Organization context remains
                 ],
                 [
                     'created_at' => now(),

@@ -143,13 +143,30 @@ class RoleService
             $permissionIds
         );
 
-        // Create the role
-        $role = $this->templateService->createRoleFromTemplate(
-            $template,
-            $organisationId,
-            true, // overrides system
-            $systemRole->id // system role ID
-        );
+        // Check if there's an existing role for this organization that we can update
+        $existingOrgRole = Role::where('organisation_id', $organisationId)
+            ->where('template_id', $systemTemplate->id)
+            ->where('overrides_system', false)
+            ->first();
+
+        if ($existingOrgRole) {
+            // Update the existing role to use the new template
+            $existingOrgRole->update([
+                'template_id' => $template->id,
+                'overrides_system' => true,
+                'system_role_id' => $systemRole->id
+            ]);
+            
+            $role = $existingOrgRole->fresh();
+        } else {
+            // Create a new role if no existing role to update
+            $role = $this->templateService->createRoleFromTemplate(
+                $template,
+                $organisationId,
+                true, // overrides system
+                $systemRole->id // system role ID
+            );
+        }
 
         // Migrate users from system role to the new role
         $migrationResult = $this->templateService->migrateUsersToTemplateOverride(
@@ -166,6 +183,7 @@ class RoleService
 
     /**
      * Revert an organization role to its system counterpart
+     * Updated to work with the new approach of using global system roles
      *
      * @param int $roleId Role ID
      * @param int $organisationId Organization ID
@@ -196,8 +214,67 @@ class RoleService
             throw new \Exception('Invalid template for this role');
         }
 
-        // Revert to system template
-        return $this->templateService->revertToSystemTemplate($template, $organisationId);
+        // Get the system role that this role overrides
+        $systemRole = Role::find($role->system_role_id);
+        
+        if (!$systemRole) {
+            throw new \Exception('System role not found');
+        }
+        
+        // Find all users with this role in this organization
+        $userAssignments = DB::table('model_has_roles')
+            ->where('role_id', $role->id)
+            ->where('organisation_id', $organisationId)
+            ->get();
+            
+        $count = 0;
+        
+        DB::beginTransaction();
+        try {
+            // For each user with this role
+            foreach ($userAssignments as $assignment) {
+                // Remove the override role
+                DB::table('model_has_roles')
+                    ->where('role_id', $role->id)
+                    ->where('model_id', $assignment->model_id)
+                    ->where('model_type', $assignment->model_type)
+                    ->where('organisation_id', $organisationId)
+                    ->delete();
+                    
+                // Assign the system role with organization context
+                DB::table('model_has_roles')->updateOrInsert(
+                    [
+                        'role_id' => $systemRole->id,
+                        'model_id' => $assignment->model_id,
+                        'model_type' => $assignment->model_type,
+                        'organisation_id' => $organisationId
+                    ],
+                    [
+                        'created_at' => now(),
+                        'updated_at' => now()
+                    ]
+                );
+                
+                $count++;
+            }
+            
+            // Delete the override role
+            $role->delete();
+            
+            // Delete the template
+            $this->templateService->deleteTemplate($template);
+            
+            DB::commit();
+            
+            return [
+                'migrated' => $count,
+                'template_deleted' => true,
+                'system_role_id' => $systemRole->id
+            ];
+        } catch (\Exception $e) {
+            DB::rollBack();
+            throw $e;
+        }
     }
 
     /**
@@ -233,7 +310,7 @@ class RoleService
             $currentPermissionNames = $template->permissions->pluck('name')->toArray();
             $allPermissions = array_unique(array_merge($currentPermissionNames, $permissions));
 
-            // Create override
+            // Create override - this will now update the existing role if it exists
             $result = $this->createSystemRoleOverride(
                 $template->id,
                 $organisationId,
@@ -296,7 +373,7 @@ class RoleService
                 throw new \Exception('Cannot remove all permissions from a role');
             }
 
-            // Create override
+            // Create override - this will now update the existing role if it exists
             $result = $this->createSystemRoleOverride(
                 $template->id,
                 $organisationId,
@@ -421,7 +498,7 @@ class RoleService
             if (!empty($updateData) || $permissions !== null) {
                 $permissionNames = $permissions;
 
-                // Create override
+                // Create override - this will now update the existing role if it exists
                 $result = $this->createSystemRoleOverride(
                     $template->id,
                     $organisationId,
