@@ -5,6 +5,7 @@ namespace App\Http\Resources;
 use Illuminate\Contracts\Container\BindingResolutionException;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
+use Illuminate\Support\Facades\DB;
 
 class UserResource extends JsonResource
 {
@@ -53,13 +54,57 @@ class UserResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
 
-            // Add roles using the new structure
-            'roles' => $roleTemplateNames,
+            // Add roles with their full data including permissions
+            'roles' => $this->when(
+                $organisationId,
+                function() use ($user, $organisationId, $request) {
+                    $roles = $user->getOrganisationRoles($organisationId);
 
-            // Get permissions using getAllPermissions method
-            'permissions' => $this->when($organisationId, function() use ($user, $organisationId) {
-                return $user->getOrganisationPermissionsAttribute();
-            }),
+                    // Always return role objects with consistent structure
+                    return $roles->map(function($role) use ($request) {
+                        $roleData = [
+                            'id' => $role->id,
+                            'name' => $role->template ? $role->template->name : $role->name,
+                            'display_name' => $role->template ? $role->template->display_name : $role->display_name,
+                            'description' => $role->template ? $role->template->description : $role->description,
+                            'level' => $role->level,
+                            'is_system' => $role->is_system ?? false
+                        ];
+                        
+                        // Only add permissions array if specifically requested
+                        if ($request->has('include') && in_array('permissions', explode(',', $request->input('include')))) {
+                            // Get all permissions from the system
+                            $allPermissions = \App\Models\Permission::all();
+                            
+                            // Get permissions assigned to this role
+                            $rolePermissions = DB::table('template_has_permissions')
+                                ->where('role_template_id', $role->template_id)
+                                ->pluck('permission_id')
+                                ->toArray();
+                                
+                            $roleData['permissions'] = $allPermissions->map(function($permission) use ($rolePermissions) {
+                                return [
+                                    'id' => $permission->id,
+                                    'name' => $permission->name,
+                                    'display_name' => $permission->display_name,
+                                    'category' => $permission->category,
+                                    'description' => $permission->description,
+                                    'is_active' => in_array($permission->id, $rolePermissions)
+                                ];
+                            })->values();
+                        }
+                        
+                        return $roleData;
+                    })->values();
+                }
+            ),
+
+            'permissions' => $this->when(
+                $request->has('include') && in_array('permissions', explode(',', $request->input('include'))),
+                function() use ($user, $organisationId) {
+                    return $user->getOrganisationPermissionsAttribute();
+                }
+            ),
 
             // Add permission overrides if any
             'permission_overrides' => $this->when($organisationId, function() use ($user) {

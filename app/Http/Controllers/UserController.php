@@ -179,7 +179,7 @@ class UserController extends Controller
 
         if ($request->has('include')) {
             $requestedIncludes = explode(',', $request->input('include'));
-            $allowedIncludes = ['permissions', 'organisation', 'teams', 'organisations'];
+            $allowedIncludes = ['organisation', 'teams', 'organisations'];
             $additionalIncludes = array_intersect($allowedIncludes, $requestedIncludes);
             $includes = array_merge($includes, $additionalIncludes);
         }
