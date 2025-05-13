@@ -89,9 +89,9 @@ class ProjectService
      *
      * @param array $filters
      * @param array $with Related models to load
-     * @return Collection
+     * @return \Illuminate\Contracts\Pagination\LengthAwarePaginator|Collection
      */
-    public function getProjects(array $filters = [], array $with = []): Collection
+    public function getProjects(array $filters = [], array $with = [])
     {
         $query = Project::query();
 
@@ -126,7 +126,14 @@ class ProjectService
         if (!empty($with)) {
             $query->with($with);
         }
-
+        
+        // Return paginated results if pagination is requested
+        if (isset($filters['paginate']) && $filters['paginate']) {
+            $perPage = $filters['per_page'] ?? 15; // Default 15 items per page
+            return $query->paginate($perPage);
+        }
+        
+        // Otherwise return all results as collection
         return $query->get();
     }
 

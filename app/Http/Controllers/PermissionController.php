@@ -40,7 +40,9 @@ class PermissionController extends Controller
                 $grouped[$resource][] = [
                     'id' => $permission->id,
                     'name' => $permission->name,
-                    'action' => $action
+                    'action' => $action,
+                    'display_name' => $permission->display_name,
+                    'description' => $permission->description,
                 ];
             } else {
                 // Handle non-standard permission names
@@ -51,7 +53,9 @@ class PermissionController extends Controller
                 $grouped['other'][] = [
                     'id' => $permission->id,
                     'name' => $permission->name,
-                    'action' => 'other'
+                    'action' => 'other',
+                    'display_name'=>$permission->display_name,
+                    'description'=>$permission->description,
                 ];
             }
         }
@@ -133,7 +137,7 @@ class PermissionController extends Controller
                         $permission = DB::table('permissions')
                             ->where('name', $permissionName)
                             ->first();
-                        
+
                         $permissionData['exists'] = $permission !== null;
                         $permissionData['description'] = $permission->description ?? null;
                     }
@@ -195,4 +199,5 @@ class PermissionController extends Controller
             'grouped_permissions' => $groupedPermissions
         ]);
     }
+
 }

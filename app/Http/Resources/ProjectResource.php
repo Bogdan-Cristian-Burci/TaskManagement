@@ -25,7 +25,6 @@ class ProjectResource extends JsonResource
             'organisation_id' => $this->organisation_id,
             'organisation' => new OrganisationResource($this->whenLoaded('organisation')),
             'team_id' => $this->team_id,
-            'responsible_user_id' => $this->responsible_user_id,
             'responsible_user' => new UserResource($this->whenLoaded('responsibleUser')),
             'users' => UserResource::collection($this->whenLoaded('users')),
             'boards_count' => $this->when(isset($this->boards_count), $this->boards_count),

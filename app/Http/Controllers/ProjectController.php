@@ -32,7 +32,7 @@ class ProjectController extends Controller
     }
 
     /**
-     * Display a listing of the projects.
+     * Display a listing of the projects with pagination.
      *
      * @param Request $request
      * @return AnonymousResourceCollection
@@ -42,7 +42,7 @@ class ProjectController extends Controller
         $this->authorize('viewAny', Project::class);
 
         $filters = [];
-        $with = ['organisation', 'team'];
+        $with = ['responsibleUser'];
 
         // Build filters from request parameters
         if ($request->has('organisation_id')) {
@@ -79,6 +79,12 @@ class ProjectController extends Controller
                     $with[] = $include;
                 }
             }
+        }
+
+        // Setup pagination
+        $filters['paginate'] = true;
+        if ($request->has('per_page')) {
+            $filters['per_page'] = (int)$request->input('per_page');
         }
 
         $projects = $this->projectService->getProjects($filters, $with);
