@@ -17,6 +17,7 @@ class BoardTypeResource extends JsonResource
             'description' => $this->description,
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
+            'template' => new BoardTemplateResource($this->whenLoaded('template')),
             'boards' => BoardResource::collection($this->whenLoaded('boards')),
         ];
     }

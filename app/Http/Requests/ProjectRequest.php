@@ -83,7 +83,7 @@ class ProjectRequest extends FormRequest
             'status' => ['sometimes', 'string', Rule::in(['planning', 'active', 'on_hold', 'completed', 'cancelled'])],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
-            'board_type_id' => 'nullable|exists:board_types,id', // For optional board creation
+            'board_type_id' => 'required|exists:board_types,id', // For optional board creation
         ];
 
         // Adjust rules based on request method

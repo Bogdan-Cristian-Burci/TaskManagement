@@ -88,6 +88,11 @@ class ProjectController extends Controller
         }
 
         $projects = $this->projectService->getProjects($filters, $with);
+        
+        // Add withCount for tasks
+        $projects->each(function ($project) {
+            $project->tasks_count = $project->tasks()->count();
+        });
 
         return ProjectResource::collection($projects);
     }
@@ -129,7 +134,7 @@ class ProjectController extends Controller
      */
     public function show(Request $request, Project $project): ProjectResource
     {
-        $with = ['organisation', 'team'];
+        $with = ['organisation', 'team', 'boards.boardType.template'];
 
         // Add relationships to load
         if ($request->has('include')) {
@@ -143,6 +148,9 @@ class ProjectController extends Controller
         }
 
         $project->load($with);
+        
+        // Add tasks_count manually
+        $project->tasks_count = $project->tasks()->count();
 
         return new ProjectResource($project);
     }
@@ -157,7 +165,9 @@ class ProjectController extends Controller
     public function update(ProjectRequest $request, Project $project): ProjectResource
     {
         $project = $this->projectService->updateProject($project, $request->validated());
-        return new ProjectResource($project->load(['organisation', 'team']));
+        $project->load(['organisation', 'team']);
+        $project->tasks_count = $project->tasks()->count();
+        return new ProjectResource($project);
     }
 
     /**
@@ -219,7 +229,9 @@ class ProjectController extends Controller
         $this->authorize('restore', $project);
 
         $project->restore();
-        return new ProjectResource($project->load(['organisation', 'team']));
+        $project->load(['organisation', 'team']);
+        $project->tasks_count = $project->tasks()->count();
+        return new ProjectResource($project);
     }
 
     /**
@@ -237,7 +249,9 @@ class ProjectController extends Controller
 
         try {
             $this->projectService->addUsersToProject($project, $userIds);
-            return new ProjectResource($project->fresh(['users']));
+            $freshProject = $project->fresh(['users']);
+            $freshProject->tasks_count = $freshProject->tasks()->count();
+            return new ProjectResource($freshProject);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => $e->getMessage()
@@ -267,9 +281,11 @@ class ProjectController extends Controller
                 $reassignToUserId
             );
 
+            $freshProject = $project->fresh(['users']);
+            $freshProject->tasks_count = $freshProject->tasks()->count();
             return response()->json([
                 'message' => 'User successfully removed from project',
-                'project' => new ProjectResource($project->fresh(['users']))
+                'project' => new ProjectResource($freshProject)
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -430,8 +446,11 @@ class ProjectController extends Controller
 
             // Ensure the user is also a project member
             $project->users()->syncWithoutDetaching([$userId]);
+            
+            $project->load(['team', 'responsibleUser']);
+            $project->tasks_count = $project->tasks()->count();
 
-            return new ProjectResource($project->load(['team', 'responsibleUser']));
+            return new ProjectResource($project);
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to change responsible user: ' . $e->getMessage()
