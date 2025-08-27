@@ -1,0 +1,9 @@
+{
+  "enableAllProjectMcpServers": false,
+  "permissions": {
+    "allow": [
+      "Bash(ls:*)",
+      "Bash(php artisan test:*)"
+    ]
+  }
+}

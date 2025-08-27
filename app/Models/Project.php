@@ -16,6 +16,10 @@ use Illuminate\Database\Eloquent\SoftDeletes;
 use Illuminate\Support\Str;
 use Spatie\Activitylog\LogOptions;
 use Spatie\Activitylog\Models\Activity;
+use Spatie\MediaLibrary\HasMedia;
+use Spatie\MediaLibrary\InteractsWithMedia;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
+use Spatie\MediaLibrary\MediaCollections\Models\Collections\MediaCollection;
 
 /**
  * @property int $id
@@ -41,9 +45,9 @@ use Spatie\Activitylog\Models\Activity;
  * @property-read int|null $users_count
  * @property-read int|null $boards_count
  */
-class Project extends Model
+class Project extends Model implements HasMedia
 {
-    use HasFactory, SoftDeletes, HasAuditTrail;
+    use HasFactory, SoftDeletes, HasAuditTrail, InteractsWithMedia;
 
     /**
      * Task handling options for project deletion
@@ -323,5 +327,87 @@ class Project extends Model
             // Save the changes
             $activity->save();
         }
+    }
+
+    /**
+     * Register media collections for the project.
+     *
+     * @return void
+     */
+    public function registerMediaCollections(): void
+    {
+        $this->addMediaCollection('documents')
+            ->acceptsMimeTypes(config('media.project_documents.allowed_mime_types'))
+            ->singleFile(false)
+            ->useDisk(config('media.project_documents.collections.documents.disk', 'public'))
+            ->usePath(config('media.project_documents.collections.documents.path', 'project-documents'));
+
+        $this->addMediaCollection('attachments')
+            ->acceptsMimeTypes(config('media.project_documents.allowed_mime_types'))
+            ->singleFile(false)
+            ->useDisk(config('media.project_documents.collections.attachments.disk', 'public'))
+            ->usePath(config('media.project_documents.collections.attachments.path', 'project-attachments'));
+    }
+
+    /**
+     * Register media conversions for the project.
+     *
+     * @param Media|null $media
+     * @return void
+     */
+    public function registerMediaConversions(Media $media = null): void
+    {
+        // Only generate thumbnails for images
+        if ($media && str_starts_with($media->mime_type, 'image/')) {
+            $this->addMediaConversion('thumbnail')
+                ->width(150)
+                ->height(150)
+                ->crop('center', 'center')
+                ->optimize()
+                ->nonQueued();
+
+            $this->addMediaConversion('preview')
+                ->width(500)
+                ->height(500)
+                ->crop('center', 'center')
+                ->optimize()
+                ->nonQueued();
+        }
+    }
+
+    /**
+     * Get the count of documents in a specific collection.
+     *
+     * @param string $collection
+     * @return int
+     */
+    public function getDocumentCount(string $collection = 'documents'): int
+    {
+        return $this->getMedia($collection)->count();
+    }
+
+    /**
+     * Check if the project has reached the maximum document limit.
+     *
+     * @param string $collection
+     * @return bool
+     */
+    public function hasReachedDocumentLimit(string $collection = 'documents'): bool
+    {
+        $maxFiles = config('media.project_documents.max_files', 10);
+        return $this->getDocumentCount($collection) >= $maxFiles;
+    }
+
+    /**
+     * Get remaining document slots for a collection.
+     *
+     * @param string $collection
+     * @return int
+     */
+    public function getRemainingDocumentSlots(string $collection = 'documents'): int
+    {
+        $maxFiles = config('media.project_documents.max_files', 10);
+        $currentCount = $this->getDocumentCount($collection);
+        return max(0, $maxFiles - $currentCount);
     }
 }

@@ -186,6 +186,11 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::get('/{project}/tags', [TagController::class, 'forProject'])->name('projects.tags.index');
         Route::post('/{project}/tags/batch', [TagController::class, 'batchCreate'])->name('projects.tags.batch');
 
+        // Project documents/media
+        Route::post('/{project}/documents', [ProjectController::class, 'uploadMedia'])->name('projects.documents.upload');
+        Route::get('/{project}/documents', [ProjectController::class, 'getMedia'])->name('projects.documents.index');
+        Route::delete('/{project}/documents/{media}', [ProjectController::class, 'deleteMedia'])->name('projects.documents.delete');
+
     });
 
     // Board routes

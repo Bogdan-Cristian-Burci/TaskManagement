@@ -16,6 +16,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Http\Response;
+use Spatie\MediaLibrary\MediaCollections\Models\Media;
 use Symfony\Component\HttpFoundation\Response as ResponseAlias;
 
 class ProjectController extends Controller
@@ -88,7 +89,7 @@ class ProjectController extends Controller
         }
 
         $projects = $this->projectService->getProjects($filters, $with);
-        
+
         // Add withCount for tasks
         $projects->each(function ($project) {
             $project->tasks_count = $project->tasks()->count();
@@ -134,7 +135,7 @@ class ProjectController extends Controller
      */
     public function show(Request $request, Project $project): ProjectResource
     {
-        $with = ['organisation', 'team', 'boards.boardType.template'];
+        $with = ['organisation', 'team', 'boards.boardType.template','users'];
 
         // Add relationships to load
         if ($request->has('include')) {
@@ -148,7 +149,7 @@ class ProjectController extends Controller
         }
 
         $project->load($with);
-        
+
         // Add tasks_count manually
         $project->tasks_count = $project->tasks()->count();
 
@@ -446,7 +447,7 @@ class ProjectController extends Controller
 
             // Ensure the user is also a project member
             $project->users()->syncWithoutDetaching([$userId]);
-            
+
             $project->load(['team', 'responsibleUser']);
             $project->tasks_count = $project->tasks()->count();
 
@@ -454,6 +455,151 @@ class ProjectController extends Controller
         } catch (\Exception $e) {
             return response()->json([
                 'message' => 'Failed to change responsible user: ' . $e->getMessage()
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+    }
+
+    /**
+     * Upload media files to a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return JsonResponse
+     */
+    public function uploadMedia(Request $request, Project $project): JsonResponse
+    {
+        $this->authorize('update', $project);
+
+        // Get configuration values
+        $maxFiles = config('media.project_documents.max_files', 10);
+        $maxFileSize = config('media.project_documents.max_file_size', 20480); // 20MB in KB
+        $allowedMimeTypes = config('media.project_documents.allowed_mime_types', [
+            'application/pdf',
+            'application/msword',
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+            'text/plain',
+            'image/jpeg',
+            'image/png',
+            'image/gif',
+            'application/zip',
+            'application/x-rar-compressed'
+        ]);
+
+        $collection = $request->input('collection', 'documents');
+        
+        // Check current document count
+        $currentCount = $project->getMedia($collection)->count();
+        $newFileCount = count($request->file('files', []));
+        
+        if (($currentCount + $newFileCount) > $maxFiles) {
+            return response()->json([
+                'message' => "Cannot upload files. Maximum of {$maxFiles} documents allowed per project. Current: {$currentCount}"
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
+        $request->validate([
+            'files' => "required|array|max:{$newFileCount}",
+            'files.*' => [
+                'file',
+                "max:{$maxFileSize}",
+                'mimes:' . implode(',', array_map(function($mime) {
+                    return explode('/', $mime)[1];
+                }, $allowedMimeTypes))
+            ],
+            'collection' => 'sometimes|string|in:documents,attachments',
+        ]);
+
+        try {
+            $uploadedFiles = [];
+
+            foreach ($request->file('files') as $file) {
+                $media = $project->addMediaFromRequest('files')
+                    ->each(function ($fileAdder) use ($collection) {
+                        $fileAdder->toMediaCollection($collection);
+                    });
+
+                $uploadedFiles[] = [
+                    'id' => $media->first()->id,
+                    'name' => $media->first()->name,
+                    'file_name' => $media->first()->file_name,
+                    'mime_type' => $media->first()->mime_type,
+                    'size' => $media->first()->size,
+                    'url' => $media->first()->getUrl(),
+                    'collection' => $collection,
+                ];
+            }
+
+            return response()->json([
+                'message' => 'Files uploaded successfully',
+                'files' => $uploadedFiles
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to upload files: ' . $e->getMessage()
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+    }
+
+    /**
+     * Get media files for a project.
+     *
+     * @param Request $request
+     * @param Project $project
+     * @return JsonResponse
+     */
+    public function getMedia(Request $request, Project $project): JsonResponse
+    {
+        $collection = $request->input('collection', 'documents');
+        
+        $media = $project->getMedia($collection)->map(function ($mediaItem) {
+            return [
+                'id' => $mediaItem->id,
+                'name' => $mediaItem->name,
+                'file_name' => $mediaItem->file_name,
+                'mime_type' => $mediaItem->mime_type,
+                'size' => $mediaItem->size,
+                'url' => $mediaItem->getUrl(),
+                'collection' => $mediaItem->collection_name,
+                'created_at' => $mediaItem->created_at,
+            ];
+        });
+
+        return response()->json([
+            'media' => $media
+        ]);
+    }
+
+    /**
+     * Delete a media file from a project.
+     *
+     * @param Project $project
+     * @param Media $media
+     * @return JsonResponse
+     */
+    public function deleteMedia(Project $project, Media $media): JsonResponse
+    {
+        $this->authorize('update', $project);
+
+        try {
+            // Verify the media belongs to this project
+            if ($media->model_id !== $project->id || $media->model_type !== Project::class) {
+                return response()->json([
+                    'message' => 'Media file not found for this project'
+                ], ResponseAlias::HTTP_NOT_FOUND);
+            }
+
+            $media->delete();
+
+            return response()->json([
+                'message' => 'Media file deleted successfully'
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Failed to delete media file: ' . $e->getMessage()
             ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
     }

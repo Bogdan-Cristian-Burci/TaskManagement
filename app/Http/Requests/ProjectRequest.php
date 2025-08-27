@@ -83,16 +83,18 @@ class ProjectRequest extends FormRequest
             'status' => ['sometimes', 'string', Rule::in(['planning', 'active', 'on_hold', 'completed', 'cancelled'])],
             'start_date' => 'nullable|date',
             'end_date' => 'nullable|date|after_or_equal:start_date',
-            'board_type_id' => 'required|exists:board_types,id', // For optional board creation
+
         ];
 
         // Adjust rules based on request method
         if ($this->isMethod('POST')) {
             // For creation (POST), name is required
             $rules['name'] = 'required|string|max:255';
+            $rules['board_type_id'] = 'required|exists:board_types,id'; // For optional board creation
         } else {
             // For updates (PUT/PATCH), name is optional but validated if present
             $rules['name'] = 'sometimes|string|max:255';
+            $rules['board_type_id'] = 'sometimes|exists:board_types,id'; // For optional board updates
         }
 
         return $rules;
