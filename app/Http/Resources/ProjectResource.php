@@ -39,12 +39,12 @@ class ProjectResource extends JsonResource
                         'file_name' => $mediaItem->file_name,
                         'mime_type' => $mediaItem->mime_type,
                         'size' => $mediaItem->size,
-                        'url' => route('projects.documents.download', ['project' => $this->id, 'media' => $mediaItem->id]),
+                        'url' => route('media.projects.documents.serve', ['project' => $this->id, 'media' => $mediaItem->id]),
                         'collection' => $mediaItem->collection_name,
                         'created_at' => $mediaItem->created_at,
                         'conversions' => $mediaItem->hasGeneratedConversion('thumbnail') ? [
-                            'thumbnail' => route('projects.documents.thumbnail', ['project' => $this->id, 'media' => $mediaItem->id]),
-                            'preview' => route('projects.documents.preview', ['project' => $this->id, 'media' => $mediaItem->id])
+                            'thumbnail' => route('media.projects.documents.thumbnail', ['project' => $this->id, 'media' => $mediaItem->id]),
+                            'preview' => route('media.projects.documents.preview', ['project' => $this->id, 'media' => $mediaItem->id])
                         ] : null,
                     ];
                 });
@@ -57,12 +57,12 @@ class ProjectResource extends JsonResource
                         'file_name' => $mediaItem->file_name,
                         'mime_type' => $mediaItem->mime_type,
                         'size' => $mediaItem->size,
-                        'url' => route('projects.documents.download', ['project' => $this->id, 'media' => $mediaItem->id]),
+                        'url' => route('media.projects.documents.serve', ['project' => $this->id, 'media' => $mediaItem->id]),
                         'collection' => $mediaItem->collection_name,
                         'created_at' => $mediaItem->created_at,
                         'conversions' => $mediaItem->hasGeneratedConversion('thumbnail') ? [
-                            'thumbnail' => route('projects.documents.thumbnail', ['project' => $this->id, 'media' => $mediaItem->id]),
-                            'preview' => route('projects.documents.preview', ['project' => $this->id, 'media' => $mediaItem->id])
+                            'thumbnail' => route('media.projects.documents.thumbnail', ['project' => $this->id, 'media' => $mediaItem->id]),
+                            'preview' => route('media.projects.documents.preview', ['project' => $this->id, 'media' => $mediaItem->id])
                         ] : null,
                     ];
                 });

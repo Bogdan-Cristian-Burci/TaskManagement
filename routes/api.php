@@ -61,6 +61,14 @@ Route::prefix('two-factor')->middleware('auth:api')->group(function () {
 Route::get('auth/{provider}', [OAuthSocialController::class, 'redirectToProvider'])->name('oauth.redirect');
 Route::get('auth/{provider}/callback', [OAuthSocialController::class, 'handleProviderCallback'])->name('oauth.callback');
 Route::get('auth/providers', [OAuthSocialController::class, 'providers'])->name('oauth.providers');
+
+// Public media serving routes (no authentication required for frontend access)
+Route::prefix('media')->group(function () {
+    Route::get('/projects/{project}/documents/{media}', [ProjectController::class, 'servePublicMedia'])->name('media.projects.documents.serve');
+    Route::get('/projects/{project}/documents/{media}/thumbnail', [ProjectController::class, 'servePublicThumbnail'])->name('media.projects.documents.thumbnail');
+    Route::get('/projects/{project}/documents/{media}/preview', [ProjectController::class, 'servePublicPreview'])->name('media.projects.documents.preview');
+});
+
 // Protected routes
 //*PUT and PATCH methods are not Laravel default methods for updating resources, so we use POST method to update resources*//
 Route::middleware(['auth:api','org.context'])->group(function () {

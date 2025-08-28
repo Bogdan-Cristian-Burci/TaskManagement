@@ -534,8 +534,12 @@ class ProjectController extends Controller
                     'file_name' => $media->file_name,
                     'mime_type' => $media->mime_type,
                     'size' => $media->size,
-                    'url' => $media->getUrl(),
+                    'url' => route('media.projects.documents.serve', ['project' => $project->id, 'media' => $media->id]),
                     'collection' => $collection,
+                    'conversions' => $media->hasGeneratedConversion('thumbnail') ? [
+                        'thumbnail' => route('media.projects.documents.thumbnail', ['project' => $project->id, 'media' => $media->id]),
+                        'preview' => route('media.projects.documents.preview', ['project' => $project->id, 'media' => $media->id])
+                    ] : null,
                 ];
             }
 
@@ -561,16 +565,20 @@ class ProjectController extends Controller
     {
         $collection = $request->input('collection', 'documents');
         
-        $media = $project->getMedia($collection)->map(function ($mediaItem) {
+        $media = $project->getMedia($collection)->map(function ($mediaItem) use ($project) {
             return [
                 'id' => $mediaItem->id,
                 'name' => $mediaItem->name,
                 'file_name' => $mediaItem->file_name,
                 'mime_type' => $mediaItem->mime_type,
                 'size' => $mediaItem->size,
-                'url' => $mediaItem->getUrl(),
+                'url' => route('media.projects.documents.serve', ['project' => $project->id, 'media' => $mediaItem->id]),
                 'collection' => $mediaItem->collection_name,
                 'created_at' => $mediaItem->created_at,
+                'conversions' => $mediaItem->hasGeneratedConversion('thumbnail') ? [
+                    'thumbnail' => route('media.projects.documents.thumbnail', ['project' => $project->id, 'media' => $mediaItem->id]),
+                    'preview' => route('media.projects.documents.preview', ['project' => $project->id, 'media' => $mediaItem->id])
+                ] : null,
             ];
         });
 
@@ -727,6 +735,85 @@ class ProjectController extends Controller
         return response()->file($previewPath, [
             'Content-Type' => 'image/jpeg',
             'Content-Disposition' => 'inline'
+        ]);
+    }
+
+    /**
+     * Serve media files publicly for frontend access (no authentication required).
+     *
+     * @param Project $project
+     * @param Media $media
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function servePublicMedia(Project $project, Media $media)
+    {
+        return $this->serveMediaFile($project, $media, false);
+    }
+
+    /**
+     * Serve thumbnail publicly for frontend access (no authentication required).
+     *
+     * @param Project $project
+     * @param Media $media
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function servePublicThumbnail(Project $project, Media $media)
+    {
+        return $this->serveMediaFile($project, $media, 'thumbnail');
+    }
+
+    /**
+     * Serve preview publicly for frontend access (no authentication required).
+     *
+     * @param Project $project
+     * @param Media $media
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function servePublicPreview(Project $project, Media $media)
+    {
+        return $this->serveMediaFile($project, $media, 'preview');
+    }
+
+    /**
+     * Common method to serve media files with CORS headers for frontend access.
+     *
+     * @param Project $project
+     * @param Media $media
+     * @param string|false $conversion - false for original file, string for conversion name
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    private function serveMediaFile(Project $project, Media $media, $conversion = false)
+    {
+        // Verify the media belongs to this project
+        if ($media->model_id !== $project->id || $media->model_type !== Project::class) {
+            abort(404, 'Document not found for this project');
+        }
+
+        // Get the file path based on conversion type
+        if ($conversion) {
+            // Check if conversion exists
+            if (!$media->hasGeneratedConversion($conversion)) {
+                abort(404, ucfirst($conversion) . ' not available for this document');
+            }
+            $filePath = $media->getPath($conversion);
+            $contentType = $conversion === 'thumbnail' || $conversion === 'preview' ? 'image/jpeg' : $media->mime_type;
+        } else {
+            $filePath = $media->getPath();
+            $contentType = $media->mime_type;
+        }
+        
+        if (!file_exists($filePath)) {
+            abort(404, 'File not found on disk');
+        }
+
+        // Return the file with CORS headers for frontend access
+        return response()->file($filePath, [
+            'Content-Type' => $contentType,
+            'Content-Disposition' => 'inline; filename="' . $media->file_name . '"',
+            'Access-Control-Allow-Origin' => '*',
+            'Access-Control-Allow-Methods' => 'GET',
+            'Access-Control-Allow-Headers' => 'Content-Type',
+            'Cache-Control' => 'public, max-age=31536000', // Cache for 1 year
         ]);
     }
 }
