@@ -338,15 +338,11 @@ class Project extends Model implements HasMedia
     {
         $this->addMediaCollection('documents')
             ->acceptsMimeTypes(config('media.project_documents.allowed_mime_types'))
-            ->singleFile(false)
-            ->useDisk(config('media.project_documents.collections.documents.disk', 'public'))
-            ->usePath(config('media.project_documents.collections.documents.path', 'project-documents'));
+            ->singleFile(false);
 
         $this->addMediaCollection('attachments')
             ->acceptsMimeTypes(config('media.project_documents.allowed_mime_types'))
-            ->singleFile(false)
-            ->useDisk(config('media.project_documents.collections.attachments.disk', 'public'))
-            ->usePath(config('media.project_documents.collections.attachments.path', 'project-attachments'));
+            ->singleFile(false);
     }
 
     /**
@@ -362,14 +358,14 @@ class Project extends Model implements HasMedia
             $this->addMediaConversion('thumbnail')
                 ->width(150)
                 ->height(150)
-                ->crop('center', 'center')
+                ->crop(150, 150)
                 ->optimize()
                 ->nonQueued();
 
             $this->addMediaConversion('preview')
                 ->width(500)
                 ->height(500)
-                ->crop('center', 'center')
+                ->crop(500, 500)
                 ->optimize()
                 ->nonQueued();
         }

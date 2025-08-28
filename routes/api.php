@@ -190,6 +190,11 @@ Route::middleware(['auth:api','org.context'])->group(function () {
         Route::post('/{project}/documents', [ProjectController::class, 'uploadMedia'])->name('projects.documents.upload');
         Route::get('/{project}/documents', [ProjectController::class, 'getMedia'])->name('projects.documents.index');
         Route::delete('/{project}/documents/{media}', [ProjectController::class, 'deleteMedia'])->name('projects.documents.delete');
+        
+        // Document viewing/downloading with authentication
+        Route::get('/{project}/documents/{media}/download', [ProjectController::class, 'downloadDocument'])->name('projects.documents.download');
+        Route::get('/{project}/documents/{media}/thumbnail', [ProjectController::class, 'getDocumentThumbnail'])->name('projects.documents.thumbnail');
+        Route::get('/{project}/documents/{media}/preview', [ProjectController::class, 'getDocumentPreview'])->name('projects.documents.preview');
 
     });
 

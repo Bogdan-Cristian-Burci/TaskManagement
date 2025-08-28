@@ -25,9 +25,9 @@ class ProjectController extends Controller
 
     public function __construct(ProjectService $projectService)
     {
-        $this->middleware('auth:api');
+        $this->middleware('auth:api')->except(['downloadDocument', 'getDocumentThumbnail', 'getDocumentPreview']);
         $this->authorizeResource(Project::class, 'project', [
-            'except' => ['index', 'store']
+            'except' => ['index', 'store', 'downloadDocument', 'getDocumentThumbnail', 'getDocumentPreview']
         ]);
         $this->projectService = $projectService;
     }
@@ -501,6 +501,12 @@ class ProjectController extends Controller
             ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
 
+        if (!$request->hasFile('files')) {
+            return response()->json([
+                'message' => 'No files found in request. Ensure Content-Type is multipart/form-data, not application/json.'
+            ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
+        }
+
         $request->validate([
             'files' => "required|array|max:{$newFileCount}",
             'files.*' => [
@@ -517,18 +523,18 @@ class ProjectController extends Controller
             $uploadedFiles = [];
 
             foreach ($request->file('files') as $file) {
-                $media = $project->addMediaFromRequest('files')
-                    ->each(function ($fileAdder) use ($collection) {
-                        $fileAdder->toMediaCollection($collection);
-                    });
+                $media = $project->addMedia($file)
+                    ->usingName($file->getClientOriginalName())
+                    ->usingFileName($file->getClientOriginalName())
+                    ->toMediaCollection($collection);
 
                 $uploadedFiles[] = [
-                    'id' => $media->first()->id,
-                    'name' => $media->first()->name,
-                    'file_name' => $media->first()->file_name,
-                    'mime_type' => $media->first()->mime_type,
-                    'size' => $media->first()->size,
-                    'url' => $media->first()->getUrl(),
+                    'id' => $media->id,
+                    'name' => $media->name,
+                    'file_name' => $media->file_name,
+                    'mime_type' => $media->mime_type,
+                    'size' => $media->size,
+                    'url' => $media->getUrl(),
                     'collection' => $collection,
                 ];
             }
@@ -602,5 +608,125 @@ class ProjectController extends Controller
                 'message' => 'Failed to delete media file: ' . $e->getMessage()
             ], ResponseAlias::HTTP_UNPROCESSABLE_ENTITY);
         }
+    }
+
+    /**
+     * Download/view a document from a project.
+     *
+     * @param Project $project
+     * @param Media $media
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function downloadDocument(Project $project, Media $media)
+    {
+        // Check if user is authenticated via API or web
+        if (!auth()->guard('api')->check() && !auth()->check()) {
+            if (request()->expectsJson() || request()->is('api/*')) {
+                return response()->json(['message' => 'Unauthenticated'], 401);
+            }
+            return redirect()->route('login');
+        }
+
+        $this->authorize('view', $project);
+
+        // Verify the media belongs to this project
+        if ($media->model_id !== $project->id || $media->model_type !== Project::class) {
+            abort(404, 'Document not found for this project');
+        }
+
+        // Get the full file path
+        $filePath = $media->getPath();
+        
+        if (!file_exists($filePath)) {
+            abort(404, 'File not found on disk');
+        }
+
+        // Return the file for inline viewing or download
+        return response()->file($filePath, [
+            'Content-Type' => $media->mime_type,
+            'Content-Disposition' => 'inline; filename="' . $media->file_name . '"'
+        ]);
+    }
+
+    /**
+     * Get document thumbnail.
+     *
+     * @param Project $project
+     * @param Media $media
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function getDocumentThumbnail(Project $project, Media $media)
+    {
+        // Check if user is authenticated via API or web
+        if (!auth()->guard('api')->check() && !auth()->check()) {
+            if (request()->expectsJson() || request()->is('api/*')) {
+                return response()->json(['message' => 'Unauthenticated'], 401);
+            }
+            return redirect()->route('login');
+        }
+
+        $this->authorize('view', $project);
+
+        // Verify the media belongs to this project
+        if ($media->model_id !== $project->id || $media->model_type !== Project::class) {
+            abort(404, 'Document not found for this project');
+        }
+
+        // Check if thumbnail conversion exists
+        if (!$media->hasGeneratedConversion('thumbnail')) {
+            abort(404, 'Thumbnail not available for this document');
+        }
+
+        $thumbnailPath = $media->getPath('thumbnail');
+        
+        if (!file_exists($thumbnailPath)) {
+            abort(404, 'Thumbnail file not found on disk');
+        }
+
+        return response()->file($thumbnailPath, [
+            'Content-Type' => 'image/jpeg',
+            'Content-Disposition' => 'inline'
+        ]);
+    }
+
+    /**
+     * Get document preview.
+     *
+     * @param Project $project
+     * @param Media $media
+     * @return \Symfony\Component\HttpFoundation\BinaryFileResponse
+     */
+    public function getDocumentPreview(Project $project, Media $media)
+    {
+        // Check if user is authenticated via API or web
+        if (!auth()->guard('api')->check() && !auth()->check()) {
+            if (request()->expectsJson() || request()->is('api/*')) {
+                return response()->json(['message' => 'Unauthenticated'], 401);
+            }
+            return redirect()->route('login');
+        }
+
+        $this->authorize('view', $project);
+
+        // Verify the media belongs to this project
+        if ($media->model_id !== $project->id || $media->model_type !== Project::class) {
+            abort(404, 'Document not found for this project');
+        }
+
+        // Check if preview conversion exists
+        if (!$media->hasGeneratedConversion('preview')) {
+            abort(404, 'Preview not available for this document');
+        }
+
+        $previewPath = $media->getPath('preview');
+        
+        if (!file_exists($previewPath)) {
+            abort(404, 'Preview file not found on disk');
+        }
+
+        return response()->file($previewPath, [
+            'Content-Type' => 'image/jpeg',
+            'Content-Disposition' => 'inline'
+        ]);
     }
 }
